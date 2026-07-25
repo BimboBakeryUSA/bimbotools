@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Bimbo Tools</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#c0392b" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Bimbo Tools</h1>
+  </header>
+
+  <main>
+    <p style="color:var(--gray); margin-top: 20px;">
+      Optimizador de Ruta — entra con tu rol para continuar. (Sin login real todavía;
+      esto se conecta a autenticación cuando se migre a Supabase.)
+    </p>
+
+    <div class="role-grid" id="roleGrid"></div>
+
+    <div class="pending-note">
+      Pendiente: autenticación real por usuario/rol. Por ahora se simula eligiendo
+      el usuario de la lista.
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script>
+    async function render() {
+      await BimboData.init();
+      const grid = document.getElementById("roleGrid");
+      const usuarios = BimboData.getUsuarios();
+
+      grid.innerHTML = usuarios
+        .map((u) => {
+          const href =
+            u.rol === "IBP"
+              ? `ibp.html?u=${u.id}`
+              : u.rol === "MSL"
+              ? `msl.html?u=${u.id}`
+              : `admin.html`;
+          const rolLabel =
+            u.rol === "IBP" ? "IBP · Ruta de campo" : u.rol === "MSL" ? "Manager MSL · Dashboard" : "Administrador";
+          return `
+            <a class="role-card" href="${href}">
+              <h2>${u.nombre}</h2>
+              <p>${rolLabel}</p>
+            </a>
+          `;
+        })
+        .join("") +
+        `<a class="role-card" href="admin.html">
+           <h2>Administrador</h2>
+           <p>Cargar clientes y % de frescura</p>
+         </a>`;
+    }
+    render();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

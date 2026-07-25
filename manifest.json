@@ -1,0 +1,15 @@
+{
+  "name": "Bimbo Tools — Optimizador de Ruta",
+  "short_name": "Bimbo Tools",
+  "description": "Ruta optimizada para IBPs y dashboard de cumplimiento para Managers MSL.",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f2f2f2",
+  "theme_color": "#c0392b",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

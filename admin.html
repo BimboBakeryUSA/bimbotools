@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Admin — Bimbo Tools</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#c0392b" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html">&larr;</a>
+    <h1>Administrador</h1>
+    <span></span>
+  </header>
+
+  <main>
+    <div class="pill-select" id="tabs">
+      <a class="pill active" data-tab="clientes">Clientes</a>
+      <a class="pill" data-tab="importar">Importar CSV</a>
+      <a class="pill" data-tab="frescura">% Frescura</a>
+      <a class="pill" data-tab="historial">Historial de cambios</a>
+    </div>
+
+    <div id="tabClientes">
+      <div class="card">
+        <strong>Alta manual de cliente</strong>
+        <label class="field">Nombre
+          <input type="text" id="fNombre" placeholder="Tienda La Esquina" />
+        </label>
+        <label class="field">Dirección
+          <input type="text" id="fDireccion" placeholder="Calle, ciudad" />
+        </label>
+        <label class="field">Ruta
+          <select id="fRuta"></select>
+        </label>
+        <label class="field">Frecuencia
+          <select id="fFrecuencia">
+            <option value="semanal">Semanal</option>
+            <option value="bisemanal">Bisemanal</option>
+            <option value="quincenal">Quincenal</option>
+          </select>
+        </label>
+        <label class="field">Día de visita (esta semana)
+          <select id="fDia">
+            <option>lunes</option><option>martes</option><option>miercoles</option>
+            <option>jueves</option><option>viernes</option><option>sabado</option>
+          </select>
+        </label>
+        <label class="field">Latitud <input type="text" id="fLat" placeholder="pendiente sin API de geocodificación" /></label>
+        <label class="field">Longitud <input type="text" id="fLng" placeholder="pendiente sin API de geocodificación" /></label>
+        <button class="btn btn-primary" style="margin-top:14px;" id="btnAlta">Agregar cliente</button>
+      </div>
+
+      <div class="card">
+        <strong>Clientes cargados</strong>
+        <table class="data-table" id="tablaClientes"></table>
+      </div>
+    </div>
+
+    <div id="tabImportar" style="display:none;">
+      <div class="card">
+        <strong>Importar clientes (CSV)</strong>
+        <p style="font-size:12px; color:var(--gray);">
+          Columnas esperadas: <code>nombre,direccion,rutaId,frecuencia,dia,lat,lng</code>.
+          Si faltan lat/lng, el cliente queda marcado como "geocodificación pendiente"
+          (hoy no hay API key de Google Geocoding conectada).
+        </p>
+        <input type="file" id="fileCsv" accept=".csv" />
+        <div id="resultadoImport" style="margin-top:10px; font-size:13px;"></div>
+      </div>
+    </div>
+
+    <div id="tabFrescura" style="display:none;">
+      <div class="card">
+        <strong>Cargar % de frescura por cliente</strong>
+        <p style="font-size:12px; color:var(--gray);">
+          Se carga el % ya calculado (no ventas/devoluciones en crudo). El promedio
+          por ruta/IBP se calcula simple sobre estos valores.
+        </p>
+        <div id="listaFrescura"></div>
+      </div>
+    </div>
+
+    <div id="tabHistorial" style="display:none;">
+      <div class="card">
+        <strong>Historial de movimientos de clientes entre días</strong>
+        <div id="listaHistorial"></div>
+      </div>
+    </div>
+
+    <div class="pending-note">
+      Pendiente: definir si este panel lo usa el mismo Manager MSL o un rol de
+      back-office aparte (spec §2).
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script>
+    async function render() {
+      await BimboData.init();
+
+      const selectRuta = document.getElementById("fRuta");
+      selectRuta.innerHTML = BimboData.getRutas().map((r) => `<option value="${r.id}">${r.nombre}</option>`).join("");
+
+      renderTablaClientes();
+      renderFrescura();
+      renderHistorial();
+    }
+
+    function renderTablaClientes() {
+      const clientes = BimboData.getClientes();
+      const tabla = document.getElementById("tablaClientes");
+      tabla.innerHTML = `
+        <thead><tr><th>Nombre</th><th>Ruta</th><th>Frecuencia</th><th>Coordenadas</th></tr></thead>
+        <tbody>
+          ${clientes
+            .map((c) => {
+              const ruta = BimboData.getRuta(c.rutaId);
+              const coords = c.geocodificacionPendiente
+                ? `<span class="badge">Pendiente geocodificar</span>`
+                : `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`;
+              return `<tr><td>${c.nombre}</td><td>${ruta ? ruta.nombre : c.rutaId}</td><td>${c.frecuencia}</td><td>${coords}</td></tr>`;
+            })
+            .join("")}
+        </tbody>
+      `;
+    }
+
+    function renderFrescura() {
+      const clientes = BimboData.getClientes();
+      const cont = document.getElementById("listaFrescura");
+      cont.innerHTML = clientes
+        .map((c) => {
+          const pct = c.frescura != null ? Math.round(c.frescura * 100) : "";
+          return `
+            <div class="stop">
+              <div class="stop-body">
+                <strong>${c.nombre}</strong>
+                <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                  <input type="text" style="width:80px;" value="${pct}" id="fresc-${c.id}" />
+                  <span>%</span>
+                  <button class="btn btn-primary btn-small" onclick="guardarFrescura('${c.id}')">Guardar</button>
+                </div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    function guardarFrescura(clienteId) {
+      const val = document.getElementById(`fresc-${clienteId}`).value;
+      const num = Math.max(0, Math.min(100, Number(val))) / 100;
+      BimboData.cargarFrescuraAdmin(clienteId, num);
+      render();
+    }
+
+    function renderHistorial() {
+      const historial = BimboData.getHistorial();
+      const cont = document.getElementById("listaHistorial");
+      cont.innerHTML = historial.length
+        ? historial
+            .map(
+              (h) => `
+          <div class="notif">
+            <strong>${h.clienteNombre}</strong>: ${h.de} → ${h.a} (por ${h.quien})
+            <span class="cuando">${new Date(h.cuando).toLocaleString()}</span>
+          </div>`
+            )
+            .join("")
+        : `<div class="empty-state">Sin movimientos todavía.</div>`;
+    }
+
+    document.getElementById("btnAlta").addEventListener("click", () => {
+      const nombre = document.getElementById("fNombre").value.trim();
+      if (!nombre) return alert("Falta el nombre del cliente.");
+      BimboData.agregarClienteAdmin({
+        nombre,
+        direccion: document.getElementById("fDireccion").value.trim(),
+        rutaId: document.getElementById("fRuta").value,
+        frecuencia: document.getElementById("fFrecuencia").value,
+        diasSemana: [document.getElementById("fDia").value],
+        lat: document.getElementById("fLat").value,
+        lng: document.getElementById("fLng").value,
+      });
+      document.getElementById("fNombre").value = "";
+      document.getElementById("fDireccion").value = "";
+      document.getElementById("fLat").value = "";
+      document.getElementById("fLng").value = "";
+      render();
+    });
+
+    document.getElementById("fileCsv").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const lineas = reader.result.split(/\r?\n/).filter(Boolean);
+        const header = lineas[0].split(",").map((h) => h.trim());
+        let agregados = 0;
+        for (let i = 1; i < lineas.length; i++) {
+          const valores = lineas[i].split(",");
+          const fila = {};
+          header.forEach((h, idx) => (fila[h] = (valores[idx] || "").trim()));
+          if (!fila.nombre) continue;
+          BimboData.agregarClienteAdmin({
+            nombre: fila.nombre,
+            direccion: fila.direccion,
+            rutaId: fila.rutaId,
+            frecuencia: fila.frecuencia,
+            diasSemana: fila.dia ? [fila.dia] : undefined,
+            lat: fila.lat,
+            lng: fila.lng,
+          });
+          agregados++;
+        }
+        document.getElementById("resultadoImport").textContent = `${agregados} clientes importados.`;
+        render();
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById("tabs").addEventListener("click", (e) => {
+      const el = e.target.closest(".pill");
+      if (!el) return;
+      document.querySelectorAll("#tabs .pill").forEach((p) => p.classList.remove("active"));
+      el.classList.add("active");
+      ["clientes", "importar", "frescura", "historial"].forEach((t) => {
+        document.getElementById("tab" + t[0].toUpperCase() + t.slice(1)).style.display =
+          t === el.dataset.tab ? "block" : "none";
+      });
+    });
+
+    render();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

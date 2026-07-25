@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mi Ruta — Bimbo Tools</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#c0392b" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" id="linkVolver">&larr;</a>
+    <h1 id="titulo">Mi Ruta</h1>
+    <a class="back" href="#" id="btnNotif">🔔 <span id="notifCount"></span></a>
+  </header>
+
+  <main>
+    <div class="card" id="notifPanel" style="display:none;"></div>
+
+    <div class="card">
+      <strong id="rutaNombre">—</strong>
+      <div class="kpi-row">
+        <div class="kpi"><div class="num" id="kpiTotal">0</div><div class="label">clientes hoy</div></div>
+        <div class="kpi"><div class="num" id="kpiVisitados">0</div><div class="label">visitados</div></div>
+        <div class="kpi"><div class="num" id="kpiPendientes">0</div><div class="label">pendientes</div></div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <p style="font-size:12px; color:var(--gray); margin-top:8px;" id="geoStatus">
+        Ubicación: pidiendo permiso...
+      </p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>Paradas de hoy</strong>
+        <button class="btn btn-secondary btn-small" id="btnAgregar">+ Agregar cliente</button>
+      </div>
+      <div id="listaParadas"></div>
+    </div>
+
+    <div class="card" id="panelAgregar" style="display:none;">
+      <strong>Agregar cliente a la ruta de hoy</strong>
+      <p style="font-size:12px; color:var(--gray);">
+        Si el cliente ya estaba pautado para otro día esta semana, se mueve
+        automático a hoy y se te notifica.
+      </p>
+      <div id="listaAgregar"></div>
+    </div>
+
+    <div class="pending-note">
+      Pendiente: reemplazar el orden por vecino más cercano con un motor de
+      ruteo real (Google Directions / OSRM) cuando haya API key.
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/geo.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const ibpId = params.get("u") || "ibp-1";
+    const viendoComoMSL = params.get("rol") === "MSL";
+    const quienEdita = viendoComoMSL ? "MSL" : "IBP";
+    const volverA = viendoComoMSL ? `msl.html?u=${params.get("msl") || "msl-1"}` : "index.html";
+
+    async function render() {
+      await BimboData.init();
+      const usuario = BimboData.getUsuario(ibpId);
+      document.getElementById("titulo").textContent =
+        (usuario ? usuario.nombre : "Mi Ruta") + (viendoComoMSL ? " (vista MSL)" : "");
+      document.getElementById("linkVolver").href = volverA;
+
+      const { ruta, paradas } = BimboData.getRutaDelDia(ibpId);
+      document.getElementById("rutaNombre").textContent = ruta ? ruta.nombre : "Sin ruta asignada";
+
+      const total = paradas.length;
+      const visitados = paradas.filter((p) => p.visitada).length;
+      document.getElementById("kpiTotal").textContent = total;
+      document.getElementById("kpiVisitados").textContent = visitados;
+      document.getElementById("kpiPendientes").textContent = total - visitados;
+      document.getElementById("progressFill").style.width = total ? `${(visitados / total) * 100}%` : "0%";
+
+      const lista = document.getElementById("listaParadas");
+      if (!paradas.length) {
+        lista.innerHTML = `<div class="empty-state">No hay clientes pautados para hoy.</div>`;
+      } else {
+        lista.innerHTML = paradas
+          .map((p) => {
+            const sem = BimboData.semaforoFrescura(p.cliente.frescura);
+            const frescuraPct = p.cliente.frescura != null ? Math.round(p.cliente.frescura * 100) + "%" : "—";
+            return `
+              <div class="stop ${p.visitada ? "visitada" : ""}" data-id="${p.cliente.id}">
+                <div class="stop-order">${p.visitada ? "✓" : p.orden}</div>
+                <div class="stop-body">
+                  <strong><span class="semaforo ${sem}"></span>${p.cliente.nombre}</strong>
+                  <span class="dir">${p.cliente.direccion}</span>
+                  <span class="badge">Frescura ${frescuraPct}</span>
+                  ${p.visitada ? `<span class="badge">Visitado por ${p.metodoVisita}</span>` : ""}
+                  <div class="stop-actions">
+                    ${
+                      p.visitada
+                        ? `<button class="btn btn-secondary btn-small" onclick="desmarcar('${p.cliente.id}')">Deshacer</button>`
+                        : `<button class="btn btn-primary btn-small" onclick="marcar('${p.cliente.id}')">Marcar visitado</button>
+                           <button class="btn btn-secondary btn-small" onclick="quitar('${p.cliente.id}')">Quitar de hoy</button>`
+                    }
+                  </div>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      renderNotificaciones();
+      renderPanelAgregar(ruta);
+    }
+
+    function renderNotificaciones() {
+      const notifs = BimboData.getNotificaciones(ibpId);
+      const noLeidas = notifs.filter((n) => !n.leida).length;
+      document.getElementById("notifCount").textContent = noLeidas ? `(${noLeidas})` : "";
+      const panel = document.getElementById("notifPanel");
+      panel.innerHTML =
+        `<strong>Notificaciones</strong>` +
+        (notifs.length
+          ? notifs
+              .map(
+                (n) => `<div class="notif">${n.mensaje}<span class="cuando">${new Date(n.cuando).toLocaleString()}</span></div>`
+              )
+              .join("")
+          : `<p style="font-size:13px; color:var(--gray);">Sin notificaciones.</p>`);
+    }
+
+    function renderPanelAgregar(ruta) {
+      if (!ruta) return;
+      const { paradas } = BimboData.getRutaDelDia(ibpId);
+      const idsHoy = new Set(paradas.map((p) => p.cliente.id));
+      const disponibles = BimboData.getClientesDeRuta(ruta.id).filter((c) => !idsHoy.has(c.id));
+      const lista = document.getElementById("listaAgregar");
+      lista.innerHTML = disponibles.length
+        ? disponibles
+            .map(
+              (c) => `
+          <div class="stop">
+            <div class="stop-body">
+              <strong>${c.nombre}</strong>
+              <span class="dir">${c.direccion}</span>
+              <div class="stop-actions">
+                <button class="btn btn-primary btn-small" onclick="agregar('${c.id}')">Agregar a hoy</button>
+              </div>
+            </div>
+          </div>`
+            )
+            .join("")
+        : `<div class="empty-state">Todos los clientes de tu ruta ya están en la lista de hoy.</div>`;
+    }
+
+    function marcar(id) {
+      BimboData.marcarVisitado(id, "manual");
+      render();
+    }
+    function desmarcar(id) {
+      BimboData.desmarcarVisitado(id);
+      render();
+    }
+    function agregar(id) {
+      BimboData.agregarClienteAHoy(id, quienEdita);
+      document.getElementById("panelAgregar").style.display = "none";
+      render();
+    }
+    function quitar(id) {
+      BimboData.quitarClienteDeHoy(id, quienEdita);
+      render();
+    }
+
+    document.getElementById("btnAgregar").addEventListener("click", () => {
+      const panel = document.getElementById("panelAgregar");
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+    });
+
+    document.getElementById("btnNotif").addEventListener("click", (e) => {
+      e.preventDefault();
+      const panel = document.getElementById("notifPanel");
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+      if (panel.style.display === "block") {
+        BimboData.marcarNotificacionesLeidas(ibpId);
+        renderNotificaciones();
+      }
+    });
+
+    render().then(() => {
+      BimboGeo.iniciarGeofence({
+        onCerca: (clienteId) => {
+          BimboData.marcarVisitado(clienteId, "geofence");
+          render();
+        },
+        getPendientes: () => {
+          const { paradas } = BimboData.getRutaDelDia(ibpId);
+          return paradas.filter((p) => !p.visitada).map((p) => p.cliente);
+        },
+        onEstado: (msg) => {
+          document.getElementById("geoStatus").textContent = msg;
+        },
+      });
+    });
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
