@@ -44,21 +44,44 @@
         cont.innerHTML = ibps
           .map((ibp) => {
             const { total, visitadas, pendientes } = BimboData.getCumplimientoIbp(ibp.id);
+            const semanal = BimboData.getProgresoSemanalIbp(ibp.id);
+            const porDia = BimboData.getProgresoSemanalPorDia(ibp.id);
             const frescura = BimboData.getFrescuraIbp(ibp.id);
             const sem = BimboData.semaforoFrescura(frescura);
             const pct = frescura != null ? Math.round(frescura * 100) + "%" : "—";
+            const pctSemanal = semanal.total ? Math.round((semanal.visitados / semanal.total) * 100) : 0;
             return `
               <a class="card" style="display:block; text-decoration:none; color:inherit;" href="ibp.html?u=${ibp.id}&rol=MSL&msl=${mslId}">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <strong>${ibp.nombre}</strong>
                   <span class="badge"><span class="semaforo ${sem}"></span>Frescura ${pct}</span>
                 </div>
+
+                <div class="seccion-label">Hoy</div>
                 <div class="kpi-row">
                   <div class="kpi"><div class="num">${total}</div><div class="label">clientes hoy</div></div>
                   <div class="kpi"><div class="num">${visitadas}</div><div class="label">visitados</div></div>
                   <div class="kpi"><div class="num">${pendientes}</div><div class="label">pendientes</div></div>
                 </div>
                 <div class="progress-bar"><div class="progress-fill" style="width:${total ? (visitadas / total) * 100 : 0}%"></div></div>
+
+                <div class="seccion-label">Progreso semanal — ${semanal.visitados}/${semanal.total} (${pctSemanal}%)</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pctSemanal}%"></div></div>
+                <div class="dia-chips" style="margin-top:8px;">
+                  ${porDia
+                    .map((d) => {
+                      const completo = d.total > 0 && d.visitados === d.total;
+                      const clases = [d.esHoy ? "hoy" : "", completo ? "completo" : ""].join(" ");
+                      const etiqueta = d.dia.slice(0, 3);
+                      return `
+                        <div class="dia-chip ${clases}">
+                          <span class="dia-label">${etiqueta}</span>
+                          <span class="dia-frac">${d.visitados}/${d.total}</span>
+                        </div>
+                      `;
+                    })
+                    .join("")}
+                </div>
               </a>
             `;
           })
@@ -74,6 +97,8 @@
             const sem = BimboData.semaforoFrescura(frescura);
             const pct = frescura != null ? Math.round(frescura * 100) + "%" : "—";
             const clientes = BimboData.getClientesDeRuta(ruta.id);
+            const semanal = BimboData.getProgresoSemanalRuta(ruta.id);
+            const pctSemanal = semanal.total ? Math.round((semanal.visitados / semanal.total) * 100) : 0;
             return `
               <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -83,6 +108,8 @@
                 <p style="font-size:13px; color:var(--gray); margin:6px 0 0;">
                   IBP: ${ibp.nombre} · ${clientes.length} clientes en la ruta
                 </p>
+                <div class="seccion-label">Progreso semanal — ${semanal.visitados}/${semanal.total} (${pctSemanal}%)</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pctSemanal}%"></div></div>
               </div>
             `;
           })

@@ -371,6 +371,54 @@ function getCumplimientoIbp(ibpId) {
 }
 
 // ---------------------------------------------------------------------------
+// Progreso SEMANAL (para el dashboard del MSL — no solo "hoy").
+// Cada cliente tiene un único día efectivo esta semana (_diaEfectivo), así
+// que el total semanal de una ruta es simplemente sus clientes activos; un
+// cliente cuenta como visitado esta semana si su última visita registrada
+// cae dentro de la semana actual (lunes de esta semana en adelante).
+// ---------------------------------------------------------------------------
+
+function _lunesDeEstaSemana() {
+  const hoy = new Date();
+  const diaSemana = hoy.getDay(); // 0=domingo..6=sabado
+  const offset = diaSemana === 0 ? -6 : 1 - diaSemana;
+  const lunes = new Date(hoy);
+  lunes.setDate(hoy.getDate() + offset);
+  lunes.setHours(0, 0, 0, 0);
+  return lunes;
+}
+
+function _visitadoEstaSemana(clienteId) {
+  const v = _estado.visitas[clienteId];
+  if (!v || !v.visitada) return false;
+  return new Date(v.fecha) >= _lunesDeEstaSemana();
+}
+
+function getProgresoSemanalRuta(rutaId) {
+  const clientes = getClientesDeRuta(rutaId);
+  const visitados = clientes.filter((c) => _visitadoEstaSemana(c.id)).length;
+  return { total: clientes.length, visitados, pendientes: clientes.length - visitados };
+}
+
+function getProgresoSemanalIbp(ibpId) {
+  const ruta = getRutaDeIbp(ibpId);
+  return ruta ? getProgresoSemanalRuta(ruta.id) : { total: 0, visitados: 0, pendientes: 0 };
+}
+
+// Desglose día por día de la semana (para mostrar chips Lun/Mar/.../Sáb con
+// cuántos de los clientes pautados ese día ya se visitaron).
+function getProgresoSemanalPorDia(ibpId) {
+  const ruta = getRutaDeIbp(ibpId);
+  if (!ruta) return [];
+  const diaHoy = _diaDeHoy();
+  return getDiasSemana().map((dia) => {
+    const clientesDia = getClientesDeRuta(ruta.id).filter((c) => _tocaEnDia(c, dia));
+    const visitados = clientesDia.filter((c) => _visitadoEstaSemana(c.id)).length;
+    return { dia, total: clientesDia.length, visitados, esHoy: dia === diaHoy };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Exportado global simple (sin bundler / sin módulos ES por compatibilidad
 // directa desde <script> normal en cada página).
 // ---------------------------------------------------------------------------
@@ -403,4 +451,7 @@ window.BimboData = {
   getFrescuraIbp,
   semaforoFrescura,
   getCumplimientoIbp,
+  getProgresoSemanalRuta,
+  getProgresoSemanalIbp,
+  getProgresoSemanalPorDia,
 };
