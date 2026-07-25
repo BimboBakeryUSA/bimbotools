@@ -441,6 +441,103 @@ table.data-table th {
   font-weight: 700;
 }
 
+/* ---- Edición rápida de clientes (panel admin) ---- */
+
+.cliente-card {
+  padding: 14px 16px;
+}
+
+.cliente-card .fila-top {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.input-inline {
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dark);
+  padding: 4px 6px;
+  border-radius: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.input-inline:hover,
+.input-inline:focus {
+  border-color: var(--border);
+  background: var(--gray-light);
+  outline: none;
+}
+
+.input-inline.direccion {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--gray);
+  width: 100%;
+  margin-top: 2px;
+}
+
+.fila-selects {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.fila-selects select {
+  margin-top: 0;
+  font-size: 12px;
+  padding: 6px;
+}
+
+.dias-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.dia-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--gray-light);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--gray);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.dia-pill input {
+  display: none;
+}
+
+.dia-pill.activo {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+.guardado-flash {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--verde);
+  margin-left: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.guardado-flash.mostrar {
+  opacity: 1;
+}
+
 .pending-note {
   background: #fff8e6;
   border-left: 4px solid var(--amarillo);

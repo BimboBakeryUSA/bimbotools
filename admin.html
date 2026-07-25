@@ -16,7 +16,7 @@
     <span></span>
   </header>
 
-  <main>
+  <main class="wide">
     <div class="pill-select" id="tabs">
       <a class="pill active" data-tab="clientes">Clientes</a>
       <a class="pill" data-tab="importar">Importar CSV</a>
@@ -38,16 +38,13 @@
         </label>
         <label class="field">Frecuencia
           <select id="fFrecuencia">
-            <option value="semanal">Semanal</option>
-            <option value="bisemanal">Bisemanal</option>
-            <option value="quincenal">Quincenal</option>
+            <option value="semanal">Semanal (1 día/semana)</option>
+            <option value="bisemanal">Bisemanal (2 días/semana)</option>
+            <option value="quincenal">Quincenal (1 día, cada 2 semanas — pendiente de programar el salto de semana)</option>
           </select>
         </label>
-        <label class="field">Día de visita (esta semana)
-          <select id="fDia">
-            <option>lunes</option><option>martes</option><option>miercoles</option>
-            <option>jueves</option><option>viernes</option><option>sabado</option>
-          </select>
+        <label class="field">Días de visita — para bisemanal marca 2
+          <div class="dias-pills" id="fDiasPills"></div>
         </label>
         <label class="field">Latitud <input type="text" id="fLat" placeholder="pendiente sin API de geocodificación" /></label>
         <label class="field">Longitud <input type="text" id="fLng" placeholder="pendiente sin API de geocodificación" /></label>
@@ -55,18 +52,24 @@
       </div>
 
       <div class="card">
-        <strong>Clientes cargados</strong>
-        <table class="data-table" id="tablaClientes"></table>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong>Clientes cargados</strong>
+          <span style="font-size:12px; color:var(--gray);">Un clic en cualquier campo lo guarda al toque</span>
+        </div>
       </div>
+
+      <div id="listaClientes"></div>
     </div>
 
     <div id="tabImportar" style="display:none;">
       <div class="card">
         <strong>Importar clientes (CSV)</strong>
         <p style="font-size:12px; color:var(--gray);">
-          Columnas esperadas: <code>nombre,direccion,rutaId,frecuencia,dia,lat,lng</code>.
-          Si faltan lat/lng, el cliente queda marcado como "geocodificación pendiente"
-          (hoy no hay API key de Google Geocoding conectada).
+          Columnas esperadas: <code>nombre,direccion,rutaId,frecuencia,dias,lat,lng</code>.
+          Para bisemanal, la columna <code>dias</code> acepta dos días separados por
+          "|" (ej. <code>lunes|jueves</code>). Si faltan lat/lng, el cliente queda
+          marcado como "geocodificación pendiente" (hoy no hay API key de Google
+          Geocoding conectada).
         </p>
         <input type="file" id="fileCsv" accept=".csv" />
         <div id="resultadoImport" style="margin-top:10px; font-size:13px;"></div>
@@ -99,34 +102,114 @@
 
   <script src="js/data.js"></script>
   <script>
+    let nuevoClienteDias = []; // días marcados en el formulario de alta (antes de tener id)
+
+    function renderDiasPillsFormulario() {
+      const cont = document.getElementById("fDiasPills");
+      cont.innerHTML = BimboData.getDiasSemana()
+        .map((d) => {
+          const activo = nuevoClienteDias.includes(d);
+          return `
+            <label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); toggleDiaFormulario('${d}')">
+              ${d.slice(0, 3)}
+            </label>
+          `;
+        })
+        .join("");
+    }
+
+    function toggleDiaFormulario(dia) {
+      nuevoClienteDias = nuevoClienteDias.includes(dia)
+        ? nuevoClienteDias.filter((d) => d !== dia)
+        : [...nuevoClienteDias, dia];
+      renderDiasPillsFormulario();
+    }
+
     async function render() {
       await BimboData.init();
 
       const selectRuta = document.getElementById("fRuta");
       selectRuta.innerHTML = BimboData.getRutas().map((r) => `<option value="${r.id}">${r.nombre}</option>`).join("");
+      if (!nuevoClienteDias.length) nuevoClienteDias = ["lunes"];
+      renderDiasPillsFormulario();
 
-      renderTablaClientes();
+      renderListaClientes();
       renderFrescura();
       renderHistorial();
     }
 
-    function renderTablaClientes() {
+    function renderListaClientes() {
       const clientes = BimboData.getClientes();
-      const tabla = document.getElementById("tablaClientes");
-      tabla.innerHTML = `
-        <thead><tr><th>Nombre</th><th>Ruta</th><th>Frecuencia</th><th>Coordenadas</th></tr></thead>
-        <tbody>
-          ${clientes
+      const rutas = BimboData.getRutas();
+      const dias = BimboData.getDiasSemana();
+      const cont = document.getElementById("listaClientes");
+
+      cont.innerHTML = clientes.length
+        ? clientes
             .map((c) => {
-              const ruta = BimboData.getRuta(c.rutaId);
               const coords = c.geocodificacionPendiente
                 ? `<span class="badge">Pendiente geocodificar</span>`
-                : `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`;
-              return `<tr><td>${c.nombre}</td><td>${ruta ? ruta.nombre : c.rutaId}</td><td>${c.frecuencia}</td><td>${coords}</td></tr>`;
+                : `<span class="badge">${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}</span>`;
+              return `
+                <div class="card cliente-card" data-id="${c.id}">
+                  <div class="fila-top">
+                    <input class="input-inline" value="${c.nombre}" onchange="guardarCampo('${c.id}','nombre',this.value)" />
+                    ${coords}
+                    <span class="guardado-flash" id="flash-${c.id}">Guardado ✓</span>
+                  </div>
+                  <input class="input-inline direccion" value="${c.direccion || ""}" placeholder="Dirección"
+                    onchange="guardarCampo('${c.id}','direccion',this.value)" />
+
+                  <div class="fila-selects">
+                    <select onchange="guardarCampo('${c.id}','rutaId',this.value)">
+                      ${rutas.map((r) => `<option value="${r.id}" ${r.id === c.rutaId ? "selected" : ""}>${r.nombre}</option>`).join("")}
+                    </select>
+                    <select onchange="guardarCampo('${c.id}','frecuencia',this.value)">
+                      <option value="semanal" ${c.frecuencia === "semanal" ? "selected" : ""}>Semanal</option>
+                      <option value="bisemanal" ${c.frecuencia === "bisemanal" ? "selected" : ""}>Bisemanal</option>
+                      <option value="quincenal" ${c.frecuencia === "quincenal" ? "selected" : ""}>Quincenal</option>
+                    </select>
+                  </div>
+
+                  <div class="dias-pills">
+                    ${dias
+                      .map((d) => {
+                        const activo = (c.diasSemana || []).includes(d);
+                        return `
+                          <label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); toggleDiaCliente('${c.id}','${d}')">
+                            ${d.slice(0, 3)}
+                          </label>
+                        `;
+                      })
+                      .join("")}
+                  </div>
+                </div>
+              `;
             })
-            .join("")}
-        </tbody>
-      `;
+            .join("")
+        : `<div class="empty-state">Sin clientes cargados todavía.</div>`;
+    }
+
+    function mostrarFlash(clienteId) {
+      const flash = document.getElementById(`flash-${clienteId}`);
+      if (!flash) return;
+      flash.classList.add("mostrar");
+      setTimeout(() => flash.classList.remove("mostrar"), 1200);
+    }
+
+    function guardarCampo(clienteId, campo, valor) {
+      BimboData.actualizarCliente(clienteId, { [campo]: valor });
+      mostrarFlash(clienteId);
+      if (campo === "rutaId") renderListaClientes(); // puede cambiar a qué IBP pertenece
+    }
+
+    function toggleDiaCliente(clienteId, dia) {
+      const cliente = BimboData.getCliente(clienteId);
+      const actuales = cliente.diasSemana || [];
+      const nuevos = actuales.includes(dia) ? actuales.filter((d) => d !== dia) : [...actuales, dia];
+      BimboData.actualizarCliente(clienteId, { diasSemana: nuevos });
+      mostrarFlash(clienteId);
+      renderListaClientes();
     }
 
     function renderFrescura() {
@@ -177,12 +260,13 @@
     document.getElementById("btnAlta").addEventListener("click", () => {
       const nombre = document.getElementById("fNombre").value.trim();
       if (!nombre) return alert("Falta el nombre del cliente.");
+      if (!nuevoClienteDias.length) return alert("Marca al menos un día de visita.");
       BimboData.agregarClienteAdmin({
         nombre,
         direccion: document.getElementById("fDireccion").value.trim(),
         rutaId: document.getElementById("fRuta").value,
         frecuencia: document.getElementById("fFrecuencia").value,
-        diasSemana: [document.getElementById("fDia").value],
+        diasSemana: nuevoClienteDias,
         lat: document.getElementById("fLat").value,
         lng: document.getElementById("fLng").value,
       });
@@ -190,6 +274,7 @@
       document.getElementById("fDireccion").value = "";
       document.getElementById("fLat").value = "";
       document.getElementById("fLng").value = "";
+      nuevoClienteDias = ["lunes"];
       render();
     });
 
@@ -206,12 +291,19 @@
           const fila = {};
           header.forEach((h, idx) => (fila[h] = (valores[idx] || "").trim()));
           if (!fila.nombre) continue;
+          // admite "dias" con varios días separados por | o ; (para bisemanal),
+          // o "dia" con uno solo, por compatibilidad con el formato anterior.
+          const diasCsv = fila.dias || fila.dia || "";
+          const diasSemana = diasCsv
+            .split(/[|;]/)
+            .map((d) => d.trim())
+            .filter(Boolean);
           BimboData.agregarClienteAdmin({
             nombre: fila.nombre,
             direccion: fila.direccion,
             rutaId: fila.rutaId,
             frecuencia: fila.frecuencia,
-            diasSemana: fila.dia ? [fila.dia] : undefined,
+            diasSemana: diasSemana.length ? diasSemana : undefined,
             lat: fila.lat,
             lng: fila.lng,
           });
