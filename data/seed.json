@@ -1,0 +1,28 @@
+{
+  "usuarios": [
+    { "id": "ibp-1", "nombre": "Carlos Medina", "rol": "IBP", "rutaId": "ruta-norte" },
+    { "id": "ibp-2", "nombre": "Laura Torres", "rol": "IBP", "rutaId": "ruta-sur" },
+    { "id": "msl-1", "nombre": "Alex Reyes", "rol": "MSL", "ibpsACargo": ["ibp-1", "ibp-2"] }
+  ],
+
+  "rutas": [
+    { "id": "ruta-norte", "nombre": "Ruta Norte", "ibpId": "ibp-1", "puntoPartida": { "lat": 32.7767, "lng": -96.797 } },
+    { "id": "ruta-sur", "nombre": "Ruta Sur", "ibpId": "ibp-2", "puntoPartida": { "lat": 32.7157, "lng": -96.849 } }
+  ],
+
+  "clientes": [
+    { "id": "c1",  "nombre": "Tienda La Esquina",     "direccion": "123 Main St, Dallas, TX",       "lat": 32.7817, "lng": -96.7998, "rutaId": "ruta-norte", "frecuencia": "semanal",    "diasSemana": ["lunes"],   "ultimaVisita": "2026-07-17", "frescura": 0.94 },
+    { "id": "c2",  "nombre": "Minisuper El Sol",       "direccion": "456 Oak Ave, Dallas, TX",       "lat": 32.7901, "lng": -96.8034, "rutaId": "ruta-norte", "frecuencia": "semanal",    "diasSemana": ["lunes"],   "ultimaVisita": "2026-07-17", "frescura": 0.88 },
+    { "id": "c3",  "nombre": "Abarrotes Torres",       "direccion": "789 Pine Rd, Dallas, TX",       "lat": 32.7735, "lng": -96.7889, "rutaId": "ruta-norte", "frecuencia": "bisemanal",  "diasSemana": ["lunes", "jueves"], "ultimaVisita": "2026-07-20", "frescura": 0.91 },
+    { "id": "c4",  "nombre": "Super Family Mart",      "direccion": "12 Elm St, Dallas, TX",         "lat": 32.7998, "lng": -96.8102, "rutaId": "ruta-norte", "frecuencia": "quincenal",  "diasSemana": ["lunes"],   "ultimaVisita": "2026-07-10", "frescura": 0.83 },
+    { "id": "c5",  "nombre": "Tienda Don Beto",        "direccion": "34 Cedar Blvd, Dallas, TX",     "lat": 32.7683, "lng": -96.7921, "rutaId": "ruta-norte", "frecuencia": "semanal",    "diasSemana": ["martes"],  "ultimaVisita": "2026-07-18", "frescura": 0.97 },
+    { "id": "c6",  "nombre": "Mercado Rápido",         "direccion": "56 Maple Dr, Dallas, TX",       "lat": 32.7855, "lng": -96.8155, "rutaId": "ruta-norte", "frecuencia": "semanal",    "diasSemana": ["viernes"], "ultimaVisita": "2026-07-17", "frescura": 0.79 },
+
+    { "id": "c7",  "nombre": "Tienda Los Pinos",       "direccion": "89 Birch St, Dallas, TX",       "lat": 32.7112, "lng": -96.8432, "rutaId": "ruta-sur",   "frecuencia": "semanal",    "diasSemana": ["lunes"],   "ultimaVisita": "2026-07-17", "frescura": 0.9  },
+    { "id": "c8",  "nombre": "Abarrotes La Fe",        "direccion": "22 Walnut Ave, Dallas, TX",     "lat": 32.7189, "lng": -96.8511, "rutaId": "ruta-sur",   "frecuencia": "semanal",    "diasSemana": ["lunes"],   "ultimaVisita": "2026-07-17", "frescura": 0.86 },
+    { "id": "c9",  "nombre": "Super Ahorro",           "direccion": "101 Spruce Rd, Dallas, TX",     "lat": 32.705,  "lng": -96.8378, "rutaId": "ruta-sur",   "frecuencia": "bisemanal",  "diasSemana": ["lunes", "jueves"], "ultimaVisita": "2026-07-20", "frescura": 0.92 },
+    { "id": "c10", "nombre": "Tienda Vero",            "direccion": "77 Poplar St, Dallas, TX",      "lat": 32.7231, "lng": -96.8299, "rutaId": "ruta-sur",   "frecuencia": "quincenal",  "diasSemana": ["lunes"],   "ultimaVisita": "2026-07-09", "frescura": 0.75 },
+    { "id": "c11", "nombre": "Minimarket Central",     "direccion": "15 Ash Blvd, Dallas, TX",       "lat": 32.6988, "lng": -96.8455, "rutaId": "ruta-sur",   "frecuencia": "semanal",    "diasSemana": ["miercoles"], "ultimaVisita": "2026-07-19", "frescura": 0.96 },
+    { "id": "c12", "nombre": "Tienda El Buen Precio",  "direccion": "5 Chestnut Dr, Dallas, TX",     "lat": 32.7274, "lng": -96.8203, "rutaId": "ruta-sur",   "frecuencia": "semanal",    "diasSemana": ["viernes"], "ultimaVisita": "2026-07-17", "frescura": 0.81 }
+  ]
+}
