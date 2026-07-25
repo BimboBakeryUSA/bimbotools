@@ -16,7 +16,9 @@
     <span></span>
   </header>
 
-  <main>
+  <main class="wide">
+    <div class="summary-grid" id="resumenGeneral"></div>
+
     <div class="pill-select" id="drillTabs">
       <a class="pill active" data-nivel="ibp">Por IBP</a>
       <a class="pill" data-nivel="ruta">Por Ruta</a>
@@ -32,6 +34,78 @@
     const mslId = params.get("u") || "msl-1";
     let nivel = "ibp";
 
+    function renderResumenGeneral(ibps) {
+      const cont = document.getElementById("resumenGeneral");
+      if (!ibps.length) {
+        cont.innerHTML = "";
+        return;
+      }
+
+      let hoyTotal = 0, hoyVisitados = 0, semTotal = 0, semVisitados = 0, sumaFrescura = 0, conFrescura = 0;
+      ibps.forEach((ibp) => {
+        const hoy = BimboData.getCumplimientoIbp(ibp.id);
+        const sem = BimboData.getProgresoSemanalIbp(ibp.id);
+        hoyTotal += hoy.total;
+        hoyVisitados += hoy.visitadas;
+        semTotal += sem.total;
+        semVisitados += sem.visitados;
+        const f = BimboData.getFrescuraIbp(ibp.id);
+        if (f != null) { sumaFrescura += f; conFrescura++; }
+      });
+
+      const pctHoy = hoyTotal ? Math.round((hoyVisitados / hoyTotal) * 100) : 0;
+      const pctSem = semTotal ? Math.round((semVisitados / semTotal) * 100) : 0;
+      const frescuraProm = conFrescura ? sumaFrescura / conFrescura : null;
+      const semFrescura = BimboData.semaforoFrescura(frescuraProm);
+      const pctFrescura = frescuraProm != null ? Math.round(frescuraProm * 100) + "%" : "—";
+
+      cont.innerHTML = `
+        <div class="summary-card">
+          <div class="icon">👥</div>
+          <div class="num">${ibps.length}</div>
+          <div class="label">IBPs a cargo</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--verde);">
+          <div class="icon">📍</div>
+          <div class="num">${pctHoy}%</div>
+          <div class="label">Cumplimiento hoy (${hoyVisitados}/${hoyTotal})</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--amarillo);">
+          <div class="icon">📅</div>
+          <div class="num">${pctSem}%</div>
+          <div class="label">Progreso semanal (${semVisitados}/${semTotal})</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--${semFrescura});">
+          <div class="icon">🍞</div>
+          <div class="num">${pctFrescura}</div>
+          <div class="label">Frescura promedio</div>
+        </div>
+      `;
+    }
+
+    function renderSemanaChart(porDia) {
+      return `
+        <div class="semana-chart">
+          ${porDia
+            .map((d) => {
+              const pct = d.total ? Math.round((d.visitados / d.total) * 100) : 0;
+              const estado = d.total === 0 ? "vacio" : d.visitados === d.total ? "completo" : d.visitados > 0 ? "parcial" : "vacio";
+              const alturaPct = d.total === 0 ? 6 : Math.max(pct, 6);
+              return `
+                <div class="semana-col ${d.esHoy ? "hoy" : ""}">
+                  <span class="semana-frac">${d.visitados}/${d.total}</span>
+                  <div class="semana-track">
+                    <div class="semana-fill ${estado}" style="height:${alturaPct}%"></div>
+                  </div>
+                  <span class="semana-dia">${d.dia.slice(0, 3)}</span>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      `;
+    }
+
     async function render() {
       await BimboData.init();
       const msl = BimboData.getUsuario(mslId);
@@ -39,6 +113,8 @@
 
       const ibps = BimboData.getIbpsDeMSL(mslId);
       const cont = document.getElementById("contenido");
+
+      renderResumenGeneral(ibps);
 
       if (nivel === "ibp") {
         cont.innerHTML = ibps
@@ -57,7 +133,7 @@
                   <span class="badge"><span class="semaforo ${sem}"></span>Frescura ${pct}</span>
                 </div>
 
-                <div class="seccion-label">Hoy</div>
+                <div class="seccion-label"><span>Hoy</span><span class="valor">${visitadas}/${total}</span></div>
                 <div class="kpi-row">
                   <div class="kpi"><div class="num">${total}</div><div class="label">clientes hoy</div></div>
                   <div class="kpi"><div class="num">${visitadas}</div><div class="label">visitados</div></div>
@@ -65,23 +141,8 @@
                 </div>
                 <div class="progress-bar"><div class="progress-fill" style="width:${total ? (visitadas / total) * 100 : 0}%"></div></div>
 
-                <div class="seccion-label">Progreso semanal — ${semanal.visitados}/${semanal.total} (${pctSemanal}%)</div>
-                <div class="progress-bar"><div class="progress-fill" style="width:${pctSemanal}%"></div></div>
-                <div class="dia-chips" style="margin-top:8px;">
-                  ${porDia
-                    .map((d) => {
-                      const completo = d.total > 0 && d.visitados === d.total;
-                      const clases = [d.esHoy ? "hoy" : "", completo ? "completo" : ""].join(" ");
-                      const etiqueta = d.dia.slice(0, 3);
-                      return `
-                        <div class="dia-chip ${clases}">
-                          <span class="dia-label">${etiqueta}</span>
-                          <span class="dia-frac">${d.visitados}/${d.total}</span>
-                        </div>
-                      `;
-                    })
-                    .join("")}
-                </div>
+                <div class="seccion-label"><span>Progreso semanal</span><span class="valor">${semanal.visitados}/${semanal.total} · ${pctSemanal}%</span></div>
+                ${renderSemanaChart(porDia)}
               </a>
             `;
           })
@@ -108,7 +169,7 @@
                 <p style="font-size:13px; color:var(--gray); margin:6px 0 0;">
                   IBP: ${ibp.nombre} · ${clientes.length} clientes en la ruta
                 </p>
-                <div class="seccion-label">Progreso semanal — ${semanal.visitados}/${semanal.total} (${pctSemanal}%)</div>
+                <div class="seccion-label"><span>Progreso semanal</span><span class="valor">${semanal.visitados}/${semanal.total} · ${pctSemanal}%</span></div>
                 <div class="progress-bar"><div class="progress-fill" style="width:${pctSemanal}%"></div></div>
               </div>
             `;

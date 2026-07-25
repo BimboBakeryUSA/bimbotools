@@ -54,12 +54,26 @@ main {
   padding-bottom: 80px;
 }
 
+main.wide {
+  max-width: 1040px;
+}
+
 .card {
   background: white;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+a.card {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+a.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06), 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 .role-grid {
@@ -309,50 +323,122 @@ table.data-table th {
 .seccion-label {
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   color: var(--gray);
-  margin: 14px 0 6px;
-}
-
-.dia-chips {
+  font-weight: 700;
+  margin: 16px 0 8px;
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
 }
 
-.dia-chip {
-  flex: 1;
-  min-width: 40px;
-  text-align: center;
-  border-radius: 8px;
-  background: var(--gray-light);
-  padding: 6px 4px;
-  font-size: 11px;
-}
-
-.dia-chip.hoy {
-  background: #fbeaea;
-  border: 1px solid var(--accent);
-}
-
-.dia-chip.completo {
-  background: #e7f6ec;
-}
-
-.dia-chip .dia-label {
-  display: block;
-  font-weight: 600;
+.seccion-label .valor {
+  font-size: 13px;
   color: var(--dark);
-  margin-bottom: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 700;
 }
 
-.dia-chip .dia-frac {
+/* ---- Dashboard summary (resumen general arriba del MSL) ---- */
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.summary-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 14px rgba(0, 0, 0, 0.04);
+  border-top: 4px solid var(--accent);
+}
+
+.summary-card .icon {
+  font-size: 20px;
+}
+
+.summary-card .num {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--dark);
+  margin-top: 6px;
+  line-height: 1;
+}
+
+.summary-card .label {
+  font-size: 12px;
   color: var(--gray);
+  margin-top: 4px;
 }
 
-.dia-chip.completo .dia-frac {
-  color: var(--verde);
-  font-weight: 600;
+/* ---- Gráfico de barras semanal (Lun..Sáb) ---- */
+
+.semana-chart {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 92px;
+  margin-top: 4px;
+  padding-top: 18px;
+}
+
+.semana-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.semana-frac {
+  font-size: 10px;
+  color: var(--gray);
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.semana-track {
+  width: 100%;
+  max-width: 26px;
+  flex: 1;
+  background: var(--gray-light);
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.semana-fill {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  background: var(--gris);
+  min-height: 4px;
+  transition: height 0.25s ease;
+}
+
+.semana-fill.parcial { background: var(--amarillo); }
+.semana-fill.completo { background: var(--verde); }
+.semana-fill.vacio { background: var(--border); }
+
+.semana-col.hoy .semana-track {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.semana-dia {
+  font-size: 10px;
+  color: var(--gray);
+  margin-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.semana-col.hoy .semana-dia {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .pending-note {
