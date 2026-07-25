@@ -154,9 +154,17 @@ function _diaEfectivo(clienteId) {
   return cliente ? cliente.diasSemana[0] : null;
 }
 
-function _tocaHoy(cliente) {
-  const dia = _diaEfectivo(cliente.id);
-  return dia === _diaDeHoy();
+function _tocaEnDia(cliente, dia) {
+  return _diaEfectivo(cliente.id) === dia;
+}
+
+function getDiasSemana() {
+  // lunes a sábado — domingo no se pauta (día de descanso)
+  return ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+}
+
+function getDiaDeHoy() {
+  return _diaDeHoy();
 }
 
 // ---------------------------------------------------------------------------
@@ -205,19 +213,24 @@ function ordenarPorVecinoMasCercano(puntoPartida, clientes) {
 // Ruta del día
 // ---------------------------------------------------------------------------
 
-// Devuelve la ruta de hoy para un IBP: clientes que tocan hoy (por frecuencia
-// o por movimiento manual), ordenados por cercanía, con su estado de visita.
-function getRutaDelDia(ibpId) {
+// Devuelve la ruta de un día para un IBP: clientes que tocan ese día (por
+// frecuencia o por movimiento manual), ordenados por cercanía, con su estado
+// de visita. Si no se pasa `dia`, usa el día real de hoy. Pasar otro día
+// (lunes..sabado) sirve para PREVISUALIZAR la semana, no para marcar visitas:
+// las visitas y el geofence solo aplican al día real (ver ibp.html).
+function getRutaDelDia(ibpId, dia) {
+  const diaConsultado = dia || _diaDeHoy();
   const ruta = getRutaDeIbp(ibpId);
-  if (!ruta) return { ruta: null, paradas: [] };
+  if (!ruta) return { ruta: null, paradas: [], dia: diaConsultado };
 
   const hoy = _hoyISO();
-  const clientesDeHoy = getClientesDeRuta(ruta.id).filter(_tocaHoy);
-  const ordenados = ordenarPorVecinoMasCercano(ruta.puntoPartida, clientesDeHoy);
+  const esHoyReal = diaConsultado === _diaDeHoy();
+  const clientesDelDia = getClientesDeRuta(ruta.id).filter((c) => _tocaEnDia(c, diaConsultado));
+  const ordenados = ordenarPorVecinoMasCercano(ruta.puntoPartida, clientesDelDia);
 
   const paradas = ordenados.map((c, i) => {
     const visita = _estado.visitas[c.id];
-    const visitadaHoy = visita && visita.fecha === hoy && visita.visitada;
+    const visitadaHoy = esHoyReal && visita && visita.fecha === hoy && visita.visitada;
     return {
       orden: i + 1,
       cliente: c,
@@ -227,7 +240,7 @@ function getRutaDelDia(ibpId) {
     };
   });
 
-  return { ruta, paradas };
+  return { ruta, paradas, dia: diaConsultado, esHoyReal };
 }
 
 // ---------------------------------------------------------------------------
@@ -376,6 +389,8 @@ window.BimboData = {
   agregarClienteAdmin,
   cargarFrescuraAdmin,
   getRutaDelDia,
+  getDiasSemana,
+  getDiaDeHoy,
   marcarVisitado,
   desmarcarVisitado,
   agregarClienteAHoy,
