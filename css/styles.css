@@ -306,6 +306,55 @@ table.data-table th {
   font-size: 14px;
 }
 
+.seccion-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--gray);
+  margin: 14px 0 6px;
+}
+
+.dia-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dia-chip {
+  flex: 1;
+  min-width: 40px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--gray-light);
+  padding: 6px 4px;
+  font-size: 11px;
+}
+
+.dia-chip.hoy {
+  background: #fbeaea;
+  border: 1px solid var(--accent);
+}
+
+.dia-chip.completo {
+  background: #e7f6ec;
+}
+
+.dia-chip .dia-label {
+  display: block;
+  font-weight: 600;
+  color: var(--dark);
+  margin-bottom: 2px;
+}
+
+.dia-chip .dia-frac {
+  color: var(--gray);
+}
+
+.dia-chip.completo .dia-frac {
+  color: var(--verde);
+  font-weight: 600;
+}
+
 .pending-note {
   background: #fff8e6;
   border-left: 4px solid var(--amarillo);
