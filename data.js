@@ -34,8 +34,12 @@ async function init() {
     : {
         // clienteId -> { fecha: "YYYY-MM-DD", visitada: bool, timestamp, metodo }
         visitas: {},
-        // clienteId -> "lunes" | "martes" | ... (override del día pautado esta semana)
-        movimientos: {},
+        // clienteId -> ["sabado", ...] días AGREGADOS esta semana además de sus
+        // días normales (visitas extra — nunca quitan nada de lo ya pautado)
+        diasExtra: {},
+        // clienteId -> ["lunes", ...] días QUITADOS esta semana puntualmente
+        // (no toca sus otros días pautados, ej. el otro día de un bisemanal)
+        diasQuitados: {},
         // historial de cambios: [{ clienteId, de, a, quien, cuando }]
         historial: [],
         // usuarioId -> [{ mensaje, leida, cuando }]
@@ -43,10 +47,14 @@ async function init() {
         // clientes agregados/editados desde el panel admin (carga Excel/CSV o alta manual)
         clientesExtra: [],
         frescuraExtra: {}, // clienteId -> % frescura cargado por admin (sobreescribe el del seed)
+        clienteOverrides: {}, // clienteId -> campos editados desde admin (nombre, direccion, rutaId, frecuencia, diasSemana...)
       };
 
   if (!_estado.clientesExtra) _estado.clientesExtra = [];
   if (!_estado.frescuraExtra) _estado.frescuraExtra = {};
+  if (!_estado.clienteOverrides) _estado.clienteOverrides = {};
+  if (!_estado.diasExtra) _estado.diasExtra = {};
+  if (!_estado.diasQuitados) _estado.diasQuitados = {};
 }
 
 function _guardar() {
@@ -85,10 +93,14 @@ function getIbpsDeMSL(mslId) {
 
 function _todosClientes() {
   const combinados = [..._seed.clientes, ..._estado.clientesExtra];
-  // aplica frescura cargada por admin por encima de la del seed, si existe
-  return combinados.map((c) =>
-    _estado.frescuraExtra[c.id] !== undefined ? { ...c, frescura: _estado.frescuraExtra[c.id] } : c
-  );
+  return combinados.map((c) => {
+    let resultado = c;
+    // frescura cargada por admin, por encima de la del seed
+    if (_estado.frescuraExtra[c.id] !== undefined) resultado = { ...resultado, frescura: _estado.frescuraExtra[c.id] };
+    // ediciones hechas desde el panel admin (nombre, dirección, ruta, frecuencia, días...)
+    if (_estado.clienteOverrides[c.id]) resultado = { ...resultado, ..._estado.clienteOverrides[c.id] };
+    return resultado;
+  });
 }
 
 function getClientes() {
@@ -146,16 +158,50 @@ function cargarFrescuraAdmin(clienteId, porcentaje) {
   _guardar();
 }
 
-// Día efectivo de un cliente esta semana: el override manual si existe,
-// si no, el/los días base definidos en su frecuencia.
-function _diaEfectivo(clienteId) {
-  if (_estado.movimientos[clienteId]) return _estado.movimientos[clienteId];
+// Edición rápida desde el panel admin: un click, un cambio, se guarda al
+// toque (sin formulario ni botón "guardar" aparte). `cambios` es un objeto
+// parcial, ej. { diasSemana: ["lunes","jueves"] } o { rutaId: "ruta-sur" }.
+function actualizarCliente(clienteId, cambios) {
+  _estado.clienteOverrides[clienteId] = { ..._estado.clienteOverrides[clienteId], ...cambios };
+  _guardar();
+}
+
+// Días efectivos de un cliente esta semana: sus días base (pautados por
+// frecuencia) + días agregados manualmente como visita EXTRA, menos los días
+// quitados puntualmente. Agregar nunca borra los demás días, quitar solo
+// afecta el día puntual — así un bisemanal conserva su otro día pautado pase
+// lo que pase. Un cliente BISEMANAL tiene 2 días base (ej. lunes y jueves) —
+// por eso aparece dos veces en la semana, una por día.
+function _diasEfectivos(clienteId) {
   const cliente = getCliente(clienteId);
-  return cliente ? cliente.diasSemana[0] : null;
+  const base = cliente ? cliente.diasSemana : [];
+  const extra = _estado.diasExtra[clienteId] || [];
+  const quitados = _estado.diasQuitados[clienteId] || [];
+  const combinados = [...new Set([...base, ...extra])];
+  return combinados.filter((d) => !quitados.includes(d));
 }
 
 function _tocaEnDia(cliente, dia) {
-  return _diaEfectivo(cliente.id) === dia;
+  return _diasEfectivos(cliente.id).includes(dia);
+}
+
+// Fecha calendario (YYYY-MM-DD) que le corresponde a un nombre de día
+// ("lunes".."sabado") DENTRO de la semana actual — para poder saber si la
+// visita de ese día específico ya se registró (soporta bisemanal: lunes y
+// jueves son fechas distintas, con su propio registro de visita).
+const _ORDEN_DIAS = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+
+function _fechaDeDiaEstaSemana(dia) {
+  const idx = _ORDEN_DIAS.indexOf(dia);
+  if (idx === -1) return null;
+  const lunes = _lunesDeEstaSemana();
+  const fecha = new Date(lunes);
+  fecha.setDate(lunes.getDate() + idx);
+  return fecha.toISOString().slice(0, 10);
+}
+
+function _visitaKey(clienteId, fechaISO) {
+  return `${clienteId}__${fechaISO}`;
 }
 
 function getDiasSemana() {
@@ -223,20 +269,20 @@ function getRutaDelDia(ibpId, dia) {
   const ruta = getRutaDeIbp(ibpId);
   if (!ruta) return { ruta: null, paradas: [], dia: diaConsultado };
 
-  const hoy = _hoyISO();
   const esHoyReal = diaConsultado === _diaDeHoy();
+  const fechaDelDia = _fechaDeDiaEstaSemana(diaConsultado);
   const clientesDelDia = getClientesDeRuta(ruta.id).filter((c) => _tocaEnDia(c, diaConsultado));
   const ordenados = ordenarPorVecinoMasCercano(ruta.puntoPartida, clientesDelDia);
 
   const paradas = ordenados.map((c, i) => {
-    const visita = _estado.visitas[c.id];
-    const visitadaHoy = esHoyReal && visita && visita.fecha === hoy && visita.visitada;
+    const visita = fechaDelDia ? _estado.visitas[_visitaKey(c.id, fechaDelDia)] : null;
+    const visitada = !!(visita && visita.visitada);
     return {
       orden: i + 1,
       cliente: c,
-      visitada: !!visitadaHoy,
-      metodoVisita: visitadaHoy ? visita.metodo : null,
-      horaVisita: visitadaHoy ? visita.timestamp : null,
+      visitada,
+      metodoVisita: visitada ? visita.metodo : null,
+      horaVisita: visitada ? visita.timestamp : null,
     };
   });
 
@@ -248,8 +294,9 @@ function getRutaDelDia(ibpId, dia) {
 // ---------------------------------------------------------------------------
 
 function marcarVisitado(clienteId, metodo = "manual") {
-  _estado.visitas[clienteId] = {
-    fecha: _hoyISO(),
+  const fecha = _hoyISO();
+  _estado.visitas[_visitaKey(clienteId, fecha)] = {
+    fecha,
     visitada: true,
     metodo, // "geofence" | "manual"
     timestamp: new Date().toISOString(),
@@ -258,7 +305,7 @@ function marcarVisitado(clienteId, metodo = "manual") {
 }
 
 function desmarcarVisitado(clienteId) {
-  delete _estado.visitas[clienteId];
+  delete _estado.visitas[_visitaKey(clienteId, _hoyISO())];
   _guardar();
 }
 
@@ -268,32 +315,62 @@ function desmarcarVisitado(clienteId) {
 // a quien corresponda — nunca pide confirmación previa.
 // ---------------------------------------------------------------------------
 
+// "Agregar cliente a hoy" = suma HOY como visita extra. Nunca toca sus otros
+// días pautados (si es bisemanal, su otro día sigue intacto). Si el cliente
+// ya había sido "quitado" de hoy antes, esto revierte esa quita.
 function agregarClienteAHoy(clienteId, quienHizoElCambio) {
   const cliente = getCliente(clienteId);
   if (!cliente) return;
 
-  const diaAnterior = _diaEfectivo(clienteId);
   const diaHoy = _diaDeHoy();
-  if (diaAnterior === diaHoy) return; // ya estaba hoy, nada que hacer
+  const diasAntes = _diasEfectivos(clienteId);
+  if (diasAntes.includes(diaHoy)) return; // ya está hoy, nada que hacer
 
-  _estado.movimientos[clienteId] = diaHoy;
-  _registrarMovimiento(cliente, diaAnterior, diaHoy, quienHizoElCambio);
+  if (!_estado.diasExtra[clienteId]) _estado.diasExtra[clienteId] = [];
+  if (!_estado.diasExtra[clienteId].includes(diaHoy)) _estado.diasExtra[clienteId].push(diaHoy);
+
+  if (_estado.diasQuitados[clienteId]) {
+    _estado.diasQuitados[clienteId] = _estado.diasQuitados[clienteId].filter((d) => d !== diaHoy);
+  }
+
+  const otrosDias = diasAntes.join(", ") || "ninguno otro";
+  _registrarMovimiento(
+    cliente,
+    "—",
+    `+ ${diaHoy} (visita extra)`,
+    quienHizoElCambio,
+    `${cliente.nombre}: se agregó una visita extra hoy (${diaHoy}), además de sus días normales (${otrosDias}).`
+  );
   _guardar();
 }
 
+// "Quitar cliente de hoy" = solo saca HOY. Si el cliente tiene otro día
+// pautado esta semana (ej. el otro día de un bisemanal), ese sigue intacto.
 function quitarClienteDeHoy(clienteId, quienHizoElCambio) {
   const cliente = getCliente(clienteId);
   if (!cliente) return;
 
   const diaHoy = _diaDeHoy();
-  // Lo dejamos marcado como "atrasado": no le asignamos día nuevo automático
-  // (queda pendiente de definir si se reprograma solo o no — ver spec §3.6).
-  _estado.movimientos[clienteId] = "atrasado";
-  _registrarMovimiento(cliente, diaHoy, "atrasado", quienHizoElCambio);
+  if (!_estado.diasQuitados[clienteId]) _estado.diasQuitados[clienteId] = [];
+  if (!_estado.diasQuitados[clienteId].includes(diaHoy)) _estado.diasQuitados[clienteId].push(diaHoy);
+
+  if (_estado.diasExtra[clienteId]) {
+    _estado.diasExtra[clienteId] = _estado.diasExtra[clienteId].filter((d) => d !== diaHoy);
+  }
+
+  // Queda "atrasado": no se reprograma solo a otro día (pendiente de definir
+  // — ver spec §3.6).
+  _registrarMovimiento(
+    cliente,
+    diaHoy,
+    "atrasado",
+    quienHizoElCambio,
+    `${cliente.nombre}: se quitó la visita de hoy (${diaHoy}). Sus otros días pautados no cambian.`
+  );
   _guardar();
 }
 
-function _registrarMovimiento(cliente, de, a, quien) {
+function _registrarMovimiento(cliente, de, a, quien, mensajeNotif) {
   const cuando = new Date().toISOString();
   _estado.historial.push({ clienteId: cliente.id, clienteNombre: cliente.nombre, de, a, quien, cuando });
 
@@ -301,10 +378,7 @@ function _registrarMovimiento(cliente, de, a, quien) {
   // hecho el MSL) — nunca al revés, y nunca pide confirmación antes.
   const ruta = getRuta(cliente.rutaId);
   if (ruta) {
-    _notificar(
-      ruta.ibpId,
-      `${cliente.nombre} se movió de "${de}" a "${a}" (cambio hecho por ${quien}).`
-    );
+    _notificar(ruta.ibpId, mensajeNotif || `${cliente.nombre}: cambio de "${de}" a "${a}" (por ${quien}).`);
   }
 }
 
@@ -371,6 +445,59 @@ function getCumplimientoIbp(ibpId) {
 }
 
 // ---------------------------------------------------------------------------
+// Progreso SEMANAL (para el dashboard del MSL — no solo "hoy").
+// Un cliente BISEMANAL cuenta 2 veces (una por cada día pautado) — el total
+// semanal es de OCURRENCIAS esperadas esta semana, no de clientes únicos.
+// Cada ocurrencia se ubica en su fecha real de la semana, así que la visita
+// del lunes y la del jueves de un mismo cliente se registran por separado.
+// ---------------------------------------------------------------------------
+
+function _lunesDeEstaSemana() {
+  const hoy = new Date();
+  const diaSemana = hoy.getDay(); // 0=domingo..6=sabado
+  const offset = diaSemana === 0 ? -6 : 1 - diaSemana;
+  const lunes = new Date(hoy);
+  lunes.setDate(hoy.getDate() + offset);
+  lunes.setHours(0, 0, 0, 0);
+  return lunes;
+}
+
+// Desglose día por día de la semana (para mostrar el mini gráfico Lun/Mar/
+// .../Sáb con cuántos de los clientes pautados ese día ya se visitaron).
+function getProgresoSemanalPorDia(ibpId) {
+  const ruta = getRutaDeIbp(ibpId);
+  if (!ruta) return [];
+  const diaHoy = _diaDeHoy();
+  return getDiasSemana().map((dia) => {
+    const { paradas } = getRutaDelDia(ibpId, dia);
+    const visitados = paradas.filter((p) => p.visitada).length;
+    return { dia, total: paradas.length, visitados, esHoy: dia === diaHoy };
+  });
+}
+
+function getProgresoSemanalRuta(rutaId) {
+  const ruta = getRuta(rutaId);
+  if (!ruta) return { total: 0, visitados: 0, pendientes: 0 };
+  let total = 0;
+  let visitados = 0;
+  getDiasSemana().forEach((dia) => {
+    const clientesDia = getClientesDeRuta(rutaId).filter((c) => _tocaEnDia(c, dia));
+    const fechaDelDia = _fechaDeDiaEstaSemana(dia);
+    clientesDia.forEach((c) => {
+      total++;
+      const v = _estado.visitas[_visitaKey(c.id, fechaDelDia)];
+      if (v && v.visitada) visitados++;
+    });
+  });
+  return { total, visitados, pendientes: total - visitados };
+}
+
+function getProgresoSemanalIbp(ibpId) {
+  const ruta = getRutaDeIbp(ibpId);
+  return ruta ? getProgresoSemanalRuta(ruta.id) : { total: 0, visitados: 0, pendientes: 0 };
+}
+
+// ---------------------------------------------------------------------------
 // Exportado global simple (sin bundler / sin módulos ES por compatibilidad
 // directa desde <script> normal en cada página).
 // ---------------------------------------------------------------------------
@@ -387,6 +514,7 @@ window.BimboData = {
   getRutaDeIbp,
   getClientesDeRuta,
   agregarClienteAdmin,
+  actualizarCliente,
   cargarFrescuraAdmin,
   getRutaDelDia,
   getDiasSemana,
@@ -403,4 +531,7 @@ window.BimboData = {
   getFrescuraIbp,
   semaforoFrescura,
   getCumplimientoIbp,
+  getProgresoSemanalRuta,
+  getProgresoSemanalIbp,
+  getProgresoSemanalPorDia,
 };
