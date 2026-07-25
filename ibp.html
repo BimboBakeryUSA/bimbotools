@@ -19,8 +19,11 @@
   <main>
     <div class="card" id="notifPanel" style="display:none;"></div>
 
+    <div class="pill-select" id="diasTabs"></div>
+
     <div class="card">
       <strong id="rutaNombre">—</strong>
+      <p style="font-size:12px; color:var(--gray); margin:4px 0 0;" id="diaInfo"></p>
       <div class="kpi-row">
         <div class="kpi"><div class="num" id="kpiTotal">0</div><div class="label">clientes hoy</div></div>
         <div class="kpi"><div class="num" id="kpiVisitados">0</div><div class="label">visitados</div></div>
@@ -34,7 +37,7 @@
 
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <strong>Paradas de hoy</strong>
+        <strong id="paradasTitulo">Paradas de hoy</strong>
         <button class="btn btn-secondary btn-small" id="btnAgregar">+ Agregar cliente</button>
       </div>
       <div id="listaParadas"></div>
@@ -64,15 +67,41 @@
     const quienEdita = viendoComoMSL ? "MSL" : "IBP";
     const volverA = viendoComoMSL ? `msl.html?u=${params.get("msl") || "msl-1"}` : "index.html";
 
+    let diaSeleccionado = null; // se fija a "hoy" real en el primer render
+
+    function renderDiasTabs(diaDeHoy) {
+      const dias = BimboData.getDiasSemana();
+      const cont = document.getElementById("diasTabs");
+      cont.innerHTML = dias
+        .map((d) => {
+          const esHoy = d === diaDeHoy;
+          const activo = d === diaSeleccionado;
+          const etiqueta = d.charAt(0).toUpperCase() + d.slice(1) + (esHoy ? " (hoy)" : "");
+          return `<a class="pill ${activo ? "active" : ""}" data-dia="${d}">${etiqueta}</a>`;
+        })
+        .join("");
+    }
+
     async function render() {
       await BimboData.init();
+      const diaDeHoy = BimboData.getDiaDeHoy();
+      if (!diaSeleccionado) diaSeleccionado = diaDeHoy;
+
       const usuario = BimboData.getUsuario(ibpId);
       document.getElementById("titulo").textContent =
         (usuario ? usuario.nombre : "Mi Ruta") + (viendoComoMSL ? " (vista MSL)" : "");
       document.getElementById("linkVolver").href = volverA;
 
-      const { ruta, paradas } = BimboData.getRutaDelDia(ibpId);
+      renderDiasTabs(diaDeHoy);
+
+      const { ruta, paradas, esHoyReal } = BimboData.getRutaDelDia(ibpId, diaSeleccionado);
       document.getElementById("rutaNombre").textContent = ruta ? ruta.nombre : "Sin ruta asignada";
+
+      const nombreDia = diaSeleccionado.charAt(0).toUpperCase() + diaSeleccionado.slice(1);
+      document.getElementById("paradasTitulo").textContent = `Paradas — ${nombreDia}`;
+      document.getElementById("diaInfo").textContent = esHoyReal
+        ? `Hoy es ${nombreDia}. Estas son tus paradas del día — aquí puedes marcar visitas.`
+        : `Estás viendo ${nombreDia} (no es hoy). Solo vista previa: para marcar visitas, cambia al día marcado "(hoy)".`;
 
       const total = paradas.length;
       const visitados = paradas.filter((p) => p.visitada).length;
@@ -83,12 +112,18 @@
 
       const lista = document.getElementById("listaParadas");
       if (!paradas.length) {
-        lista.innerHTML = `<div class="empty-state">No hay clientes pautados para hoy.</div>`;
+        lista.innerHTML = `<div class="empty-state">No hay clientes pautados para ${nombreDia.toLowerCase()}.</div>`;
       } else {
         lista.innerHTML = paradas
           .map((p) => {
             const sem = BimboData.semaforoFrescura(p.cliente.frescura);
             const frescuraPct = p.cliente.frescura != null ? Math.round(p.cliente.frescura * 100) + "%" : "—";
+            const acciones = !esHoyReal
+              ? `<span class="badge">Vista previa — no editable</span>`
+              : p.visitada
+              ? `<button class="btn btn-secondary btn-small" onclick="desmarcar('${p.cliente.id}')">Deshacer</button>`
+              : `<button class="btn btn-primary btn-small" onclick="marcar('${p.cliente.id}')">Marcar visitado</button>
+                 <button class="btn btn-secondary btn-small" onclick="quitar('${p.cliente.id}')">Quitar de hoy</button>`;
             return `
               <div class="stop ${p.visitada ? "visitada" : ""}" data-id="${p.cliente.id}">
                 <div class="stop-order">${p.visitada ? "✓" : p.orden}</div>
@@ -97,20 +132,16 @@
                   <span class="dir">${p.cliente.direccion}</span>
                   <span class="badge">Frescura ${frescuraPct}</span>
                   ${p.visitada ? `<span class="badge">Visitado por ${p.metodoVisita}</span>` : ""}
-                  <div class="stop-actions">
-                    ${
-                      p.visitada
-                        ? `<button class="btn btn-secondary btn-small" onclick="desmarcar('${p.cliente.id}')">Deshacer</button>`
-                        : `<button class="btn btn-primary btn-small" onclick="marcar('${p.cliente.id}')">Marcar visitado</button>
-                           <button class="btn btn-secondary btn-small" onclick="quitar('${p.cliente.id}')">Quitar de hoy</button>`
-                    }
-                  </div>
+                  <div class="stop-actions">${acciones}</div>
                 </div>
               </div>
             `;
           })
           .join("");
       }
+
+      document.getElementById("btnAgregar").style.display = esHoyReal ? "inline-block" : "none";
+      if (!esHoyReal) document.getElementById("panelAgregar").style.display = "none";
 
       renderNotificaciones();
       renderPanelAgregar(ruta);
@@ -134,7 +165,7 @@
 
     function renderPanelAgregar(ruta) {
       if (!ruta) return;
-      const { paradas } = BimboData.getRutaDelDia(ibpId);
+      const { paradas } = BimboData.getRutaDelDia(ibpId, diaSeleccionado);
       const idsHoy = new Set(paradas.map((p) => p.cliente.id));
       const disponibles = BimboData.getClientesDeRuta(ruta.id).filter((c) => !idsHoy.has(c.id));
       const lista = document.getElementById("listaAgregar");
@@ -173,6 +204,13 @@
       BimboData.quitarClienteDeHoy(id, quienEdita);
       render();
     }
+
+    document.getElementById("diasTabs").addEventListener("click", (e) => {
+      const el = e.target.closest(".pill");
+      if (!el) return;
+      diaSeleccionado = el.dataset.dia;
+      render();
+    });
 
     document.getElementById("btnAgregar").addEventListener("click", () => {
       const panel = document.getElementById("panelAgregar");
