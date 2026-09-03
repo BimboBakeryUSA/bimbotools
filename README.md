@@ -23,11 +23,18 @@ Luego abre `http://localhost:8080`.
 
 ## Estructura
 
-- `index.html` — selector de rol (IBP / MSL / Admin). Sin login real todavía.
-- `ibp.html` — ruta del día del IBP: lista ordenada, geofence automático,
-  botón manual, agregar/quitar clientes.
-- `msl.html` — dashboard del Manager MSL: ve todos sus IBPs, drill-down por
-  IBP → ruta → cliente, con % de frescura.
+- `index.html` — portada: lista en vivo (desde Supabase) de las rutas reales
+  con su dueño de ruta, para entrar directo a Mi Territorio. Sin login real
+  todavía, así que cualquiera con el link puede entrar a cualquier ruta —
+  ver "Pendientes conocidos".
+- `ibp.html` — demo vieja de un "optimizador de ruta diario" (lista
+  ordenada, geofence automático, agregar/quitar clientes) con datos de
+  ejemplo (`data/seed.json`). Ya no está enlazada desde `index.html` para no
+  mezclar nombres inventados con las rutas reales — sigue accesible por URL
+  directa (`ibp.html?u=ibp-1`) por si se retoma más adelante.
+- `msl.html` — dashboard del Manager MSL de esa misma demo (ve todos sus
+  IBPs, drill-down por IBP → ruta → cliente, con % de frescura). Mismo caso:
+  datos de ejemplo, ya no enlazado desde `index.html`.
 - `admin.html` — alta manual de clientes, importar CSV, cargar % de
   frescura, ver historial de movimientos, y la pestaña **Territorios**
   (ver "Mi Territorio" abajo).
@@ -106,11 +113,12 @@ pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
 
 ## Estado actual
 
-- **Mi Territorio**: en vivo sobre Supabase (ver arriba) — esto ya no es una
-  demo local.
-- El resto de la app (`index.html`, `ibp.html`, `msl.html`, `admin.html` con
-  excepción de la pestaña Territorios) sigue corriendo con datos de ejemplo
-  + `localStorage`, sin backend.
+- **Mi Territorio** (`mi-territorio.html`, la lista de rutas en `index.html`,
+  y la pestaña Territorios de `admin.html`): en vivo sobre Supabase — esto ya
+  no es una demo local.
+- `ibp.html`, `msl.html`, y el resto de `admin.html` (Clientes, Importar CSV,
+  % Frescura, Historial) siguen siendo la demo vieja del "optimizador de
+  ruta diario", con datos de ejemplo + `localStorage`, sin backend.
 
 ## Pendientes conocidos
 
@@ -121,11 +129,13 @@ pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
 - **Geocodificación de direcciones**: el alta manual y el CSV piden lat/lng
   directo por ahora; si faltan, el cliente queda marcado como "pendiente
   geocodificar" en el panel admin.
-- **Autenticación real** por rol (hoy se simula eligiendo el usuario desde
-  `index.html`). Cuando exista, vale la pena revisar si Mi Territorio debe
-  restringir el UPDATE por usuario en vez de dejarlo abierto a quien tenga
-  el link de su ruta.
-- El resto de la app (index/ibp/msl/admin fuera de Territorios) todavía no
+- **Autenticación real**: hoy cualquiera con el link de una ruta puede
+  entrar a Mi Territorio y marcar sus tiendas — no hay verificación de que
+  sea el IBP dueño de esa ruta. Cuando exista login, restringir el UPDATE
+  por usuario en vez de dejarlo abierto a quien tenga el link. La demo vieja
+  (`ibp.html`/`msl.html`) también simula el rol eligiendo el usuario de una
+  lista, sin login real.
+- El resto de la app (ibp/msl/admin fuera de Territorios) todavía no
   se migra a Supabase — sigue en `localStorage`.
 - Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de
   decisiones pendientes y el roadmap de próximas herramientas.
