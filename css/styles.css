@@ -563,3 +563,88 @@ label.field {
   color: var(--gray);
   margin-top: 10px;
 }
+
+/* ---- Depuración de ruta (tiendas) ---- */
+
+.tienda-card.alerta {
+  border-left: 4px solid var(--rojo);
+}
+
+.spark-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 26px;
+  margin: 10px 0;
+}
+
+.spark-bar {
+  flex: 1;
+  min-height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--border);
+}
+
+.spark-bar.con-venta {
+  background: var(--verde);
+}
+
+.estado-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.estado-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--gray-light);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--gray);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+}
+
+.estado-pill.activo.activa {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: white;
+}
+
+.estado-pill.activo.inactiva {
+  background: var(--amarillo);
+  border-color: var(--amarillo);
+  color: white;
+}
+
+.estado-pill.activo.borrar {
+  background: var(--rojo);
+  border-color: var(--rojo);
+  color: white;
+}
+
+.motivo-box {
+  background: var(--gray-light);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--dark);
+  margin-top: 8px;
+}
+
+.motivo-box .editar {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.sin-revisar-badge {
+  background: var(--gray-light);
+  color: var(--gray);
+}

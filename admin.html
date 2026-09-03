@@ -22,6 +22,7 @@
       <a class="pill" data-tab="importar">Importar CSV</a>
       <a class="pill" data-tab="frescura">% Frescura</a>
       <a class="pill" data-tab="historial">Historial de cambios</a>
+      <a class="pill" data-tab="depuracion">Depuración de rutas</a>
     </div>
 
     <div id="tabClientes">
@@ -94,6 +95,42 @@
       </div>
     </div>
 
+    <div id="tabDepuracion" style="display:none;">
+      <div class="card">
+        <strong>Enlaces por ruta</strong>
+        <p style="font-size:12px; color:var(--gray);">
+          Envía a cada IBP el enlace de su ruta para que revise y depure su lista de tiendas.
+        </p>
+        <div id="listaEnlaces"></div>
+      </div>
+
+      <div class="card">
+        <strong>Importar depuraciones</strong>
+        <p style="font-size:12px; color:var(--gray);">
+          Sube aquí el/los archivo(s) <code>.json</code> que cada IBP te mande desde el botón
+          "Descargar mis cambios" en su ruta. Se pueden subir varios a la vez.
+        </p>
+        <input type="file" id="fileDepuracion" accept=".json" multiple />
+        <div id="resultadoImportDepuracion" style="margin-top:10px; font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <strong>Vista maestra</strong>
+          <button class="btn btn-secondary btn-small" id="btnCsvDepuracion">⬇️ Descargar CSV</button>
+        </div>
+        <div class="pill-select" id="filtroDepuTabs" style="margin-top:10px;">
+          <a class="pill active" data-filtro="todas">Todas</a>
+          <a class="pill" data-filtro="sinRevisar">Sin revisar</a>
+          <a class="pill" data-filtro="activa">Activas</a>
+          <a class="pill" data-filtro="inactiva">Inactivas</a>
+          <a class="pill" data-filtro="borrar">Para borrar</a>
+        </div>
+      </div>
+
+      <div id="listaDepuracion"></div>
+    </div>
+
     <div class="pending-note">
       Pendiente: definir si este panel lo usa el mismo Manager MSL o un rol de
       back-office aparte (spec §2).
@@ -101,7 +138,12 @@
   </main>
 
   <script src="js/data.js"></script>
+  <script src="js/depuracion.js"></script>
   <script>
+    // Namespace propio en localStorage para no mezclar la depuración
+    // consolidada del admin con la de ningún IBP que use este mismo navegador.
+    const ADMIN_DEPU_KEY = "bimbo_tools_depuracion_admin_v1";
+    let filtroDepu = "todas";
     let nuevoClienteDias = []; // días marcados en el formulario de alta (antes de tener id)
 
     function renderDiasPillsFormulario() {
@@ -136,6 +178,138 @@
       renderListaClientes();
       renderFrescura();
       renderHistorial();
+
+      await BimboDepuracion.init(ADMIN_DEPU_KEY);
+      renderEnlaces();
+      renderDepuracion();
+    }
+
+    // ---------------------------------------------------------------------
+    // Depuración de rutas
+    // ---------------------------------------------------------------------
+
+    function renderEnlaces() {
+      const cont = document.getElementById("listaEnlaces");
+      const rutas = BimboDepuracion.getRutas();
+      const base = location.href.replace(/admin\.html.*$/, "depuracion.html");
+      cont.innerHTML = rutas
+        .map((r) => {
+          const link = `${base}?ruta=${encodeURIComponent(r.ruta)}`;
+          return `
+            <div class="stop">
+              <div class="stop-body">
+                <strong>Ruta ${r.ruta}</strong> — ${r.propietario}
+                <span class="badge">${r.total} tiendas</span>
+                <div class="stop-actions">
+                  <button class="btn btn-secondary btn-small" onclick="copiarEnlace('${link}', this)">Copiar enlace</button>
+                  <a class="btn btn-primary btn-small" style="text-decoration:none;" href="${link}" target="_blank">Abrir</a>
+                </div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    function copiarEnlace(link, boton) {
+      const marcarCopiado = () => {
+        const original = boton.textContent;
+        boton.textContent = "Copiado ✓";
+        setTimeout(() => (boton.textContent = original), 1200);
+      };
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(link).then(marcarCopiado).catch(() => prompt("Copia el enlace:", link));
+      } else {
+        prompt("Copia el enlace:", link);
+      }
+    }
+
+    function renderDepuracion() {
+      const todas = BimboDepuracion.getTodasConEstado();
+      const visibles = todas.filter((t) => {
+        const est = t._estatus.estatus;
+        if (filtroDepu === "todas") return true;
+        if (filtroDepu === "sinRevisar") return !est;
+        return est === filtroDepu;
+      });
+
+      const cont = document.getElementById("listaDepuracion");
+      if (!visibles.length) {
+        cont.innerHTML = `<div class="empty-state">Sin datos todavía — importa los .json que te manden los IBPs.</div>`;
+        return;
+      }
+
+      const etiquetaEstatus = { activa: "Activa", inactiva: "Inactiva", borrar: "Pidió borrado" };
+
+      cont.innerHTML = `
+        <div class="card">
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead>
+                <tr><th>Ruta</th><th>Tienda</th><th>Dirección</th><th>Estatus</th><th>Motivo</th><th>Frecuencia</th><th>Sin actividad</th><th>Revisado</th></tr>
+              </thead>
+              <tbody>
+                ${visibles
+                  .map((t) => {
+                    const est = t._estatus;
+                    const badge = est.estatus
+                      ? `<span class="badge">${etiquetaEstatus[est.estatus] || est.estatus}</span>`
+                      : `<span class="badge sin-revisar-badge">Sin revisar</span>`;
+                    const revisado = est.revisadoEn ? new Date(est.revisadoEn).toLocaleDateString() : "—";
+                    return `
+                      <tr>
+                        <td>${t.ruta}</td>
+                        <td>${t.nombre}</td>
+                        <td>${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}</td>
+                        <td>${badge}</td>
+                        <td>${est.motivo || "—"}</td>
+                        <td>${est.frecuencia || "—"}</td>
+                        <td>${t.semanasDesdeUltimaActividad}</td>
+                        <td>${revisado}</td>
+                      </tr>
+                    `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function descargarCsvDepuracion() {
+      const todas = BimboDepuracion.getTodasConEstado();
+      const encabezado = ["ruta", "propietario", "tienda_id", "tienda", "direccion", "ciudad", "estado", "zip", "estatus", "motivo", "frecuencia", "semanas_sin_actividad", "revisado_en"];
+      const escapar = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const filas = todas.map((t) =>
+        [
+          t.ruta,
+          t.propietario,
+          t.id,
+          t.nombre,
+          t.direccion,
+          t.ciudad,
+          t.estado,
+          t.zip,
+          t._estatus.estatus || "sin_revisar",
+          t._estatus.motivo,
+          t._estatus.frecuencia,
+          t.semanasDesdeUltimaActividad,
+          t._estatus.revisadoEn || "",
+        ]
+          .map(escapar)
+          .join(",")
+      );
+      const csv = [encabezado.join(","), ...filas].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `depuracion-rutas-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     }
 
     function renderListaClientes() {
@@ -320,11 +494,49 @@
       if (!el) return;
       document.querySelectorAll("#tabs .pill").forEach((p) => p.classList.remove("active"));
       el.classList.add("active");
-      ["clientes", "importar", "frescura", "historial"].forEach((t) => {
+      ["clientes", "importar", "frescura", "historial", "depuracion"].forEach((t) => {
         document.getElementById("tab" + t[0].toUpperCase() + t.slice(1)).style.display =
           t === el.dataset.tab ? "block" : "none";
       });
     });
+
+    document.getElementById("fileDepuracion").addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      await BimboDepuracion.init(ADMIN_DEPU_KEY); // por si el usuario importa antes de que termine la carga inicial
+      let pendientes = files.length;
+      let totalImportadas = 0;
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const payload = JSON.parse(reader.result);
+            const { importadas } = BimboDepuracion.importarExportacion(payload);
+            totalImportadas += importadas;
+          } catch (err) {
+            console.error("No se pudo leer " + file.name, err);
+          }
+          pendientes--;
+          if (pendientes === 0) {
+            document.getElementById("resultadoImportDepuracion").textContent =
+              `${totalImportadas} tienda(s) actualizadas de ${files.length} archivo(s).`;
+            renderDepuracion();
+          }
+        };
+        reader.readAsText(file);
+      });
+    });
+
+    document.getElementById("filtroDepuTabs").addEventListener("click", (e) => {
+      const el = e.target.closest(".pill");
+      if (!el) return;
+      document.querySelectorAll("#filtroDepuTabs .pill").forEach((p) => p.classList.remove("active"));
+      el.classList.add("active");
+      filtroDepu = el.dataset.filtro;
+      renderDepuracion();
+    });
+
+    document.getElementById("btnCsvDepuracion").addEventListener("click", descargarCsvDepuracion);
 
     render();
 

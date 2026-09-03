@@ -23,6 +23,16 @@
 
     <div class="role-grid" id="roleGrid"></div>
 
+    <div class="card" style="margin-top:20px;">
+      <strong>Depurar mi ruta</strong>
+      <p style="font-size:13px; color:var(--gray);">
+        ¿Eres IBP y quieres revisar y depurar tu lista de tiendas? Escribe tu número de ruta
+        (el enlace directo que te compartió tu manager funciona igual).
+      </p>
+      <input type="text" id="inputRutaDepu" placeholder="Ej. 0150" />
+      <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRutaDepu">Ver mis tiendas</button>
+    </div>
+
     <div class="pending-note">
       Pendiente: autenticación real por usuario/rol. Por ahora se simula eligiendo
       el usuario de la lista.
@@ -31,6 +41,12 @@
 
   <script src="js/data.js"></script>
   <script>
+    document.getElementById("btnIrRutaDepu").addEventListener("click", () => {
+      const val = document.getElementById("inputRutaDepu").value.trim();
+      if (!val) return;
+      location.href = `depuracion.html?ruta=${encodeURIComponent(val)}`;
+    });
+
     async function render() {
       await BimboData.init();
       const grid = document.getElementById("roleGrid");
