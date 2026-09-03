@@ -239,17 +239,34 @@ function _enriquecerYOrdenar(tiendas, ventasPorTienda) {
   return enriquecidas;
 }
 
+// Supabase/PostgREST limita cada respuesta a 1000 filas por defecto — sin
+// paginar, con 360 tiendas x ~8 filas de venta cada una (2895 filas en
+// total) la mayoría se quedaba sin traer, y esas tiendas se veían como
+// "sin actividad" aunque sí tuvieran ventas (bug real: el admin veía 259
+// tiendas "sin actividad 4+ semanas" en vez de las 39 que corresponden).
+// Se pagina en bloques hasta traer todo.
 async function _ventasDeTiendas(tiendaIds) {
   const porTienda = new Map();
   if (!tiendaIds.length) return porTienda;
-  const datos = _checar(
-    await _client.from("ventas_semanales").select("tienda_id, semana, unidades").in("tienda_id", tiendaIds),
-    "ventas_semanales"
-  );
-  datos.forEach((v) => {
-    if (!porTienda.has(v.tienda_id)) porTienda.set(v.tienda_id, []);
-    porTienda.get(v.tienda_id).push(v);
-  });
+  const TAMANO_PAGINA = 1000;
+  let desde = 0;
+  for (;;) {
+    const { data, error } = await _client
+      .from("ventas_semanales")
+      .select("tienda_id, semana, unidades")
+      .in("tienda_id", tiendaIds)
+      .range(desde, desde + TAMANO_PAGINA - 1);
+    if (error) {
+      console.error("ventas_semanales", error);
+      throw new Error(`ventas_semanales: ${error.message}`);
+    }
+    data.forEach((v) => {
+      if (!porTienda.has(v.tienda_id)) porTienda.set(v.tienda_id, []);
+      porTienda.get(v.tienda_id).push(v);
+    });
+    if (data.length < TAMANO_PAGINA) break; // última página
+    desde += TAMANO_PAGINA;
+  }
   return porTienda;
 }
 
