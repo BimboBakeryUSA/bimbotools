@@ -70,6 +70,9 @@
           <div class="kpi"><div class="num" id="kpiAlerta">0</div><div class="label">sin actividad</div></div>
         </div>
         <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+        <strong style="display:block; font-size:12px; color:var(--gray); margin-top:14px;">Tiendas activas por día</strong>
+        <div class="dias-resumen" id="diasResumen"></div>
       </div>
 
       <div class="pill-select" id="filtroTabs">
@@ -177,11 +180,35 @@
         ? `${(resumen.revisadas / resumen.total) * 100}%`
         : "0%";
 
+      renderResumenDias();
+
       const visibles = tiendasActuales.filter(pasaFiltro);
       const lista = document.getElementById("listaTiendas");
       lista.innerHTML = visibles.length
         ? visibles.map((t) => renderTienda(t)).join("")
         : `<div class="empty-state">No hay tiendas en este filtro.</div>`;
+    }
+
+    // Cuántas tiendas activas se visitan cada día — se recalcula en cada
+    // render(), así que se actualiza solo apenas el IBP marca una tienda
+    // activa o le cambia los días.
+    function renderResumenDias() {
+      const conteos = {};
+      DIAS.forEach((d) => (conteos[d] = 0));
+      tiendasActuales.forEach((t) => {
+        if (t.estatus !== "activa") return;
+        (t.dias_visita || []).forEach((d) => {
+          if (conteos[d] != null) conteos[d]++;
+        });
+      });
+      document.getElementById("diasResumen").innerHTML = DIAS.map(
+        (d) => `
+          <div class="dia-resumen-item">
+            <span class="dia-resumen-num">${conteos[d]}</span>
+            <span class="dia-resumen-label">${d.slice(0, 3)}</span>
+          </div>
+        `
+      ).join("");
     }
 
     function renderTienda(t) {

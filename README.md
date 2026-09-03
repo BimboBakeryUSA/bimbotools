@@ -124,6 +124,11 @@ resto de la app hoy.
 - Ve un aviso automático (⚠️) cuando la tienda lleva 4+ semanas sin ventas
   en el periodo del reporte, para priorizar cuáles revisar primero.
 
+Arriba de la lista, un resumen **"Tiendas activas por día"** (lunes a
+sábado) cuenta en vivo cuántas tiendas activas se visitan cada día — se
+recalcula solo cada vez que el IBP marca una tienda activa o le cambia los
+días, para que sepa de un vistazo cómo se le está acomodando la semana.
+
 Los cambios se guardan **directo en la base de datos, al toque** — ya no hay
 que exportar ni mandarle nada a nadie.
 
