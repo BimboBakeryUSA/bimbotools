@@ -40,17 +40,15 @@ const SUPABASE_KEY = "sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM";
 const INACTIVIDAD_LIMITE_MS = 6 * 60 * 60 * 1000;
 const LS_ULTIMA_ACTIVIDAD = "bimboUltimaActividad";
 
-// Semanas del reporte con el que se sembró la base (12 semanas, W24–W35 de
-// 2026). Si se carga un reporte más nuevo con otro rango, actualizar esta
-// lista junto con scripts/generar_tiendas.py.
-const SEMANAS_ETIQUETAS = [
-  "24/2026", "25/2026", "26/2026", "27/2026", "28/2026", "29/2026",
-  "30/2026", "31/2026", "32/2026", "33/2026", "34/2026", "35/2026",
-];
-const SEMANA_INDICE = new Map(SEMANAS_ETIQUETAS.map((s, i) => [s, i]));
-
 // Días de visita posibles — domingo no se pauta, igual que en js/data.js.
 const DIAS_SEMANA = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+
+// Ventana de semanas del reporte — ya NO va hardcodeada: se calcula sola a
+// partir de lo que haya en ventas_semanales (función semanas_recientes en
+// Postgres), así que subir el reporte de la próxima semana corre la
+// ventana sin tocar código. Se carga una vez en init().
+let SEMANAS_ETIQUETAS = [];
+let SEMANA_INDICE = new Map();
 
 let _client = null;
 
@@ -63,6 +61,12 @@ async function init() {
   // por inactividad — así ninguna página que use este módulo tiene que
   // acordarse de reportarlo por su cuenta.
   ["click", "keydown"].forEach((ev) => document.addEventListener(ev, marcarActividad, { passive: true }));
+
+  const { data, error } = await _client.rpc("semanas_recientes", { p_cantidad: 12 });
+  if (!error && data) {
+    SEMANAS_ETIQUETAS = data;
+    SEMANA_INDICE = new Map(SEMANAS_ETIQUETAS.map((s, i) => [s, i]));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +176,39 @@ async function invitarIbp(email, rutaId, nombre) {
   if (error) throw new Error(`invitar-ibp: ${error.message}`);
   if (data && data.error) throw new Error(`invitar-ibp: ${data.error}`);
   return data;
+}
+
+// ---------------------------------------------------------------------------
+// Carga del catálogo desde el reporte semanal (admin.html) — solo
+// admin/corporativo (RLS + columnas otorgadas del lado de la base lo
+// exigen). NUNCA toca estatus/motivo/frecuencia/dias_visita/revisado_en de
+// una tienda ni el token de una ruta — eso está bloqueado a nivel de
+// permisos de columna en Postgres, no solo por convención aquí.
+// ---------------------------------------------------------------------------
+
+const TAMANO_LOTE = 500;
+
+async function _upsertPorLotes(tabla, filas, onConflict) {
+  for (let i = 0; i < filas.length; i += TAMANO_LOTE) {
+    const lote = filas.slice(i, i + TAMANO_LOTE);
+    const { error } = await _client.from(tabla).upsert(lote, { onConflict });
+    if (error) throw new Error(`${tabla}: ${error.message}`);
+  }
+}
+
+// ibps: [{id, propietario, manager}], tiendas: [{id, ibp_id, nombre, ...}],
+// ventas: [{tienda_id, semana, unidades}] — ya agregados/calculados por
+// quien llama (ver admin.html, que parsea el Excel).
+async function cargarCatalogo(ibps, tiendas, ventas) {
+  await _upsertPorLotes("ibps", ibps, "id");
+  await _upsertPorLotes("tiendas", tiendas, "id");
+  await _upsertPorLotes("ventas_semanales", ventas, "tienda_id,semana");
+  // La ventana de semanas pudo haberse corrido con datos nuevos.
+  const { data, error } = await _client.rpc("semanas_recientes", { p_cantidad: 12 });
+  if (!error && data) {
+    SEMANAS_ETIQUETAS = data;
+    SEMANA_INDICE = new Map(SEMANAS_ETIQUETAS.map((s, i) => [s, i]));
+  }
 }
 
 function _checar(resultado, contexto) {
@@ -448,5 +485,6 @@ window.BimboDepuracion = {
   getPerfilActual,
   getPerfilesRoute,
   invitarIbp,
+  cargarCatalogo,
 };
 })();

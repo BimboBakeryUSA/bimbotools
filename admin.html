@@ -118,6 +118,20 @@
 
       <div class="card">
         <div class="seccion-header">
+          <span class="icono">📤</span>
+          <h2>Actualizar catálogo</h2>
+        </div>
+        <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
+          Sube el reporte semanal (Excel, "Central List / Account L4 / Route / Product Name") para
+          actualizar tiendas y ventas. Nunca toca activa/inactiva/frecuencia/días de un IBP — eso
+          está bloqueado a nivel de la base de datos, solo actualiza catálogo y ventas.
+        </p>
+        <input type="file" id="fileCatalogo" accept=".xlsx,.xls,.csv" />
+        <div id="resultadoCatalogo" style="margin-top:8px; font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="seccion-header">
           <span class="icono">🔗</span>
           <h2>Enlaces por territorio</h2>
         </div>
@@ -167,6 +181,7 @@
 
   <script src="js/data.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/depuracion.js"></script>
   <script>
     let filtroDepu = "todas";
@@ -210,6 +225,133 @@
       await renderEnlaces();
       await cargarDepuracion();
     }
+
+    // ---------------------------------------------------------------------
+    // Actualizar catálogo — sube el reporte semanal (Excel/CSV) y lo parsea
+    // en el navegador con SheetJS. Ubica "Central Store" en el encabezado y
+    // calcula el resto de columnas RELATIVO a esa posición (no fijo) — así
+    // si el reporte vuelve a agregar/mover una columna (como pasó con
+    // "DSDE Level 2"/Manager), esto no se rompe solo.
+    // ---------------------------------------------------------------------
+
+    function _tituloCase(s) {
+      if (!s) return "";
+      return String(s)
+        .trim()
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    }
+
+    async function procesarArchivoCatalogo(file) {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const filas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+      const idxHeader = filas.findIndex((r) => Array.isArray(r) && r.includes("Central Store"));
+      if (idxHeader === -1) {
+        throw new Error('No encontré la columna "Central Store" — ¿es el archivo correcto?');
+      }
+      const header = filas[idxHeader];
+      const idxTienda = header.indexOf("Central Store");
+      const idxManager = idxTienda - 3;
+      const idxSalesperson = idxTienda - 2;
+      const idxAccountl4 = idxTienda - 1;
+      const idxNombre = idxTienda + 2;
+      const idxDireccion = idxTienda + 3;
+      const idxCiudad = idxTienda + 4;
+      const idxEstado = idxTienda + 5;
+      const idxZip = idxTienda + 6;
+
+      const weekCols = [];
+      for (let c = idxZip + 1; c < header.length; c++) {
+        if (/^\d+\/\d+$/.test(String(header[c] ?? ""))) weekCols.push(c);
+        else break;
+      }
+      if (!weekCols.length) {
+        throw new Error('No encontré columnas de semana (ej. "24/2026") junto al catálogo.');
+      }
+
+      const ibpsMap = new Map(); // route_id -> {id, propietario, manager}
+      const tiendasMap = new Map(); // store_id -> {..., _semanas: Map(semana->unidades)}
+
+      for (let i = idxHeader + 1; i < filas.length; i++) {
+        const r = filas[i];
+        if (!r) continue;
+        const storeId = r[idxTienda] != null ? String(r[idxTienda]).trim() : "";
+        if (!storeId || storeId.toLowerCase().startsWith("total")) continue;
+
+        const salesperson = (r[idxSalesperson] || "").toString().trim();
+        const m = salesperson.match(/^(\S+)\s+(.*)$/);
+        const rutaNum = m ? m[1] : salesperson;
+        const propietario = m ? _tituloCase(m[2]) : "";
+        const manager = _tituloCase(r[idxManager] || "");
+
+        if (rutaNum && !ibpsMap.has(rutaNum)) ibpsMap.set(rutaNum, { id: rutaNum, propietario, manager });
+
+        if (!tiendasMap.has(storeId)) {
+          tiendasMap.set(storeId, {
+            id: storeId,
+            ibp_id: rutaNum,
+            nombre: _tituloCase(r[idxNombre] || ""),
+            direccion: _tituloCase(r[idxDireccion] || ""),
+            ciudad: _tituloCase(r[idxCiudad] || ""),
+            estado_us: (r[idxEstado] || "").toString().trim(),
+            zip: r[idxZip] != null ? String(r[idxZip]).trim() : "",
+            tipo_cuenta: (r[idxAccountl4] || "").toString().trim(),
+            productos: 0,
+            _semanas: new Map(),
+          });
+        }
+        const t = tiendasMap.get(storeId);
+        t.productos += 1;
+        weekCols.forEach((c) => {
+          const semana = header[c];
+          const val = Number(r[c]) || 0;
+          t._semanas.set(semana, (t._semanas.get(semana) || 0) + val);
+        });
+      }
+
+      const ibps = [...ibpsMap.values()];
+      const tiendas = [...tiendasMap.values()].map(({ _semanas, ...t }) => t);
+      const ventas = [];
+      tiendasMap.forEach((t) => {
+        t._semanas.forEach((unidades, semana) => {
+          if (unidades !== 0) ventas.push({ tienda_id: t.id, semana, unidades });
+        });
+      });
+
+      return { ibps, tiendas, ventas };
+    }
+
+    document.getElementById("fileCatalogo").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const resultado = document.getElementById("resultadoCatalogo");
+      resultado.textContent = "Procesando archivo…";
+      try {
+        const { ibps, tiendas, ventas } = await procesarArchivoCatalogo(file);
+        const confirmado = confirm(
+          `Se encontraron ${ibps.length} rutas, ${tiendas.length} tiendas y ${ventas.length} filas de venta.\n\n` +
+            `Esto actualiza catálogo y ventas — nunca activa/inactiva/frecuencia/días de un IBP. ¿Continuar?`
+        );
+        if (!confirmado) {
+          resultado.textContent = "Cancelado.";
+          e.target.value = "";
+          return;
+        }
+        resultado.textContent = "Subiendo a la base de datos…";
+        await BimboDepuracion.cargarCatalogo(ibps, tiendas, ventas);
+        resultado.textContent = `Listo: ${ibps.length} rutas, ${tiendas.length} tiendas, ${ventas.length} filas de venta actualizadas.`;
+        e.target.value = "";
+        await renderEnlaces();
+        await cargarDepuracion();
+      } catch (err) {
+        resultado.textContent = `Error: ${err.message}`;
+        e.target.value = "";
+      }
+    });
 
     // ---------------------------------------------------------------------
     // Territorios (Mi Territorio, vista del admin) — todo en vivo desde

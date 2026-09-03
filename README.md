@@ -211,10 +211,21 @@ una Edge Function (`invitar-ibp`) que corre del lado del servidor — es la
 navegador), y antes de hacer nada verifica que quien la llama sea
 `admin`/`corporativo`.
 
-**Refrescar el catálogo** (nuevo reporte de ventas): correr
-`scripts/generar_tiendas.py` para regenerar `data/tiendas.json`, y de ahí
-pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
-— hoy no hay un botón para hacerlo solo, es un paso asistido.
+**Refrescar el catálogo** (nuevo reporte de ventas): en `admin.html`, tarjeta
+"Actualizar catálogo" — se sube el Excel/CSV semanal tal cual ("Central List
+/ Account L4 / Route / Product Name") directamente desde el navegador.
+`admin.html` lo parsea con SheetJS ubicando la columna "Central Store" y
+calculando el resto de columnas en relativo a esa (tolera que el reporte
+agregue/mueva columnas antes de "Central Store", como pasó con "DSDE L2"),
+y sube `ibps`/`tiendas`/`ventas_semanales` vía `BimboDepuracion.cargarCatalogo`
+(upsert en lotes). Las semanas visibles se calculan dinámicamente con la
+función `semanas_recientes` (últimas 12 semanas presentes en
+`ventas_semanales`), así que subir el reporte de la próxima semana actualiza
+todo solo, sin tocar código. A nivel de base de datos, `admin`/`corporativo`
+solo tienen permiso de columna para catálogo/ventas — `tiendas.estatus`,
+`motivo`, `frecuencia`, `dias_visita` e `ibps.token` siguen bloqueados y solo
+se pueden cambiar por las funciones RPC que ya existían, preservando el
+historial de auditoría.
 
 ## Estado actual
 
