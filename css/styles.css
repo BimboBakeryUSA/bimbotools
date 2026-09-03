@@ -736,15 +736,15 @@ body {
 
 .rutas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
 }
 
 .ruta-card {
   background: white;
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
@@ -752,6 +752,13 @@ body {
 .ruta-card:hover {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
+}
+
+.ruta-card .ruta-titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .ruta-card .ruta-num {
@@ -764,24 +771,31 @@ body {
   border-radius: 6px;
   padding: 3px 8px;
   letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
 .ruta-card .ruta-propietario {
-  display: block;
   font-size: 15px;
   font-weight: 700;
-  margin-top: 8px;
   color: var(--dark);
 }
 
-.ruta-card .ruta-meta {
-  margin-top: 2px;
+.ruta-card .ruta-conteo {
+  display: block;
+  font-size: 12px;
+  color: var(--gray);
+  margin-top: 4px;
 }
 
 .ruta-card .ruta-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ruta-card .ruta-actions .btn {
+  flex: 1;
+  text-align: center;
 }
 
 /* ---- Tabla mejorada: encabezado fijo, zebra, hover, scroll acotado ---- */

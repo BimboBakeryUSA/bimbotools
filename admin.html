@@ -198,9 +198,11 @@
           const link = `${base}?ruta=${encodeURIComponent(r.ruta)}`;
           return `
             <div class="ruta-card">
-              <span class="ruta-num">RUTA ${r.ruta}</span>
-              <strong class="ruta-propietario">${r.propietario}</strong>
-              <div class="ruta-meta"><span class="badge">${r.total} tiendas</span></div>
+              <div class="ruta-titulo">
+                <span class="ruta-num">${r.ruta}</span>
+                <strong class="ruta-propietario">${r.propietario}</strong>
+              </div>
+              <span class="ruta-conteo">${r.total} tiendas</span>
               <div class="ruta-actions">
                 <button class="btn btn-secondary btn-small" onclick="copiarEnlace('${link}', this)">Copiar enlace</button>
                 <a class="btn btn-primary btn-small" style="text-decoration:none;" href="${link}" target="_blank">Abrir</a>
