@@ -243,12 +243,32 @@ a.card:hover {
   color: var(--gray);
 }
 
-/* ---- Resumen de tiendas activas por día (mi-territorio.html) ---- */
+/* ---- Resumen de tiendas activas por día (mi-territorio.html) ----
+   Barra pegajosa: vive en su lugar normal mientras se ve el tope de la
+   página, y en cuanto el scroll la alcanza se queda fija justo debajo del
+   header (que también es sticky) ocupando todo el ancho del teléfono —
+   position: sticky la regresa sola a su lugar al subir, sin JS. */
+
+.dias-resumen-bar {
+  position: sticky;
+  top: 50px; /* alto de header.topbar, que ya es sticky */
+  z-index: 5;
+  background: var(--gray-light);
+  margin: 0 -16px 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dias-resumen-bar strong {
+  display: block;
+  font-size: 12px;
+  color: var(--gray);
+  margin-bottom: 6px;
+}
 
 .dias-resumen {
   display: flex;
   gap: 6px;
-  margin-top: 6px;
 }
 
 .dia-resumen-item {

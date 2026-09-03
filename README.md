@@ -127,7 +127,12 @@ resto de la app hoy.
 Arriba de la lista, un resumen **"Tiendas activas por día"** (lunes a
 sábado) cuenta en vivo cuántas tiendas activas se visitan cada día — se
 recalcula solo cada vez que el IBP marca una tienda activa o le cambia los
-días, para que sepa de un vistazo cómo se le está acomodando la semana.
+días, para que sepa de un vistazo cómo se le está acomodando la semana. Es
+una barra fija (`position: sticky`, igual que el encabezado): vive en su
+lugar mientras se ve el tope de la página, y en cuanto el scroll la
+alcanza se queda pegada debajo del encabezado ocupando todo el ancho del
+teléfono — vuelve sola a su lugar al subir, sin nada de JavaScript de por
+medio.
 
 Los cambios se guardan **directo en la base de datos, al toque** — ya no hay
 que exportar ni mandarle nada a nadie.
