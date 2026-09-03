@@ -75,6 +75,9 @@ ruta: `mi-territorio.html?ruta=0150`. Ahí, por cada tienda:
   qué en el motivo — es la misma decisión, la diferencia es solo el motivo.
 - Elige su **frecuencia de visita**: semanal, 2 veces por semana, quincenal,
   o a pedido del cliente.
+- Si la tienda queda activa, marca **qué días** la visita (lunes a sábado,
+  domingo no se pauta) con un selector de pastillas — ese campo solo aparece
+  para tiendas activas.
 - Ve un aviso automático (⚠️) cuando la tienda lleva 4+ semanas sin ventas
   en el periodo del reporte, para priorizar cuáles revisar primero.
 
@@ -86,8 +89,10 @@ territorio para mandarle a cada IBP el suyo.
 
 ## Base de datos (Supabase)
 
-Mi Territorio usa Supabase — tablas `ibps`, `tiendas` y `ventas_semanales`
-(esquema completo en `scripts/mi_territorio_schema.sql`). Vive dentro del
+Mi Territorio usa Supabase — tablas `ibps`, `tiendas` (incluye
+`dias_visita`, el arreglo de días en que se visita cada tienda activa) y
+`ventas_semanales` (esquema completo en `scripts/mi_territorio_schema.sql`).
+Vive dentro del
 proyecto **`bimbo-inventory-pro`** (mismo Supabase, tablas con nombre
 propio): la organización tiene tope de 2 proyectos activos en el plan free
 y ya estaban ocupados por `bimbo-inventory-pro` y `catalogo-bimbo`, así que
@@ -100,11 +105,11 @@ siempre a estar juntas.
 tienen lectura abierta con la llave pública (`sb_publishable_...`, ya
 embebida en `js/depuracion.js` — es la llave anónima, pensada para vivir en
 el cliente). La escritura NO es un `UPDATE` directo a la tabla: pasa por dos
-funciones de Postgres (`set_tienda_estatus`, `set_tienda_frecuencia`) que
-son las únicas con permiso de escritura. Esto acota lo que cualquiera con el
-link puede tocar a exactamente el estatus/motivo/frecuencia de una tienda —
-nunca el catálogo (nombre, dirección, ventas), que solo se actualiza vía
-migración.
+funciones de Postgres (`set_tienda_estatus`, `set_tienda_frecuencia`,
+`set_tienda_dias`) que son las únicas con permiso de escritura. Esto acota
+lo que cualquiera con el link puede tocar a exactamente el
+estatus/motivo/frecuencia/días de visita de una tienda — nunca el catálogo
+(nombre, dirección, ventas), que solo se actualiza vía migración.
 
 **Refrescar el catálogo** (nuevo reporte de ventas): correr
 `scripts/generar_tiendas.py` para regenerar `data/tiendas.json`, y de ahí

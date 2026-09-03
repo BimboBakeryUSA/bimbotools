@@ -13,9 +13,10 @@
 // inactiva/motivo/frecuencia) y ventas semanales viven ahí, compartidas entre
 // todos los IBPs y el admin en vivo — ya no hay exportar/importar .json.
 //
-// Escritura desde el navegador: solo a través de dos funciones de Postgres
-// (set_tienda_estatus / set_tienda_frecuencia) — la tabla en sí no acepta
-// UPDATE directo con la llave pública (ver políticas de RLS en el esquema).
+// Escritura desde el navegador: solo a través de funciones de Postgres
+// (set_tienda_estatus / set_tienda_frecuencia / set_tienda_dias) — la tabla
+// en sí no acepta UPDATE directo con la llave pública (ver políticas de RLS
+// en el esquema).
 // ============================================================================
 
 (function () {
@@ -30,6 +31,9 @@ const SEMANAS_ETIQUETAS = [
   "30/2026", "31/2026", "32/2026", "33/2026", "34/2026", "35/2026",
 ];
 const SEMANA_INDICE = new Map(SEMANAS_ETIQUETAS.map((s, i) => [s, i]));
+
+// Días de visita posibles — domingo no se pauta, igual que en js/data.js.
+const DIAS_SEMANA = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
 
 let _client = null;
 
@@ -46,6 +50,10 @@ function _checar(resultado, contexto) {
     throw new Error(`${contexto}: ${resultado.error.message}`);
   }
   return resultado.data;
+}
+
+function getDiasSemana() {
+  return DIAS_SEMANA;
 }
 
 function getRangoSemanas() {
@@ -141,7 +149,7 @@ async function getTiendasConEstado(rutaId) {
   const tiendas = _checar(
     await _client
       .from("tiendas")
-      .select("id, nombre, direccion, ciudad, estado_us, zip, tipo_cuenta, productos, estatus, motivo, frecuencia, revisado_en")
+      .select("id, nombre, direccion, ciudad, estado_us, zip, tipo_cuenta, productos, estatus, motivo, frecuencia, dias_visita, revisado_en")
       .eq("ibp_id", rutaId),
     "tiendas"
   );
@@ -185,6 +193,15 @@ async function setFrecuencia(tiendaId, frecuencia) {
   if (error) throw new Error(`set_tienda_frecuencia: ${error.message}`);
 }
 
+// dias: arreglo de días ("lunes".."sabado") en que se visita la tienda.
+async function setDias(tiendaId, dias) {
+  const { error } = await _client.rpc("set_tienda_dias", {
+    p_tienda_id: tiendaId,
+    p_dias: dias,
+  });
+  if (error) throw new Error(`set_tienda_dias: ${error.message}`);
+}
+
 // ---------------------------------------------------------------------------
 // Vista maestra (admin.html) — todas las tiendas de todas las rutas, en vivo.
 // ---------------------------------------------------------------------------
@@ -193,7 +210,7 @@ async function getTodasConEstado() {
   const tiendas = _checar(
     await _client
       .from("tiendas")
-      .select("id, ibp_id, nombre, direccion, ciudad, estado_us, zip, productos, estatus, motivo, frecuencia, revisado_en")
+      .select("id, ibp_id, nombre, direccion, ciudad, estado_us, zip, productos, estatus, motivo, frecuencia, dias_visita, revisado_en")
       .order("ibp_id"),
     "tiendas"
   );
@@ -214,6 +231,7 @@ async function getTodasConEstado() {
 
 window.BimboDepuracion = {
   init,
+  getDiasSemana,
   getRangoSemanas,
   getRutas,
   getRutaInfo,
@@ -221,6 +239,7 @@ window.BimboDepuracion = {
   getResumenRuta,
   setEstatus,
   setFrecuencia,
+  setDias,
   getTodasConEstado,
 };
 })();

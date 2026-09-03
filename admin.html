@@ -283,6 +283,11 @@
       pedido: "A pedido",
     };
 
+    function formatearDias(dias) {
+      if (!dias || !dias.length) return "—";
+      return dias.map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ");
+    }
+
     function renderTablaDepuracion() {
       const visibles = todasTerritorios.filter((t) => {
         if (filtroDepu === "todas") return true;
@@ -301,7 +306,7 @@
           <div class="tabla-scroll">
             <table class="data-table">
               <thead>
-                <tr><th>Ruta</th><th>Tienda</th><th>Dirección</th><th>Estatus</th><th>Motivo</th><th>Frecuencia</th><th>Sin actividad</th><th>Revisado</th></tr>
+                <tr><th>Ruta</th><th>Tienda</th><th>Dirección</th><th>Estatus</th><th>Motivo</th><th>Frecuencia</th><th>Días</th><th>Sin actividad</th><th>Revisado</th></tr>
               </thead>
               <tbody>
                 ${visibles
@@ -319,6 +324,7 @@
                         <td>${badge}</td>
                         <td>${t.motivo || "—"}</td>
                         <td>${ETIQUETA_FRECUENCIA[t.frecuencia] || "—"}</td>
+                        <td>${formatearDias(t.dias_visita)}</td>
                         <td style="${alerta}">${t.semanasDesdeUltimaActividad}</td>
                         <td>${revisado}</td>
                       </tr>
@@ -333,7 +339,7 @@
     }
 
     function descargarCsvDepuracion() {
-      const encabezado = ["ruta", "propietario", "tienda_id", "tienda", "direccion", "ciudad", "estado", "zip", "estatus", "motivo", "frecuencia", "semanas_sin_actividad", "revisado_en"];
+      const encabezado = ["ruta", "propietario", "tienda_id", "tienda", "direccion", "ciudad", "estado", "zip", "estatus", "motivo", "frecuencia", "dias_visita", "semanas_sin_actividad", "revisado_en"];
       const escapar = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
       const filas = todasTerritorios.map((t) =>
         [
@@ -348,6 +354,7 @@
           t.estatus || "sin_revisar",
           t.motivo,
           t.frecuencia,
+          (t.dias_visita || []).join("|"),
           t.semanasDesdeUltimaActividad,
           t.revisado_en || "",
         ]

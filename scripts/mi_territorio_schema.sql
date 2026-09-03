@@ -41,6 +41,7 @@ create table public.tiendas (
   estatus text check (estatus in ('activa', 'inactiva')),
   motivo text,
   frecuencia text check (frecuencia in ('semanal', '2x_semana', 'quincenal', 'pedido')),
+  dias_visita text[] not null default '{}', -- lunes..sabado, domingo no se pauta
   revisado_en timestamptz,
   created_at timestamptz not null default now()
 );
@@ -67,8 +68,9 @@ create index ventas_semanales_tienda_id_idx on public.ventas_semanales (tienda_i
 
 -- ----------------------------------------------------------------------------
 -- RLS: lectura abierta (la app hoy no tiene login) para las tres tablas.
--- Escritura desde el navegador SOLO a través de las dos funciones de abajo
--- (set_tienda_estatus / set_tienda_frecuencia) — nadie puede hacer UPDATE
+-- Escritura desde el navegador SOLO a través de las funciones de abajo
+-- (set_tienda_estatus / set_tienda_frecuencia / set_tienda_dias) — nadie
+-- puede hacer UPDATE
 -- directo a tiendas, ibps o ventas_semanales con la llave pública. Así el
 -- catálogo (nombre, dirección, ventas) solo lo toca un refresh administrado
 -- (vía migración), y el único campo que un IBP puede tocar por su cuenta es
@@ -138,7 +140,39 @@ begin
 end;
 $$;
 
+create or replace function public.set_tienda_dias(
+  p_tienda_id text,
+  p_dias text[]
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  dias_validos text[] := array['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  dia text;
+begin
+  foreach dia in array p_dias loop
+    if not (dia = any(dias_validos)) then
+      raise exception 'día inválido: %', dia;
+    end if;
+  end loop;
+
+  update public.tiendas
+  set dias_visita = (select array_agg(distinct d) from unnest(p_dias) as d),
+      revisado_en = now()
+  where id = p_tienda_id;
+
+  if not found then
+    raise exception 'tienda no encontrada: %', p_tienda_id;
+  end if;
+end;
+$$;
+
 revoke all on function public.set_tienda_estatus(text, text, text) from public;
 revoke all on function public.set_tienda_frecuencia(text, text) from public;
+revoke all on function public.set_tienda_dias(text, text[]) from public;
 grant execute on function public.set_tienda_estatus(text, text, text) to anon, authenticated;
 grant execute on function public.set_tienda_frecuencia(text, text) to anon, authenticated;
+grant execute on function public.set_tienda_dias(text, text[]) to anon, authenticated;

@@ -62,6 +62,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/depuracion.js"></script>
   <script>
+    const DIAS = BimboDepuracion.getDiasSemana();
     const params = new URLSearchParams(location.search);
     let rutaId = params.get("ruta") || params.get("r");
     let filtro = "todas";
@@ -164,6 +165,20 @@
              </div>`
           : "";
 
+      // Los días de visita solo importan para una tienda activa — una
+      // inactiva no se está visitando, no hay nada que marcar.
+      const diasBox =
+        t.estatus === "activa"
+          ? `<label class="field">Días de visita
+               <div class="dias-pills">
+                 ${DIAS.map((d) => {
+                   const activo = (t.dias_visita || []).includes(d);
+                   return `<label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); toggleDia('${t.id}','${d}')">${d.slice(0, 3)}</label>`;
+                 }).join("")}
+               </div>
+             </label>`
+          : "";
+
       return `
         <div class="card tienda-card ${esAlerta ? "alerta" : ""}" data-id="${t.id}">
           <div class="fila-top">
@@ -192,6 +207,7 @@
               <option value="pedido" ${t.frecuencia === "pedido" ? "selected" : ""}>A pedido del cliente</option>
             </select>
           </label>
+          ${diasBox}
         </div>
       `;
     }
@@ -236,6 +252,21 @@
         return;
       }
       _actualizarLocal(id, { frecuencia, revisado_en: new Date().toISOString() });
+    }
+
+    async function toggleDia(id, dia) {
+      const t = tiendasActuales.find((x) => x.id === id);
+      if (!t) return;
+      const actuales = t.dias_visita || [];
+      const nuevos = actuales.includes(dia) ? actuales.filter((d) => d !== dia) : [...actuales, dia];
+      try {
+        await BimboDepuracion.setDias(id, nuevos);
+      } catch (err) {
+        alert("No se pudo guardar el día. Revisa tu conexión e intenta de nuevo.");
+        return;
+      }
+      _actualizarLocal(id, { dias_visita: nuevos, revisado_en: new Date().toISOString() });
+      render();
     }
 
     document.getElementById("btnIrRuta").addEventListener("click", () => {
