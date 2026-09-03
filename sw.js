@@ -3,13 +3,13 @@
 // falta: se asume conexión de datos móviles casi siempre disponible, ver
 // spec §6), solo mejora la carga inicial.
 
-const CACHE_NAME = "bimbo-tools-v2";
+const CACHE_NAME = "bimbo-tools-v3";
 const ARCHIVOS_SHELL = [
   "index.html",
   "ibp.html",
   "msl.html",
   "admin.html",
-  "depuracion.html",
+  "mi-territorio.html",
   "css/styles.css",
   "js/data.js",
   "js/geo.js",

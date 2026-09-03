@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Depurar mi ruta — Bimbo Tools</title>
+  <title>Mi Territorio — Bimbo Tools</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#c0392b" />
   <link rel="icon" href="icons/icon-192.png" />
@@ -12,18 +12,18 @@
 <body>
   <header class="topbar">
     <a class="back" href="index.html">&larr;</a>
-    <h1 id="titulo">Depurar mi ruta</h1>
+    <h1 id="titulo">Mi Territorio</h1>
     <span></span>
   </header>
 
   <main>
     <div id="sinRuta" class="card" style="display:none;">
-      <strong>¿Cuál es tu ruta?</strong>
+      <strong>¿Cuál es tu territorio?</strong>
       <p style="font-size:13px; color:var(--gray);">
-        Escribe tu número de ruta (el que te compartió tu manager) para ver tu lista de tiendas.
+        Escribe tu número de ruta (el que te compartió tu manager) para entrar y tomar el control.
       </p>
       <input type="text" id="inputRuta" placeholder="Ej. 0150" />
-      <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRuta">Ver mis tiendas</button>
+      <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRuta">Entrar a mi territorio</button>
     </div>
 
     <div id="contenidoRuta" style="display:none;">
@@ -33,13 +33,13 @@
           <span class="badge" id="rutaRango"></span>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:6px;">
-          Revisa cada tienda: márcala <b>activa</b> si se sigue visitando normal, <b>inactiva</b> si por
-          ahora no se está sirviendo, o <b>pide su borrado</b> si ya no debería estar en tu ruta. Elige
-          también cada cuánto la visitas. Tus cambios se guardan solos en este dispositivo.
+          Este territorio es tuyo: tú decides qué tiendas siguen <b>activas</b>, cuáles <b>pausas</b> y
+          cuáles <b>sacas</b> de tu lista — y con qué frecuencia las visitas. Nadie conoce estas tiendas
+          mejor que tú. Tus decisiones se guardan aquí mismo, en tu dispositivo.
         </p>
         <div class="kpi-row">
           <div class="kpi"><div class="num" id="kpiTotal">0</div><div class="label">tiendas</div></div>
-          <div class="kpi"><div class="num" id="kpiRevisadas">0</div><div class="label">revisadas</div></div>
+          <div class="kpi"><div class="num" id="kpiRevisadas">0</div><div class="label">definidas</div></div>
           <div class="kpi"><div class="num" id="kpiAlerta">0</div><div class="label">sin actividad</div></div>
         </div>
         <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
@@ -47,22 +47,22 @@
 
       <div class="pill-select" id="filtroTabs">
         <a class="pill active" data-filtro="todas">Todas</a>
-        <a class="pill" data-filtro="sinRevisar">Sin revisar</a>
+        <a class="pill" data-filtro="sinRevisar">Sin definir</a>
         <a class="pill" data-filtro="alerta">⚠️ Sin actividad</a>
         <a class="pill" data-filtro="activa">Activas</a>
         <a class="pill" data-filtro="inactiva">Inactivas</a>
-        <a class="pill" data-filtro="borrar">Para borrar</a>
+        <a class="pill" data-filtro="borrar">Para sacar</a>
       </div>
 
       <div id="listaTiendas"></div>
 
       <div class="card">
-        <strong>¿Ya terminaste de revisar?</strong>
+        <strong>¿Ya definiste tu territorio?</strong>
         <p style="font-size:12px; color:var(--gray);">
-          Descarga tus cambios y envíaselos a tu manager (WhatsApp, correo) para que los sume a la lista
-          general. Todavía no hay servidor central — este archivo es el puente mientras tanto.
+          Descarga tus decisiones y envíaselas a tu manager (WhatsApp, correo) para que las sume a la
+          lista general. Todavía no hay servidor central — este archivo es el puente mientras tanto.
         </p>
-        <button class="btn btn-secondary" id="btnExportar">⬇️ Descargar mis cambios (.json)</button>
+        <button class="btn btn-secondary" id="btnExportar">⬇️ Descargar mis decisiones (.json)</button>
       </div>
     </div>
   </main>
@@ -128,7 +128,6 @@
 
       const ruta = BimboDepuracion.getRutaCruda(rutaId);
       const rango = BimboDepuracion.getRangoSemanas();
-      document.getElementById("titulo").textContent = `Ruta ${ruta.ruta}`;
       document.getElementById("rutaNombre").textContent = `Ruta ${ruta.ruta} — ${ruta.propietario}`;
       document.getElementById("rutaRango").textContent = `Semanas ${rango.desde} – ${rango.hasta}`;
 
@@ -154,7 +153,7 @@
       const sem = semaforoAlerta(t.semanasDesdeUltimaActividad);
       const esAlerta = t.semanasDesdeUltimaActividad >= 4;
       const badgeEstatus = !est.estatus
-        ? `<span class="badge sin-revisar-badge">Sin revisar</span>`
+        ? `<span class="badge sin-revisar-badge">Sin definir</span>`
         : "";
 
       const motivoBox = est.estatus && est.estatus !== "activa"
@@ -179,8 +178,8 @@
 
           <div class="estado-pills">
             <label class="estado-pill activa ${est.estatus === "activa" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','activa')">✅ Activa</label>
-            <label class="estado-pill inactiva ${est.estatus === "inactiva" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','inactiva')">⏸️ Inactiva</label>
-            <label class="estado-pill borrar ${est.estatus === "borrar" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','borrar')">🗑️ Pedir borrado</label>
+            <label class="estado-pill inactiva ${est.estatus === "inactiva" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','inactiva')">⏸️ La pauso</label>
+            <label class="estado-pill borrar ${est.estatus === "borrar" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','borrar')">🗑️ La saco</label>
           </div>
           ${motivoBox}
 
@@ -205,8 +204,8 @@
       const actual = BimboDepuracion.getEstatusTienda(id).motivo || "";
       const pregunta =
         estatus === "borrar"
-          ? "¿Por qué quieres pedir el borrado de esta tienda?"
-          : "¿Por qué está inactiva esta tienda?";
+          ? "¿Por qué decides sacarla de tu territorio?"
+          : "¿Por qué decides pausarla?";
       const motivo = prompt(pregunta, actual);
       if (motivo === null) return; // canceló, no se cambia nada
       if (!motivo.trim()) {
@@ -247,7 +246,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `depuracion-ruta-${rutaId}.json`;
+      a.download = `mi-territorio-ruta-${rutaId}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();

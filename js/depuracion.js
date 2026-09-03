@@ -1,17 +1,22 @@
 // ============================================================================
-// Capa de datos — Depuración de ruta (IBP)
+// Capa de datos — "Mi Territorio" (mi-territorio.html), la página donde cada
+// IBP decide qué tiendas siguen en su lista.
 // ----------------------------------------------------------------------------
+// El archivo y el nombre interno (BimboDepuracion) se quedaron como estaban
+// al renombrar la página — es la misma capa de datos, solo cambió lo que ve
+// el IBP.
+//
 // Catálogo (solo lectura): data/tiendas.json, generado una vez a partir del
 // reporte "Central List / Account L4 / Route / Product Name" (12 semanas).
 // Trae, por tienda: dueño de ruta, nombre, dirección y su historial de ventas
 // semana a semana — usado para avisar qué tiendas llevan tiempo sin actividad.
 //
-// Estado (mutable): decisiones del IBP — activa/inactiva/solicitar borrado,
+// Estado (mutable): decisiones del IBP — activa/inactiva/solicitar salida,
 // motivo, frecuencia de visita, notas — guardadas en localStorage bajo la
 // clave `storageKey` que recibe init(). Cada página elige su propia clave:
-//   - depuracion.html  -> clave del dispositivo del IBP (su propia ruta)
-//   - admin.html       -> clave separada, alimentada por los archivos que
-//                          cada IBP exporta y el admin importa ahí
+//   - mi-territorio.html -> clave del dispositivo del IBP (su propio territorio)
+//   - admin.html         -> clave separada, alimentada por los archivos que
+//                            cada IBP exporta y el admin importa ahí
 // Esto es igual de "local por ahora, Supabase después" que js/data.js — ver
 // README para el plan de centralizar sin depender de importar/exportar.
 // ============================================================================

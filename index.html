@@ -24,13 +24,14 @@
     <div class="role-grid" id="roleGrid"></div>
 
     <div class="card" style="margin-top:20px;">
-      <strong>Depurar mi ruta</strong>
+      <strong>Mi Territorio</strong>
       <p style="font-size:13px; color:var(--gray);">
-        ¿Eres IBP y quieres revisar y depurar tu lista de tiendas? Escribe tu número de ruta
-        (el enlace directo que te compartió tu manager funciona igual).
+        ¿Eres IBP? Este es tu territorio: entra y decide qué tiendas siguen activas, cuáles pausas o
+        sacas, y cada cuánto las visitas. Escribe tu número de ruta (el enlace directo que te compartió
+        tu manager funciona igual).
       </p>
       <input type="text" id="inputRutaDepu" placeholder="Ej. 0150" />
-      <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRutaDepu">Ver mis tiendas</button>
+      <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRutaDepu">Entrar a mi territorio</button>
     </div>
 
     <div class="pending-note">
@@ -44,7 +45,7 @@
     document.getElementById("btnIrRutaDepu").addEventListener("click", () => {
       const val = document.getElementById("inputRutaDepu").value.trim();
       if (!val) return;
-      location.href = `depuracion.html?ruta=${encodeURIComponent(val)}`;
+      location.href = `mi-territorio.html?ruta=${encodeURIComponent(val)}`;
     });
 
     async function render() {

@@ -22,7 +22,7 @@
       <a class="pill" data-tab="importar">Importar CSV</a>
       <a class="pill" data-tab="frescura">% Frescura</a>
       <a class="pill" data-tab="historial">Historial de cambios</a>
-      <a class="pill" data-tab="depuracion">Depuración de rutas</a>
+      <a class="pill" data-tab="depuracion">Territorios</a>
     </div>
 
     <div id="tabClientes">
@@ -97,18 +97,18 @@
 
     <div id="tabDepuracion" style="display:none;">
       <div class="card">
-        <strong>Enlaces por ruta</strong>
+        <strong>Enlaces por territorio</strong>
         <p style="font-size:12px; color:var(--gray);">
-          Envía a cada IBP el enlace de su ruta para que revise y depure su lista de tiendas.
+          Envía a cada IBP el enlace de su territorio para que decida qué tiendas siguen en su lista.
         </p>
         <div id="listaEnlaces"></div>
       </div>
 
       <div class="card">
-        <strong>Importar depuraciones</strong>
+        <strong>Importar territorios</strong>
         <p style="font-size:12px; color:var(--gray);">
           Sube aquí el/los archivo(s) <code>.json</code> que cada IBP te mande desde el botón
-          "Descargar mis cambios" en su ruta. Se pueden subir varios a la vez.
+          "Descargar mis decisiones" en su territorio. Se pueden subir varios a la vez.
         </p>
         <input type="file" id="fileDepuracion" accept=".json" multiple />
         <div id="resultadoImportDepuracion" style="margin-top:10px; font-size:13px;"></div>
@@ -116,15 +116,15 @@
 
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <strong>Vista maestra</strong>
+          <strong>Vista general de territorios</strong>
           <button class="btn btn-secondary btn-small" id="btnCsvDepuracion">⬇️ Descargar CSV</button>
         </div>
         <div class="pill-select" id="filtroDepuTabs" style="margin-top:10px;">
           <a class="pill active" data-filtro="todas">Todas</a>
-          <a class="pill" data-filtro="sinRevisar">Sin revisar</a>
+          <a class="pill" data-filtro="sinRevisar">Sin definir</a>
           <a class="pill" data-filtro="activa">Activas</a>
           <a class="pill" data-filtro="inactiva">Inactivas</a>
-          <a class="pill" data-filtro="borrar">Para borrar</a>
+          <a class="pill" data-filtro="borrar">Para sacar</a>
         </div>
       </div>
 
@@ -185,13 +185,13 @@
     }
 
     // ---------------------------------------------------------------------
-    // Depuración de rutas
+    // Territorios (Mi Territorio, vista del admin)
     // ---------------------------------------------------------------------
 
     function renderEnlaces() {
       const cont = document.getElementById("listaEnlaces");
       const rutas = BimboDepuracion.getRutas();
-      const base = location.href.replace(/admin\.html.*$/, "depuracion.html");
+      const base = location.href.replace(/admin\.html.*$/, "mi-territorio.html");
       cont.innerHTML = rutas
         .map((r) => {
           const link = `${base}?ruta=${encodeURIComponent(r.ruta)}`;
@@ -239,7 +239,7 @@
         return;
       }
 
-      const etiquetaEstatus = { activa: "Activa", inactiva: "Inactiva", borrar: "Pidió borrado" };
+      const etiquetaEstatus = { activa: "Activa", inactiva: "Pausada", borrar: "Pidió salir" };
 
       cont.innerHTML = `
         <div class="card">
@@ -291,7 +291,7 @@
           t.ciudad,
           t.estado,
           t.zip,
-          t._estatus.estatus || "sin_revisar",
+          t._estatus.estatus || "sin_definir",
           t._estatus.motivo,
           t._estatus.frecuencia,
           t.semanasDesdeUltimaActividad,
