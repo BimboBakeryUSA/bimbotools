@@ -140,6 +140,14 @@ pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
   por usuario en vez de dejarlo abierto a quien tenga el link. La demo vieja
   (`ibp.html`/`msl.html`) también simula el rol eligiendo el usuario de una
   lista, sin login real.
+- **Vista admin vs. vista IBP en Mi Territorio**: hoy `mi-territorio.html`
+  es una sola pantalla igual para cualquiera que la abra, sea el IBP dueño
+  de la ruta o el admin viéndola por curiosidad/soporte. No es lo mismo lo
+  que necesita ver/hacer uno que el otro (el admin necesita más contexto —
+  historial, quién y cuándo cambió qué, tal vez poder revertir — y quizás
+  no debería poder "decidir" como si fuera el IBP). Falta definir qué
+  cambia entre las dos vistas y separarlas — pendiente de diseño, se
+  desarrolla junto con el punto de autenticación real de arriba.
 - El resto de la app (ibp/msl/admin fuera de Territorios) todavía no
   se migra a Supabase — sigue en `localStorage`.
 - Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de
