@@ -297,6 +297,18 @@ async function getRutaInfo(rutaId) {
   return data ? { ruta: data.id, propietario: data.propietario } : null;
 }
 
+// Solo lectura (a diferencia de reclamarRutaPorToken, que sí escribe en
+// profiles) — para cuando un admin/corporativo YA logueado abre el enlace
+// con token de una ruta (ej. el botón "Abrir" de admin.html) y solo quiere
+// ver esa ruta, sin que se le reclame el token ni se le toque su propio
+// perfil. Bajo RLS, un admin/corporativo puede leer cualquier ibps por
+// token; un "route" solo vería la suya (no se usa esta función para ellos).
+async function getRutaPorToken(token) {
+  const { data, error } = await _client.from("ibps").select("id, propietario").eq("token", token).maybeSingle();
+  if (error) throw new Error(`ibps: ${error.message}`);
+  return data ? { ruta: data.id, propietario: data.propietario } : null;
+}
+
 // ---------------------------------------------------------------------------
 // Tiendas de una ruta, con su estatus y ventas ya calculadas
 // ---------------------------------------------------------------------------
@@ -432,6 +444,7 @@ window.BimboDepuracion = {
   iniciarSesion,
   cerrarSesion,
   reclamarRutaPorToken,
+  getRutaPorToken,
   getPerfilActual,
   getPerfilesRoute,
   invitarIbp,

@@ -414,10 +414,30 @@
       if (perfil && (perfil.role === "admin" || perfil.role === "corporativo")) {
         if (rutaParam) {
           await cargarRuta(rutaParam);
-        } else {
-          ocultarTodasLasPantallas();
-          document.getElementById("sinRutaAdmin").style.display = "block";
+          return;
         }
+        if (tokenParam) {
+          // Admin/corporativo ya logueado abriendo el enlace con token de
+          // una ruta (ej. "Abrir" en admin.html) — solo mirar esa ruta, sin
+          // reclamar el token ni tocar su propio perfil.
+          ocultarTodasLasPantallas();
+          document.getElementById("cargando").style.display = "block";
+          let ruta;
+          try {
+            ruta = await BimboDepuracion.getRutaPorToken(tokenParam);
+          } catch (err) {
+            ruta = null;
+          }
+          if (ruta) {
+            await cargarRuta(ruta.ruta);
+          } else {
+            ocultarTodasLasPantallas();
+            document.getElementById("sinRutaAdmin").style.display = "block";
+          }
+          return;
+        }
+        ocultarTodasLasPantallas();
+        document.getElementById("sinRutaAdmin").style.display = "block";
         return;
       }
 
