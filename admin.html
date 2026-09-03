@@ -17,12 +17,12 @@
   </header>
 
   <main class="wide">
-    <div class="pill-select" id="tabs">
-      <a class="pill active" data-tab="clientes">Clientes</a>
-      <a class="pill" data-tab="importar">Importar CSV</a>
-      <a class="pill" data-tab="frescura">% Frescura</a>
-      <a class="pill" data-tab="historial">Historial de cambios</a>
-      <a class="pill" data-tab="depuracion">Territorios</a>
+    <div class="pill-select tabs-nav" id="tabs">
+      <a class="pill active" data-tab="clientes">🏬 Clientes</a>
+      <a class="pill" data-tab="importar">📥 Importar CSV</a>
+      <a class="pill" data-tab="frescura">🍞 % Frescura</a>
+      <a class="pill" data-tab="historial">🕓 Historial</a>
+      <a class="pill" data-tab="depuracion">🗺️ Territorios</a>
     </div>
 
     <div id="tabClientes">
@@ -96,17 +96,25 @@
     </div>
 
     <div id="tabDepuracion" style="display:none;">
+      <div class="summary-grid" id="resumenTerritorios"></div>
+
       <div class="card">
-        <strong>Enlaces por territorio</strong>
-        <p style="font-size:12px; color:var(--gray);">
+        <div class="seccion-header">
+          <span class="icono">🔗</span>
+          <h2>Enlaces por territorio</h2>
+        </div>
+        <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
           Envía a cada IBP el enlace de su territorio para que decida qué tiendas siguen en su lista.
         </p>
-        <div id="listaEnlaces"></div>
+        <div class="rutas-grid" id="listaEnlaces"></div>
       </div>
 
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <strong>Vista general de territorios</strong>
+          <div class="seccion-header" style="margin:0;">
+            <span class="icono">📊</span>
+            <h2>Vista general de territorios</h2>
+          </div>
           <button class="btn btn-secondary btn-small" id="btnCsvDepuracion">⬇️ Descargar CSV</button>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:4px;">
@@ -189,14 +197,13 @@
         .map((r) => {
           const link = `${base}?ruta=${encodeURIComponent(r.ruta)}`;
           return `
-            <div class="stop">
-              <div class="stop-body">
-                <strong>Ruta ${r.ruta}</strong> — ${r.propietario}
-                <span class="badge">${r.total} tiendas</span>
-                <div class="stop-actions">
-                  <button class="btn btn-secondary btn-small" onclick="copiarEnlace('${link}', this)">Copiar enlace</button>
-                  <a class="btn btn-primary btn-small" style="text-decoration:none;" href="${link}" target="_blank">Abrir</a>
-                </div>
+            <div class="ruta-card">
+              <span class="ruta-num">RUTA ${r.ruta}</span>
+              <strong class="ruta-propietario">${r.propietario}</strong>
+              <div class="ruta-meta"><span class="badge">${r.total} tiendas</span></div>
+              <div class="ruta-actions">
+                <button class="btn btn-secondary btn-small" onclick="copiarEnlace('${link}', this)">Copiar enlace</button>
+                <a class="btn btn-primary btn-small" style="text-decoration:none;" href="${link}" target="_blank">Abrir</a>
               </div>
             </div>
           `;
@@ -220,8 +227,59 @@
     async function cargarDepuracion() {
       document.getElementById("listaDepuracion").innerHTML = `<div class="empty-state">Cargando…</div>`;
       todasTerritorios = await BimboDepuracion.getTodasConEstado();
+      renderResumenTerritorios();
       renderTablaDepuracion();
     }
+
+    function renderResumenTerritorios() {
+      const total = todasTerritorios.length;
+      const rutas = new Set(todasTerritorios.map((t) => t.ruta)).size;
+      const activas = todasTerritorios.filter((t) => t.estatus === "activa").length;
+      const inactivas = todasTerritorios.filter((t) => t.estatus === "inactiva").length;
+      const sinRevisar = total - activas - inactivas;
+      const sinActividad = todasTerritorios.filter((t) => t.semanasDesdeUltimaActividad >= 4).length;
+
+      document.getElementById("resumenTerritorios").innerHTML = `
+        <div class="summary-card">
+          <div class="icon">🗺️</div>
+          <div class="num">${rutas}</div>
+          <div class="label">rutas</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--dark);">
+          <div class="icon">🏬</div>
+          <div class="num">${total}</div>
+          <div class="label">tiendas totales</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--verde);">
+          <div class="icon">✅</div>
+          <div class="num">${activas}</div>
+          <div class="label">activas</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--amarillo);">
+          <div class="icon">⏸️</div>
+          <div class="num">${inactivas}</div>
+          <div class="label">inactivas</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--gris);">
+          <div class="icon">❔</div>
+          <div class="num">${sinRevisar}</div>
+          <div class="label">sin revisar</div>
+        </div>
+        <div class="summary-card" style="border-top-color:var(--rojo);">
+          <div class="icon">⚠️</div>
+          <div class="num">${sinActividad}</div>
+          <div class="label">sin actividad 4+ sem</div>
+        </div>
+      `;
+    }
+
+    const ETIQUETA_ESTATUS = { activa: "Activa", inactiva: "Inactiva" };
+    const ETIQUETA_FRECUENCIA = {
+      semanal: "Semanal",
+      "2x_semana": "2x semana",
+      quincenal: "Quincenal",
+      pedido: "A pedido",
+    };
 
     function renderTablaDepuracion() {
       const visibles = todasTerritorios.filter((t) => {
@@ -236,11 +294,9 @@
         return;
       }
 
-      const etiquetaEstatus = { activa: "Activa", inactiva: "Inactiva" };
-
       cont.innerHTML = `
         <div class="card">
-          <div style="overflow-x:auto;">
+          <div class="tabla-scroll">
             <table class="data-table">
               <thead>
                 <tr><th>Ruta</th><th>Tienda</th><th>Dirección</th><th>Estatus</th><th>Motivo</th><th>Frecuencia</th><th>Sin actividad</th><th>Revisado</th></tr>
@@ -249,9 +305,10 @@
                 ${visibles
                   .map((t) => {
                     const badge = t.estatus
-                      ? `<span class="badge">${etiquetaEstatus[t.estatus] || t.estatus}</span>`
-                      : `<span class="badge sin-revisar-badge">Sin revisar</span>`;
+                      ? `<span class="badge badge-estatus ${t.estatus}">${ETIQUETA_ESTATUS[t.estatus] || t.estatus}</span>`
+                      : `<span class="badge badge-estatus sinrevisar">Sin revisar</span>`;
                     const revisado = t.revisado_en ? new Date(t.revisado_en).toLocaleDateString() : "—";
+                    const alerta = t.semanasDesdeUltimaActividad >= 4 ? "color:var(--rojo); font-weight:700;" : "";
                     return `
                       <tr>
                         <td>${t.ruta}</td>
@@ -259,8 +316,8 @@
                         <td>${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}</td>
                         <td>${badge}</td>
                         <td>${t.motivo || "—"}</td>
-                        <td>${t.frecuencia || "—"}</td>
-                        <td>${t.semanasDesdeUltimaActividad}</td>
+                        <td>${ETIQUETA_FRECUENCIA[t.frecuencia] || "—"}</td>
+                        <td style="${alerta}">${t.semanasDesdeUltimaActividad}</td>
                         <td>${revisado}</td>
                       </tr>
                     `;
