@@ -165,19 +165,32 @@
              </div>`
           : "";
 
-      // Los días de visita solo importan para una tienda activa — una
-      // inactiva no se está visitando, no hay nada que marcar.
-      const diasBox =
-        t.estatus === "activa"
-          ? `<label class="field">Días de visita
-               <div class="dias-pills">
+      // Activar una tienda es obligatorio que venga con frecuencia + al
+      // menos un día — si al usuario le falta algo, no se guarda todavía:
+      // queda "activando" (solo en memoria) y se le va guiando paso a paso
+      // (ver cambiarEstatus/cambiarFrecuencia/toggleDia más abajo).
+      const activando = !!t._pendienteActivar;
+      const faltaFrecuencia = activando && !t.frecuencia;
+      const faltaDias = activando && !faltaFrecuencia && !(t.dias_visita || []).length;
+
+      const hintPaso = activando
+        ? `<div class="hint-paso">${faltaFrecuencia ? "Paso 1 de 2 — elige la frecuencia de visita ⬇️" : "Paso 2 de 2 — elige al menos un día ⬇️"}</div>`
+        : "";
+
+      // Los días de visita solo importan para una tienda activa (o a punto
+      // de estarlo, una vez ya tiene frecuencia) — una inactiva no se está
+      // visitando, no hay nada que marcar.
+      const mostrarDias = t.estatus === "activa" || (activando && t.frecuencia);
+      const diasBox = mostrarDias
+        ? `<label class="field">Días de visita
+               <div class="dias-pills ${faltaDias ? "campo-guia" : ""}">
                  ${DIAS.map((d) => {
                    const activo = (t.dias_visita || []).includes(d);
                    return `<label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); toggleDia('${t.id}','${d}')">${d.slice(0, 3)}</label>`;
                  }).join("")}
                </div>
              </label>`
-          : "";
+        : "";
 
       return `
         <div class="card tienda-card ${esAlerta ? "alerta" : ""}" data-id="${t.id}">
@@ -193,12 +206,13 @@
           ${renderSparkline(t.semanas)}
 
           <div class="estado-pills">
-            <label class="estado-pill activa ${t.estatus === "activa" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','activa')">✅ Activa</label>
+            <label class="estado-pill activa ${t.estatus === "activa" ? "activo" : ""} ${activando ? "pendiente" : ""}" onclick="cambiarEstatus('${t.id}','activa')">✅ Activa</label>
             <label class="estado-pill inactiva ${t.estatus === "inactiva" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','inactiva')">⏸️ Inactiva</label>
           </div>
           ${motivoBox}
+          ${hintPaso}
 
-          <label class="field">Frecuencia de visita
+          <label class="field ${faltaFrecuencia ? "campo-guia" : ""}">Frecuencia de visita
             <select onchange="cambiarFrecuencia('${t.id}', this.value)">
               <option value="" ${!t.frecuencia ? "selected" : ""} disabled>Elegir…</option>
               <option value="semanal" ${t.frecuencia === "semanal" ? "selected" : ""}>Semanal</option>
@@ -212,16 +226,45 @@
       `;
     }
 
+    // Después de re-pintar, hace scroll + foco al campo que falta para
+    // terminar de activar la tienda (frecuencia primero, días después).
+    function enfocarPasoActivacion(id) {
+      const card = document.querySelector(`.tienda-card[data-id="${CSS.escape(id)}"]`);
+      if (!card) return;
+      const t = tiendasActuales.find((x) => x.id === id);
+      const objetivo = t && t.frecuencia ? card.querySelector(".dias-pills") : card.querySelector("select");
+      if (!objetivo) return;
+      objetivo.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (typeof objetivo.focus === "function") objetivo.focus({ preventScroll: true });
+    }
+
     function _actualizarLocal(id, cambios) {
       const t = tiendasActuales.find((x) => x.id === id);
       if (t) Object.assign(t, cambios);
     }
 
     async function cambiarEstatus(id, estatus) {
+      const t = tiendasActuales.find((x) => x.id === id);
+      if (!t) return;
+
+      if (estatus === "activa") {
+        const yaCompleta = t.frecuencia && (t.dias_visita || []).length > 0;
+        if (!yaCompleta) {
+          // Todavía no se guarda nada — hace falta frecuencia y/o días
+          // primero. Se marca "activando" y se guía al usuario campo por
+          // campo (ver cambiarFrecuencia/toggleDia).
+          t._pendienteActivar = true;
+          render();
+          enfocarPasoActivacion(id);
+          return;
+        }
+        // Ya tenía frecuencia y días (por ejemplo, los había llenado antes
+        // de tocar "Activa") — se guarda directo, sin pasos de por medio.
+      }
+
       let motivo = "";
       if (estatus === "inactiva") {
-        const actual = tiendasActuales.find((x) => x.id === id);
-        motivo = prompt("¿Por qué está inactiva esta tienda?", actual ? actual.motivo || "" : "");
+        motivo = prompt("¿Por qué está inactiva esta tienda?", t.motivo || "");
         if (motivo === null) return; // canceló, no se cambia nada
         if (!motivo.trim()) {
           alert("Necesito un motivo para continuar.");
@@ -235,6 +278,7 @@
         alert("No se pudo guardar el cambio. Revisa tu conexión e intenta de nuevo.");
         return;
       }
+      t._pendienteActivar = false; // por si venía de un intento de activación cancelado
       _actualizarLocal(id, { estatus, motivo: estatus === "activa" ? null : motivo, revisado_en: new Date().toISOString() });
       render();
     }
@@ -244,6 +288,7 @@
     }
 
     async function cambiarFrecuencia(id, frecuencia) {
+      const t = tiendasActuales.find((x) => x.id === id);
       try {
         await BimboDepuracion.setFrecuencia(id, frecuencia);
       } catch (err) {
@@ -252,6 +297,15 @@
         return;
       }
       _actualizarLocal(id, { frecuencia, revisado_en: new Date().toISOString() });
+
+      if (t && t._pendienteActivar) {
+        if ((t.dias_visita || []).length > 0) {
+          await finalizarActivacion(id); // ya tenía días de antes — se activa de una vez
+        } else {
+          render();
+          enfocarPasoActivacion(id); // pasa al siguiente paso: elegir días
+        }
+      }
     }
 
     async function toggleDia(id, dia) {
@@ -266,6 +320,28 @@
         return;
       }
       _actualizarLocal(id, { dias_visita: nuevos, revisado_en: new Date().toISOString() });
+
+      if (t._pendienteActivar && t.frecuencia && nuevos.length > 0) {
+        await finalizarActivacion(id); // último paso listo — se activa
+      } else {
+        render();
+      }
+    }
+
+    // Guarda el estatus "activa" una vez que ya se juntaron frecuencia y
+    // días — cierra el flujo guiado de activación.
+    async function finalizarActivacion(id) {
+      const t = tiendasActuales.find((x) => x.id === id);
+      if (!t) return;
+      try {
+        await BimboDepuracion.setEstatus(id, "activa", null);
+      } catch (err) {
+        alert("La frecuencia y los días se guardaron, pero no se pudo activar la tienda. Intenta marcarla activa de nuevo.");
+        render();
+        return;
+      }
+      t._pendienteActivar = false;
+      _actualizarLocal(id, { estatus: "activa", motivo: null, revisado_en: new Date().toISOString() });
       render();
     }
 

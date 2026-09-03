@@ -76,8 +76,22 @@ ruta: `mi-territorio.html?ruta=0150`. Ahí, por cada tienda:
 - Elige su **frecuencia de visita**: semanal, 2 veces por semana, quincenal,
   o a pedido del cliente.
 - Si la tienda queda activa, marca **qué días** la visita (lunes a sábado,
-  domingo no se pauta) con un selector de pastillas — ese campo solo aparece
-  para tiendas activas.
+  domingo no se pauta) con un selector de pastillas.
+
+**Activar es obligatorio hacerlo completo**: no existe una tienda "activa"
+sin frecuencia y sin al menos un día — si al tocar "Activa" falta alguno de
+los dos, no se guarda nada todavía. La tarjeta entra en un modo guiado:
+resalta el campo que falta, hace scroll y foco automático hacia él ("Paso 1
+de 2 — elige la frecuencia", luego "Paso 2 de 2 — elige al menos un día") y
+recién cuando ambos quedan elegidos se guarda el estatus activa de una vez.
+Si en medio de ese proceso el IBP toca "Inactiva", se cancela la activación
+pendiente sin dejar nada a medias (como no se había guardado nada aún, no
+hay qué deshacer). Si la tienda ya tenía frecuencia y días de una vez
+anterior, tocar "Activa" la reactiva directo, sin pasos de por medio. Es la
+misma lógica en el modal de edición de `admin.html`. Nota: esto se aplica a
+nivel de interfaz (igual que el motivo obligatorio de "inactiva"), no como
+restricción a prueba de balas en la base de datos — mismo criterio que el
+resto de la app hoy.
 - Ve un aviso automático (⚠️) cuando la tienda lleva 4+ semanas sin ventas
   en el periodo del reporte, para priorizar cuáles revisar primero.
 

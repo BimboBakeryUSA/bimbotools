@@ -369,10 +369,21 @@
           ? `<div class="motivo-box"><strong>Motivo:</strong> ${t.motivo || "(sin especificar)"}</div>`
           : "";
 
-      const diasBox =
-        t.estatus === "activa"
-          ? `<label class="field">Días de visita
-               <div class="dias-pills">
+      // Activar una tienda exige frecuencia + al menos un día (igual que
+      // en mi-territorio.html) — si al admin le falta algo, se guía campo
+      // por campo en vez de guardar a medias (ver modalCambiarEstatus).
+      const activando = !!t._pendienteActivar;
+      const faltaFrecuencia = activando && !t.frecuencia;
+      const faltaDias = activando && !faltaFrecuencia && !(t.dias_visita || []).length;
+
+      const hintPaso = activando
+        ? `<div class="hint-paso">${faltaFrecuencia ? "Paso 1 de 2 — elige la frecuencia de visita ⬇️" : "Paso 2 de 2 — elige al menos un día ⬇️"}</div>`
+        : "";
+
+      const mostrarDias = t.estatus === "activa" || (activando && t.frecuencia);
+      const diasBox = mostrarDias
+        ? `<label class="field">Días de visita
+               <div class="dias-pills ${faltaDias ? "campo-guia" : ""}">
                  ${DIAS_TERR.map((d) => {
                    const activo = (t.dias_visita || []).includes(d);
                    return `<label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); modalToggleDia('${d}')">${d.slice(0, 3)}</label>`;
@@ -389,12 +400,13 @@
         <div>${badgeAlerta}</div>
 
         <div class="estado-pills">
-          <label class="estado-pill activa ${t.estatus === "activa" ? "activo" : ""}" onclick="modalCambiarEstatus('activa')">✅ Activa</label>
+          <label class="estado-pill activa ${t.estatus === "activa" ? "activo" : ""} ${activando ? "pendiente" : ""}" onclick="modalCambiarEstatus('activa')">✅ Activa</label>
           <label class="estado-pill inactiva ${t.estatus === "inactiva" ? "activo" : ""}" onclick="modalCambiarEstatus('inactiva')">⏸️ Inactiva</label>
         </div>
         ${motivoBox}
+        ${hintPaso}
 
-        <label class="field">Frecuencia de visita
+        <label class="field ${faltaFrecuencia ? "campo-guia" : ""}">Frecuencia de visita
           <select onchange="modalCambiarFrecuencia(this.value)">
             <option value="" ${!t.frecuencia ? "selected" : ""} disabled>Elegir…</option>
             <option value="semanal" ${t.frecuencia === "semanal" ? "selected" : ""}>Semanal</option>
@@ -423,10 +435,36 @@
       renderResumenTerritorios();
     }
 
+    // Después de re-pintar el modal, hace scroll + foco al campo que falta
+    // para terminar de activar la tienda (frecuencia primero, días después).
+    function enfocarPasoActivacionModal(t) {
+      const cont = document.getElementById("modalBody");
+      if (!cont) return;
+      const objetivo = t.frecuencia ? cont.querySelector(".dias-pills") : cont.querySelector("select");
+      if (!objetivo) return;
+      objetivo.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (typeof objetivo.focus === "function") objetivo.focus({ preventScroll: true });
+    }
+
     async function modalCambiarEstatus(estatus) {
       const nombre = requiereNombreAdmin();
       if (!nombre) return;
       const t = todasTerritorios.find((x) => x.id === modalTiendaId);
+
+      if (estatus === "activa") {
+        const yaCompleta = t.frecuencia && (t.dias_visita || []).length > 0;
+        if (!yaCompleta) {
+          // No se guarda todavía — falta frecuencia y/o días. Se marca
+          // "activando" y se guía campo por campo (ver
+          // modalCambiarFrecuencia/modalToggleDia).
+          t._pendienteActivar = true;
+          document.getElementById("modalBody").innerHTML = renderModalTienda(t);
+          enfocarPasoActivacionModal(t);
+          return;
+        }
+        // Ya tenía frecuencia y días — se guarda directo, sin pasos.
+      }
+
       let motivo = "";
       if (estatus === "inactiva") {
         motivo = prompt("¿Por qué está inactiva esta tienda?", (t && t.motivo) || "");
@@ -443,6 +481,7 @@
         alert("No se pudo guardar el cambio. Revisa tu conexión e intenta de nuevo.");
         return;
       }
+      t._pendienteActivar = false; // por si venía de un intento de activación cancelado
       Object.assign(t, { estatus, motivo: estatus === "activa" ? null : motivo, revisado_en: new Date().toISOString() });
       _refrescarModalYTabla();
     }
@@ -462,6 +501,16 @@
         return;
       }
       Object.assign(t, { frecuencia, revisado_en: new Date().toISOString() });
+
+      if (t._pendienteActivar) {
+        if ((t.dias_visita || []).length > 0) {
+          await modalFinalizarActivacion(nombre); // ya tenía días de antes — se activa de una vez
+          return;
+        }
+        document.getElementById("modalBody").innerHTML = renderModalTienda(t);
+        enfocarPasoActivacionModal(t); // pasa al siguiente paso: elegir días
+        return;
+      }
       _refrescarModalYTabla();
     }
 
@@ -478,6 +527,28 @@
         return;
       }
       Object.assign(t, { dias_visita: nuevos, revisado_en: new Date().toISOString() });
+
+      if (t._pendienteActivar && t.frecuencia && nuevos.length > 0) {
+        await modalFinalizarActivacion(nombre); // último paso listo — se activa
+        return;
+      }
+      _refrescarModalYTabla();
+    }
+
+    // Guarda el estatus "activa" una vez que ya se juntaron frecuencia y
+    // días — cierra el flujo guiado de activación.
+    async function modalFinalizarActivacion(nombre) {
+      const t = todasTerritorios.find((x) => x.id === modalTiendaId);
+      if (!t) return;
+      try {
+        await BimboDepuracion.setEstatus(modalTiendaId, "activa", null, "admin", nombre);
+      } catch (err) {
+        alert("La frecuencia y los días se guardaron, pero no se pudo activar la tienda. Intenta marcarla activa de nuevo.");
+        _refrescarModalYTabla();
+        return;
+      }
+      t._pendienteActivar = false;
+      Object.assign(t, { estatus: "activa", motivo: null, revisado_en: new Date().toISOString() });
       _refrescarModalYTabla();
     }
 
