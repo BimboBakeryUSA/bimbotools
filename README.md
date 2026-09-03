@@ -55,23 +55,23 @@ Luego abre `http://localhost:8080`.
 
 ## Mi Territorio (IBP)
 
-Se llama así a propósito: no es un trámite de "depuración" que le hacen al
-IBP, es su territorio y él decide. Cada IBP entra por un enlace con su
-número de ruta: `mi-territorio.html?ruta=0150`. Ahí, por cada tienda:
+Se llama así a propósito: es la lista de tiendas del IBP, no un trámite
+administrativo genérico. Cada IBP entra por un enlace con su número de
+ruta: `mi-territorio.html?ruta=0150`. Ahí, por cada tienda:
 
-- La marca **activa**, **la pausa** o **la saca de su territorio** — pausar
-  y sacar siempre piden el motivo (con `prompt`, obligatorio).
+- La marca **activa**, **inactiva** o **pide su borrado** — inactiva y
+  borrado siempre piden el motivo (con `prompt`, obligatorio).
 - Elige su **frecuencia de visita**: semanal, quincenal o a pedido del
   cliente.
 - Ve un aviso automático (⚠️) cuando la tienda lleva 4+ semanas sin ventas
-  en el periodo del reporte, para priorizar cuáles definir primero.
+  en el periodo del reporte, para priorizar cuáles revisar primero.
 
-Las decisiones se guardan solas en el dispositivo del IBP (localStorage,
-igual que el resto de la app hoy). Cuando termina, el IBP descarga un
-`.json` con sus decisiones ("Descargar mis decisiones") y se lo manda a su
-manager. El admin sube esos archivos en `admin.html` → pestaña
-**Territorios**, donde se ven consolidados en una vista general de todas
-las rutas, con filtros y exportación a CSV.
+Los cambios se guardan solos en el dispositivo del IBP (localStorage, igual
+que el resto de la app hoy). Cuando termina, el IBP descarga un `.json` con
+sus cambios ("Descargar mis cambios") y se lo manda a su manager. El admin
+sube esos archivos en `admin.html` → pestaña **Territorios**, donde se ven
+consolidados en una vista general de todas las rutas, con filtros y
+exportación a CSV.
 
 Los enlaces por territorio (para mandarle a cada IBP el suyo) también están
 ahí, en la misma pestaña.
@@ -102,9 +102,9 @@ refrescar la página). No hay backend todavía.
   geocodificar" en el panel admin.
 - **Autenticación real** por rol (hoy se simula eligiendo el usuario desde
   `index.html`).
-- **Mi Territorio centralizado**: hoy cada IBP guarda sus decisiones local y
-  se consolidan importando archivos `.json` en `admin.html` — con Supabase
-  esto sería automático y en vivo (ver sección de arriba).
+- **Mi Territorio centralizado**: hoy cada IBP guarda sus cambios local y se
+  consolidan importando archivos `.json` en `admin.html` — con Supabase esto
+  sería automático y en vivo (ver sección de arriba).
 - `data/tiendas.json` es una foto de un reporte de ventas (12 semanas hasta
   la W35/2026) — para refrescarlo con un reporte más reciente, correr
   `scripts/generar_tiendas.py` de nuevo.

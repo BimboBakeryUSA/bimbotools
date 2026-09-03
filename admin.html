@@ -108,7 +108,7 @@
         <strong>Importar territorios</strong>
         <p style="font-size:12px; color:var(--gray);">
           Sube aquí el/los archivo(s) <code>.json</code> que cada IBP te mande desde el botón
-          "Descargar mis decisiones" en su territorio. Se pueden subir varios a la vez.
+          "Descargar mis cambios" en su territorio. Se pueden subir varios a la vez.
         </p>
         <input type="file" id="fileDepuracion" accept=".json" multiple />
         <div id="resultadoImportDepuracion" style="margin-top:10px; font-size:13px;"></div>
@@ -121,10 +121,10 @@
         </div>
         <div class="pill-select" id="filtroDepuTabs" style="margin-top:10px;">
           <a class="pill active" data-filtro="todas">Todas</a>
-          <a class="pill" data-filtro="sinRevisar">Sin definir</a>
+          <a class="pill" data-filtro="sinRevisar">Sin revisar</a>
           <a class="pill" data-filtro="activa">Activas</a>
           <a class="pill" data-filtro="inactiva">Inactivas</a>
-          <a class="pill" data-filtro="borrar">Para sacar</a>
+          <a class="pill" data-filtro="borrar">Para borrar</a>
         </div>
       </div>
 
@@ -239,7 +239,7 @@
         return;
       }
 
-      const etiquetaEstatus = { activa: "Activa", inactiva: "Pausada", borrar: "Pidió salir" };
+      const etiquetaEstatus = { activa: "Activa", inactiva: "Inactiva", borrar: "Pidió borrado" };
 
       cont.innerHTML = `
         <div class="card">
@@ -291,7 +291,7 @@
           t.ciudad,
           t.estado,
           t.zip,
-          t._estatus.estatus || "sin_definir",
+          t._estatus.estatus || "sin_revisar",
           t._estatus.motivo,
           t._estatus.frecuencia,
           t.semanasDesdeUltimaActividad,
