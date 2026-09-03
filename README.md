@@ -82,17 +82,40 @@ ruta: `mi-territorio.html?ruta=0150`. Ahí, por cada tienda:
   en el periodo del reporte, para priorizar cuáles revisar primero.
 
 Los cambios se guardan **directo en la base de datos, al toque** — ya no hay
-que exportar ni mandarle nada a nadie. El admin ve todo en vivo en
-`admin.html` → pestaña **Territorios** (vista general de todas las rutas,
-con filtros y exportación a CSV) y ahí también están los enlaces por
-territorio para mandarle a cada IBP el suyo.
+que exportar ni mandarle nada a nadie.
+
+### Vista del admin (`admin.html` → pestaña Territorios)
+
+El admin ve todo en vivo: vista general de todas las rutas (con filtros y
+exportación a CSV) y los enlaces por territorio para mandarle a cada IBP el
+suyo. A diferencia del IBP, el admin **puede editar cualquier tienda
+directamente** desde un botón "Editar" en la tabla — mismo control
+(activa/inactiva + motivo, frecuencia, días) que ve el IBP, más dos cosas
+que el IBP no tiene:
+
+- **Reiniciar tienda**: borra estatus, motivo, frecuencia y días de un
+  golpe — la deja "sin revisar", como si nadie la hubiera tocado. Pensado
+  para cuando el admin hace pruebas, o para deshacer un error del IBP antes
+  de dejarlo seguir solo.
+- **Historial de cambios**: quién cambió qué y cuándo (IBP, o Admin +
+  nombre — ver abajo), con el valor antes/después de cada cambio. Solo lo
+  ve el admin, dentro del mismo modal de edición.
+
+Como todavía no hay login, el admin se identifica escribiendo su nombre una
+vez ("Editando como… Cambiar", arriba de Territorios) — se guarda en
+`localStorage` de ese navegador y se manda con cada cambio que hace, para
+que quede su nombre en el historial (columna `actor_nombre` en
+`tiendas_historial`). No es una autenticación real (cualquiera puede poner
+el nombre que quiera), es solo para que el historial sea legible mientras
+no hay cuentas de verdad — ver "Pendientes conocidos".
 
 ## Base de datos (Supabase)
 
 Mi Territorio usa Supabase — tablas `ibps`, `tiendas` (incluye
-`dias_visita`, el arreglo de días en que se visita cada tienda activa) y
-`ventas_semanales` (esquema completo en `scripts/mi_territorio_schema.sql`).
-Vive dentro del
+`dias_visita`, el arreglo de días en que se visita cada tienda activa),
+`ventas_semanales` y `tiendas_historial` (el historial de cambios que ve el
+admin — quién, qué campo, valor antes/después y cuándo; esquema completo en
+`scripts/mi_territorio_schema.sql`). Vive dentro del
 proyecto **`bimbo-inventory-pro`** (mismo Supabase, tablas con nombre
 propio): la organización tiene tope de 2 proyectos activos en el plan free
 y ya estaban ocupados por `bimbo-inventory-pro` y `catalogo-bimbo`, así que
@@ -101,15 +124,21 @@ a su propio proyecto, es cuestión de correr ese mismo `.sql` ahí y copiar
 los datos — son tablas Postgres normales, no hay nada que las ate para
 siempre a estar juntas.
 
-**Seguridad (RLS):** la app no tiene login todavía, así que las tres tablas
-tienen lectura abierta con la llave pública (`sb_publishable_...`, ya
-embebida en `js/depuracion.js` — es la llave anónima, pensada para vivir en
-el cliente). La escritura NO es un `UPDATE` directo a la tabla: pasa por dos
+**Seguridad (RLS):** la app no tiene login todavía, así que las cuatro
+tablas tienen lectura abierta con la llave pública (`sb_publishable_...`,
+ya embebida en `js/depuracion.js` — es la llave anónima, pensada para vivir
+en el cliente). La escritura NO es un `UPDATE` directo a la tabla: pasa por
 funciones de Postgres (`set_tienda_estatus`, `set_tienda_frecuencia`,
-`set_tienda_dias`) que son las únicas con permiso de escritura. Esto acota
-lo que cualquiera con el link puede tocar a exactamente el
-estatus/motivo/frecuencia/días de visita de una tienda — nunca el catálogo
-(nombre, dirección, ventas), que solo se actualiza vía migración.
+`set_tienda_dias`, `set_tienda_reset`) que son las únicas con permiso de
+escritura, y cada una deja su propio registro en `tiendas_historial` como
+parte del mismo cambio. Esto acota lo que cualquiera con el link puede
+tocar a exactamente el estatus/motivo/frecuencia/días de visita de una
+tienda — nunca el catálogo (nombre, dirección, ventas), que solo se
+actualiza vía migración. Nota: la distinción "IBP" vs. "admin" (parámetro
+`p_actor` de esas funciones) es autodeclarada por quien llama, no hay nada
+del lado del servidor que verifique que quien manda `actor: "admin"` sea
+realmente el admin — es el mismo nivel de confianza que el resto de la app
+mientras no exista login real (ver "Pendientes conocidos").
 
 **Refrescar el catálogo** (nuevo reporte de ventas): correr
 `scripts/generar_tiendas.py` para regenerar `data/tiendas.json`, y de ahí
@@ -140,14 +169,14 @@ pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
   por usuario en vez de dejarlo abierto a quien tenga el link. La demo vieja
   (`ibp.html`/`msl.html`) también simula el rol eligiendo el usuario de una
   lista, sin login real.
-- **Vista admin vs. vista IBP en Mi Territorio**: hoy `mi-territorio.html`
-  es una sola pantalla igual para cualquiera que la abra, sea el IBP dueño
-  de la ruta o el admin viéndola por curiosidad/soporte. No es lo mismo lo
-  que necesita ver/hacer uno que el otro (el admin necesita más contexto —
-  historial, quién y cuándo cambió qué, tal vez poder revertir — y quizás
-  no debería poder "decidir" como si fuera el IBP). Falta definir qué
-  cambia entre las dos vistas y separarlas — pendiente de diseño, se
-  desarrolla junto con el punto de autenticación real de arriba.
+- **Vista admin vs. vista IBP**: resuelto para `admin.html` — el admin ya
+  tiene su propia forma de editar (modal con historial + reinicio, ver
+  "Vista del admin" arriba), separada de lo que ve el IBP en
+  `mi-territorio.html`. Lo que sigue pendiente: `mi-territorio.html` en sí
+  sigue siendo la misma pantalla para cualquiera que abra el link (no
+  distingue si es el IBP dueño de la ruta o alguien más) — eso depende de
+  tener autenticación real primero (punto de arriba), para poder saber
+  quién la está abriendo.
 - El resto de la app (ibp/msl/admin fuera de Territorios) todavía no
   se migra a Supabase — sigue en `localStorage`.
 - Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de

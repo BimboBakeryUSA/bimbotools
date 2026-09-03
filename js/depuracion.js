@@ -14,9 +14,11 @@
 // todos los IBPs y el admin en vivo — ya no hay exportar/importar .json.
 //
 // Escritura desde el navegador: solo a través de funciones de Postgres
-// (set_tienda_estatus / set_tienda_frecuencia / set_tienda_dias) — la tabla
-// en sí no acepta UPDATE directo con la llave pública (ver políticas de RLS
-// en el esquema).
+// (set_tienda_estatus / set_tienda_frecuencia / set_tienda_dias /
+// set_tienda_reset) — la tabla en sí no acepta UPDATE directo con la llave
+// pública (ver políticas de RLS en el esquema). Cada una de esas funciones
+// deja rastro en tiendas_historial (quién — ibp o admin — cambió qué y
+// cuándo), consultable con getHistorial().
 // ============================================================================
 
 (function () {
@@ -176,30 +178,66 @@ function getResumenRuta(tiendas) {
 // estatus: "activa" | "inactiva". El motivo se pide siempre que no sea
 // "activa" (cubre tanto "está pausada" como "quiero que se elimine" — ver
 // nota en README sobre por qué ya no hay un tercer estatus de "borrar").
-async function setEstatus(tiendaId, estatus, motivo) {
+//
+// actor: "ibp" (default) o "admin" — queda registrado en tiendas_historial
+// junto con actorNombre, para saber quién hizo cada cambio (ver
+// getHistorial). mi-territorio.html no manda actor (siempre es el IBP);
+// admin.html sí, cuando edita directamente una tienda.
+async function setEstatus(tiendaId, estatus, motivo, actor = "ibp", actorNombre = null) {
   const { error } = await _client.rpc("set_tienda_estatus", {
     p_tienda_id: tiendaId,
     p_estatus: estatus,
     p_motivo: estatus === "activa" ? null : motivo || null,
+    p_actor: actor,
+    p_actor_nombre: actorNombre,
   });
   if (error) throw new Error(`set_tienda_estatus: ${error.message}`);
 }
 
-async function setFrecuencia(tiendaId, frecuencia) {
+async function setFrecuencia(tiendaId, frecuencia, actor = "ibp", actorNombre = null) {
   const { error } = await _client.rpc("set_tienda_frecuencia", {
     p_tienda_id: tiendaId,
     p_frecuencia: frecuencia,
+    p_actor: actor,
+    p_actor_nombre: actorNombre,
   });
   if (error) throw new Error(`set_tienda_frecuencia: ${error.message}`);
 }
 
 // dias: arreglo de días ("lunes".."sabado") en que se visita la tienda.
-async function setDias(tiendaId, dias) {
+async function setDias(tiendaId, dias, actor = "ibp", actorNombre = null) {
   const { error } = await _client.rpc("set_tienda_dias", {
     p_tienda_id: tiendaId,
     p_dias: dias,
+    p_actor: actor,
+    p_actor_nombre: actorNombre,
   });
   if (error) throw new Error(`set_tienda_dias: ${error.message}`);
+}
+
+// Reinicio total de una tienda — solo lo usa admin.html (pruebas, o
+// deshacer un error del IBP). La deja "sin revisar", como si nunca la
+// hubieran tocado.
+async function resetTienda(tiendaId, actorNombre = null) {
+  const { error } = await _client.rpc("set_tienda_reset", {
+    p_tienda_id: tiendaId,
+    p_actor_nombre: actorNombre,
+  });
+  if (error) throw new Error(`set_tienda_reset: ${error.message}`);
+}
+
+// Historial de cambios de una tienda (más reciente primero) — quién
+// (ibp/admin + nombre si es admin), qué campo, valor antes/después y
+// cuándo. Solo se usa desde admin.html.
+async function getHistorial(tiendaId) {
+  return _checar(
+    await _client
+      .from("tiendas_historial")
+      .select("id, actor, actor_nombre, campo, valor_anterior, valor_nuevo, creado_en")
+      .eq("tienda_id", tiendaId)
+      .order("creado_en", { ascending: false }),
+    "tiendas_historial"
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +278,8 @@ window.BimboDepuracion = {
   setEstatus,
   setFrecuencia,
   setDias,
+  resetTienda,
+  getHistorial,
   getTodasConEstado,
 };
 })();

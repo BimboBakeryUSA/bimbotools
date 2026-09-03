@@ -717,6 +717,95 @@ body {
   font-weight: 700;
 }
 
+/* ---- Admin: quién está editando (Mi Territorio) ---- */
+
+.admin-identidad {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--gray);
+  background: white;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.admin-identidad strong {
+  color: var(--dark);
+}
+
+/* ---- Modal genérico (admin: editar/reiniciar una tienda) ---- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 14px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.modal {
+  background: white;
+  border-radius: 14px;
+  max-width: 480px;
+  width: 100%;
+  padding: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.modal-header strong {
+  font-size: 16px;
+}
+
+.modal-close {
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--gray);
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+.btn-danger {
+  background: var(--rojo);
+  color: white;
+}
+
+/* ---- Historial de cambios (dentro del modal, admin.html) ---- */
+
+.historial-item {
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+  font-size: 12.5px;
+}
+
+.historial-item:first-child {
+  border-top: none;
+}
+
+.historial-detalle {
+  color: var(--dark);
+  margin: 2px 0;
+}
+
+.historial-fecha {
+  color: var(--gray);
+  font-size: 11px;
+}
+
 .badge-estatus.activa {
   background: rgba(46, 158, 79, 0.14);
   color: #1f7a3c;
