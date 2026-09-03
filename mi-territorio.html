@@ -17,13 +17,35 @@
   </header>
 
   <main>
-    <div id="sinRuta" class="card" style="display:none;">
-      <strong>¿Cuál es tu territorio?</strong>
+    <div id="pantallaToken" class="card" style="display:none;">
+      <strong>¿Cuál es tu correo?</strong>
       <p style="font-size:13px; color:var(--gray);">
-        Escribe tu número de ruta (el que te compartió tu manager) para entrar y tomar el control.
+        Con eso ya sabemos quién eres. Más adelante te llegará una invitación a tu correo para crear tu cuenta
+        permanente — mientras tanto, este enlace te deja entrar directo.
       </p>
-      <input type="text" id="inputRuta" placeholder="Ej. 0150" />
-      <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRuta">Entrar a mi territorio</button>
+      <input type="email" id="inputEmailToken" placeholder="tucorreo@ejemplo.com" />
+      <p id="tokenError" style="color:var(--rojo); font-size:13px;"></p>
+      <button class="btn btn-primary" style="margin-top:10px;" id="btnEntrarToken">Entrar</button>
+    </div>
+
+    <div id="pantallaLogin" class="card" style="display:none;">
+      <strong>Iniciar sesión</strong>
+      <p id="loginError" style="color:var(--rojo); font-size:13px;"></p>
+      <label class="field">Correo
+        <input type="email" id="loginEmail" placeholder="tucorreo@ejemplo.com" />
+      </label>
+      <label class="field">Contraseña
+        <input type="password" id="loginPassword" />
+      </label>
+      <button class="btn btn-primary" style="margin-top:10px;" id="btnLogin">Entrar</button>
+    </div>
+
+    <div id="sinRutaAdmin" class="card" style="display:none;">
+      <strong>Estás logueado como admin/corporativo</strong>
+      <p style="font-size:13px; color:var(--gray);">
+        Abre el enlace de una ruta específica, o entra a
+        <a href="admin.html">admin.html</a> → pestaña Territorios para ver todas.
+      </p>
     </div>
 
     <div id="cargando" class="card" style="display:none;">Cargando…</div>
@@ -33,6 +55,9 @@
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <strong id="rutaNombre">—</strong>
           <span class="badge" id="rutaRango"></span>
+        </div>
+        <div style="margin-top:8px;">
+          <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesion">Cerrar sesión</span>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:6px;">
           Revisa cada tienda: márcala <b>activa</b> si se sigue visitando normal, o <b>inactiva</b> si por
@@ -64,9 +89,19 @@
   <script>
     const DIAS = BimboDepuracion.getDiasSemana();
     const params = new URLSearchParams(location.search);
-    let rutaId = params.get("ruta") || params.get("r");
+    // ?ruta= solo lo usa admin/corporativo para entrar a soporte a una ruta
+    // específica — un "route" siempre usa la suya propia (route_code de su
+    // perfil), nunca lo que venga en la URL.
+    const rutaParam = params.get("ruta") || params.get("r");
+    const tokenParam = params.get("t");
     let filtro = "todas";
     let tiendasActuales = [];
+
+    function ocultarTodasLasPantallas() {
+      ["pantallaToken", "pantallaLogin", "sinRutaAdmin", "cargando", "contenidoRuta"].forEach((id) => {
+        document.getElementById(id).style.display = "none";
+      });
+    }
 
     function semaforoAlerta(semanasSin) {
       if (semanasSin >= 4) return "rojo";
@@ -102,9 +137,8 @@
       return t.estatus === filtro;
     }
 
-    async function cargarRuta() {
-      document.getElementById("sinRuta").style.display = "none";
-      document.getElementById("contenidoRuta").style.display = "none";
+    async function cargarRuta(rutaId) {
+      ocultarTodasLasPantallas();
       document.getElementById("cargando").style.display = "block";
 
       let ruta;
@@ -116,12 +150,10 @@
         return;
       }
       if (!ruta) {
-        document.getElementById("cargando").style.display = "none";
-        document.getElementById("sinRuta").style.display = "block";
-        document.getElementById("sinRuta").insertAdjacentHTML(
-          "afterbegin",
-          `<p style="color:var(--rojo); font-size:13px;">No encontré la ruta "${rutaId}". Verifica el número.</p>`
-        );
+        // No debería pasar en el flujo normal (route ve su propia ruta,
+        // admin/corporativo ven cualquiera) — solo si el ?ruta= de soporte
+        // apunta a algo que ya no existe.
+        mostrarPantallaLogin(`No encontré la ruta "${rutaId}".`);
         return;
       }
 
@@ -345,16 +377,6 @@
       render();
     }
 
-    document.getElementById("btnIrRuta").addEventListener("click", () => {
-      const val = document.getElementById("inputRuta").value.trim();
-      if (!val) return;
-      rutaId = val;
-      const url = new URL(location.href);
-      url.searchParams.set("ruta", rutaId);
-      history.replaceState(null, "", url);
-      cargarRuta();
-    });
-
     document.getElementById("filtroTabs").addEventListener("click", (e) => {
       const el = e.target.closest(".pill");
       if (!el) return;
@@ -364,13 +386,103 @@
       render();
     });
 
-    async function iniciar() {
-      await BimboDepuracion.init();
-      if (!rutaId) {
-        document.getElementById("sinRuta").style.display = "block";
+    // ---------------------------------------------------------------------
+    // Sesión: entrada directa por token (primeros 7 días de una ruta),
+    // login real, o ya venía logueado — ver js/depuracion.js.
+    // ---------------------------------------------------------------------
+
+    function mostrarPantallaToken() {
+      ocultarTodasLasPantallas();
+      document.getElementById("pantallaToken").style.display = "block";
+    }
+
+    function mostrarPantallaLogin(mensaje) {
+      ocultarTodasLasPantallas();
+      document.getElementById("pantallaLogin").style.display = "block";
+      document.getElementById("loginError").textContent = mensaje || "";
+    }
+
+    async function continuarConSesion() {
+      let perfil;
+      try {
+        perfil = await BimboDepuracion.getPerfilActual();
+      } catch (err) {
+        mostrarPantallaLogin("No se pudo cargar tu perfil. Intenta de nuevo.");
         return;
       }
-      await cargarRuta();
+
+      if (perfil && (perfil.role === "admin" || perfil.role === "corporativo")) {
+        if (rutaParam) {
+          await cargarRuta(rutaParam);
+        } else {
+          ocultarTodasLasPantallas();
+          document.getElementById("sinRutaAdmin").style.display = "block";
+        }
+        return;
+      }
+
+      if (perfil && perfil.role === "route" && perfil.route_code) {
+        await cargarRuta(perfil.route_code);
+        return;
+      }
+
+      mostrarPantallaLogin("Tu cuenta todavía no tiene una ruta asignada. Contacta a tu admin.");
+    }
+
+    document.getElementById("btnEntrarToken").addEventListener("click", async () => {
+      const email = document.getElementById("inputEmailToken").value.trim();
+      const errorEl = document.getElementById("tokenError");
+      errorEl.textContent = "";
+      if (!email) {
+        errorEl.textContent = "Escribe tu correo para continuar.";
+        return;
+      }
+      ocultarTodasLasPantallas();
+      document.getElementById("cargando").style.display = "block";
+      try {
+        const resultado = await BimboDepuracion.reclamarRutaPorToken(tokenParam, email);
+        if (!resultado) throw new Error("No se pudo reclamar la ruta.");
+        await cargarRuta(resultado.ruta);
+      } catch (err) {
+        mostrarPantallaLogin(`No se pudo entrar con ese enlace (${err.message}). Inicia sesión con tu cuenta.`);
+      }
+    });
+
+    document.getElementById("btnLogin").addEventListener("click", async () => {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+      if (!email || !password) {
+        document.getElementById("loginError").textContent = "Escribe tu correo y contraseña.";
+        return;
+      }
+      try {
+        await BimboDepuracion.iniciarSesion(email, password);
+        await continuarConSesion();
+      } catch (err) {
+        document.getElementById("loginError").textContent = "Correo o contraseña incorrectos.";
+      }
+    });
+
+    document.getElementById("btnCerrarSesion").addEventListener("click", async () => {
+      await BimboDepuracion.cerrarSesion();
+      location.href = "mi-territorio.html";
+    });
+
+    async function iniciar() {
+      await BimboDepuracion.init();
+
+      const sesion = await BimboDepuracion.getSesionValida();
+      if (sesion) {
+        await continuarConSesion();
+        return;
+      }
+
+      if (tokenParam) {
+        mostrarPantallaToken();
+        return;
+      }
+
+      mostrarPantallaLogin();
     }
     iniciar();
 

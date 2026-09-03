@@ -23,10 +23,9 @@ Luego abre `http://localhost:8080`.
 
 ## Estructura
 
-- `index.html` — portada: lista en vivo (desde Supabase) de las rutas reales
-  con su dueño de ruta, para entrar directo a Mi Territorio. Sin login real
-  todavía, así que cualquiera con el link puede entrar a cualquier ruta —
-  ver "Pendientes conocidos".
+- `index.html` — portada simple: enlaces a Mi Territorio y a Administrador.
+  Ya no lista las rutas (con login real, listarlas públicamente no tendría
+  sentido — cada quien entra a la suya, ver "Mi Territorio" abajo).
 - `ibp.html` — demo vieja de un "optimizador de ruta diario" (lista
   ordenada, geofence automático, agregar/quitar clientes) con datos de
   ejemplo (`data/seed.json`). Ya no está enlazada desde `index.html` para no
@@ -46,7 +45,9 @@ Luego abre `http://localhost:8080`.
   no cambian.
 - `js/depuracion.js` — capa de datos de "Mi Territorio". A diferencia de
   `js/data.js` (todavía local/localStorage), este archivo habla directo con
-  **Supabase** — ver "Base de datos" abajo. El nombre interno
+  **Supabase** — ver "Base de datos" abajo. También trae la sesión (login,
+  entrada por token, cierre por inactividad) que usan tanto
+  `mi-territorio.html` como `admin.html`. El nombre interno
   (`depuracion.js` / `BimboDepuracion`) se quedó como estaba al renombrar la
   página, es solo la capa de datos.
 - `js/geo.js` — geofence (confirmación automática de visita por GPS).
@@ -60,14 +61,42 @@ Luego abre `http://localhost:8080`.
   nuevo reporte Excel "Central List / Account L4 / Route / Product Name".
 - `scripts/mi_territorio_schema.sql` — el esquema de Supabase de Mi
   Territorio (tablas, RLS, funciones), tal cual se aplicó al proyecto real.
+- `scripts/edge_functions/invitar-ibp.ts` — la Edge Function que manda la
+  invitación real a un IBP (ver "Autenticación" abajo), tal cual está
+  desplegada en el proyecto.
 - `manifest.json` + `sw.js` + `icons/` — lo que hace la app instalable como
   PWA.
 
 ## Mi Territorio (IBP)
 
 Se llama así a propósito: es la lista de tiendas del IBP, no un trámite
-administrativo genérico. Cada IBP entra por un enlace con su número de
-ruta: `mi-territorio.html?ruta=0150`. Ahí, por cada tienda:
+administrativo genérico.
+
+### Cómo entra un IBP
+
+Ya no hay login obligatorio desde el primer día — pensado para que un IBP
+pueda arrancar sin fricción:
+
+1. El admin le comparte su enlace personal (con un token propio de su ruta,
+   no adivinable — `admin.html` → Territorios → "Copiar enlace"). Ese
+   enlace lo deja entrar directo, sin pedir contraseña — solo su correo (así
+   se sabe quién es, aunque no se verifique todavía).
+2. Esa entrada directa funciona repetida durante **7 días** desde la
+   primera vez que se usa. Cada sesión dura hasta **6 horas de
+   inactividad**; al pasarse, la próxima vez que abra el enlace vuelve a
+   entrar directo (mientras siga dentro de esos 7 días).
+3. Pasados los 7 días, ese enlace deja de meterlo solo — necesita una
+   cuenta real. El admin le manda una invitación por correo (botón
+   "Invitar" en `admin.html`, junto al correo que reportó) para que
+   elija su propia contraseña; de ahí en adelante entra con
+   `mi-territorio.html` a secas, sin token ni parámetro en la URL — su
+   sesión ya sabe qué ruta es la suya.
+
+Un admin o corporativo puede además abrir `mi-territorio.html?ruta=0150`
+para ver cualquier ruta puntual (soporte) — eso sigue funcionando con login
+normal, sin token.
+
+Ahí, por cada tienda:
 
 - La marca **activa** o **inactiva** — inactiva siempre pide el motivo (con
   `prompt`, obligatorio). No hay un estatus aparte de "pedir borrado": pedir
@@ -115,13 +144,11 @@ que el IBP no tiene:
   nombre — ver abajo), con el valor antes/después de cada cambio. Solo lo
   ve el admin, dentro del mismo modal de edición.
 
-Como todavía no hay login, el admin se identifica escribiendo su nombre una
-vez ("Editando como… Cambiar", arriba de Territorios) — se guarda en
-`localStorage` de ese navegador y se manda con cada cambio que hace, para
-que quede su nombre en el historial (columna `actor_nombre` en
-`tiendas_historial`). No es una autenticación real (cualquiera puede poner
-el nombre que quiera), es solo para que el historial sea legible mientras
-no hay cuentas de verdad — ver "Pendientes conocidos".
+`admin.html` exige login real (correo/contraseña) de una cuenta `admin` o
+`corporativo` — ambos roles ven y editan todo por igual. Quién hizo cada
+cambio (columna `actor_nombre` en `tiendas_historial`) ya no lo escribe
+nadie a mano: se toma de la sesión real (`profiles.nombre`/`email`), del
+lado del servidor — ver "Autenticación" abajo.
 
 ## Base de datos (Supabase)
 
@@ -138,21 +165,41 @@ a su propio proyecto, es cuestión de correr ese mismo `.sql` ahí y copiar
 los datos — son tablas Postgres normales, no hay nada que las ate para
 siempre a estar juntas.
 
-**Seguridad (RLS):** la app no tiene login todavía, así que las cuatro
-tablas tienen lectura abierta con la llave pública (`sb_publishable_...`,
-ya embebida en `js/depuracion.js` — es la llave anónima, pensada para vivir
-en el cliente). La escritura NO es un `UPDATE` directo a la tabla: pasa por
+### Autenticación (real, compartida con el resto de la suite)
+
+Mi Territorio usa el mismo sistema de cuentas que ya tenía
+`bimbo-inventory-pro` (`auth.users` de Supabase + tabla `profiles` con
+`role`: `admin` / `corporativo` / `route`, y `route_code` para saber a qué
+ruta pertenece un `route`). No se inventó nada nuevo — se reutilizan tal
+cual las funciones `current_user_role()`/`current_user_route_code()` que ya
+usan `products`/`scan_sessions` en esa misma app.
+
+**Lectura (RLS):** ya no hay lectura pública. Un `route` solo ve
+`ibps`/`tiendas`/`ventas_semanales` de su propia ruta (`route_code`);
+`admin`/`corporativo` ven todo; sin sesión, cero filas. `tiendas_historial`
+solo lo ven `admin`/`corporativo` (el IBP no ve el historial).
+
+**Escritura:** sigue sin haber `UPDATE` directo a las tablas — pasa por
 funciones de Postgres (`set_tienda_estatus`, `set_tienda_frecuencia`,
-`set_tienda_dias`, `set_tienda_reset`) que son las únicas con permiso de
-escritura, y cada una deja su propio registro en `tiendas_historial` como
-parte del mismo cambio. Esto acota lo que cualquiera con el link puede
-tocar a exactamente el estatus/motivo/frecuencia/días de visita de una
-tienda — nunca el catálogo (nombre, dirección, ventas), que solo se
-actualiza vía migración. Nota: la distinción "IBP" vs. "admin" (parámetro
-`p_actor` de esas funciones) es autodeclarada por quien llama, no hay nada
-del lado del servidor que verifique que quien manda `actor: "admin"` sea
-realmente el admin — es el mismo nivel de confianza que el resto de la app
-mientras no exista login real (ver "Pendientes conocidos").
+`set_tienda_dias`, `set_tienda_reset`), cada una dejando su registro en
+`tiendas_historial`. La diferencia con antes: quién hizo el cambio ya no lo
+manda el navegador — la función lo deriva del lado del servidor a partir de
+la sesión real, y valida que un `route` solo pueda tocar tiendas de su
+propia ruta (si intenta otra, lo rechaza). `set_tienda_reset` es exclusivo
+de `admin`/`corporativo`.
+
+**Entrada directa por token** (ver "Cómo entra un IBP" arriba): cada ruta
+tiene un token propio, no adivinable, guardado en `ibps.token`. La función
+`reclamar_ruta_por_token` valida que no hayan pasado más de 7 días desde su
+primer uso y, si es válido, crea una sesión anónima real de Supabase y le
+asigna `role: route` + esa ruta en `profiles` — desde ahí funciona igual
+que cualquier sesión logueada, sujeta a las mismas reglas de RLS de arriba.
+
+**Invitar a un IBP a registrarse:** botón en `admin.html`, respaldado por
+una Edge Function (`invitar-ibp`) que corre del lado del servidor — es la
+única pieza que usa la llave de servicio de Supabase (nunca viaja al
+navegador), y antes de hacer nada verifica que quien la llama sea
+`admin`/`corporativo`.
 
 **Refrescar el catálogo** (nuevo reporte de ventas): correr
 `scripts/generar_tiendas.py` para regenerar `data/tiendas.json`, y de ahí
@@ -161,9 +208,9 @@ pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
 
 ## Estado actual
 
-- **Mi Territorio** (`mi-territorio.html`, la lista de rutas en `index.html`,
-  y la pestaña Territorios de `admin.html`): en vivo sobre Supabase — esto ya
-  no es una demo local.
+- **Mi Territorio** (`mi-territorio.html`, `index.html`, y la pestaña
+  Territorios de `admin.html`): en vivo sobre Supabase, con autenticación
+  real (ver arriba) — esto ya no es una demo local.
 - `ibp.html`, `msl.html`, y el resto de `admin.html` (Clientes, Importar CSV,
   % Frescura, Historial) siguen siendo la demo vieja del "optimizador de
   ruta diario", con datos de ejemplo + `localStorage`, sin backend.
@@ -177,20 +224,22 @@ pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
 - **Geocodificación de direcciones**: el alta manual y el CSV piden lat/lng
   directo por ahora; si faltan, el cliente queda marcado como "pendiente
   geocodificar" en el panel admin.
-- **Autenticación real**: hoy cualquiera con el link de una ruta puede
-  entrar a Mi Territorio y marcar sus tiendas — no hay verificación de que
-  sea el IBP dueño de esa ruta. Cuando exista login, restringir el UPDATE
-  por usuario en vez de dejarlo abierto a quien tenga el link. La demo vieja
-  (`ibp.html`/`msl.html`) también simula el rol eligiendo el usuario de una
-  lista, sin login real.
-- **Vista admin vs. vista IBP**: resuelto para `admin.html` — el admin ya
-  tiene su propia forma de editar (modal con historial + reinicio, ver
-  "Vista del admin" arriba), separada de lo que ve el IBP en
-  `mi-territorio.html`. Lo que sigue pendiente: `mi-territorio.html` en sí
-  sigue siendo la misma pantalla para cualquiera que abra el link (no
-  distingue si es el IBP dueño de la ruta o alguien más) — eso depende de
-  tener autenticación real primero (punto de arriba), para poder saber
-  quién la está abriendo.
+- **Autenticación real**: resuelto para Mi Territorio (ver "Autenticación"
+  arriba) — lectura y escritura ya están atadas a la sesión real, no a
+  quien tenga un link. La demo vieja (`ibp.html`/`msl.html`) sigue sin
+  login, simula el rol eligiendo el usuario de una lista — no se migró
+  (ver siguiente punto).
+- **Vista admin vs. vista IBP**: resuelto — con la sesión real, un `route`
+  siempre ve su propia ruta (nunca lo que venga en la URL) y un
+  `admin`/`corporativo` puede además soportar cualquier ruta puntual con
+  `?ruta=`. `admin.html` tiene su propia forma de editar (modal con
+  historial + reinicio).
+- **`profiles.estado` (`pendiente`/`activo`)**: existe en el esquema
+  compartido pero Mi Territorio no lo usa como filtro todavía — una cuenta
+  `route` creada por `reclamar_ruta_por_token` o por la invitación del admin
+  nace `activo` directo (el token o la invitación ya son la vetación). Si
+  más adelante se necesita un flujo de aprobación manual adicional, ese
+  campo ya está listo para usarse como gate.
 - El resto de la app (ibp/msl/admin fuera de Territorios) todavía no
   se migra a Supabase — sigue en `localStorage`.
 - Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de

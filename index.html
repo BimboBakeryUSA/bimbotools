@@ -17,20 +17,14 @@
 
   <main>
     <p style="color:var(--gray); margin-top: 20px;">
-      Elige tu ruta para entrar a Mi Territorio y decidir qué tiendas siguen activas.
+      Si eres IBP, usa el enlace de tu ruta que te compartió tu manager, o entra con tu cuenta si ya te
+      registraste. Ya no hay un directorio público de rutas — cada quien entra directo a la suya.
     </p>
 
-    <div class="empty-state" id="cargandoRutas">Cargando rutas…</div>
-    <div class="rutas-grid" id="rutasGrid"></div>
-
-    <div class="card" style="margin-top:20px;">
-      <strong>¿No ves tu ruta en la lista?</strong>
-      <p style="font-size:13px; color:var(--gray);">
-        Escribe tu número de ruta directo (el enlace que te compartió tu manager funciona igual).
-      </p>
-      <input type="text" id="inputRutaDepu" placeholder="Ej. 0150" />
-      <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRutaDepu">Entrar a mi territorio</button>
-    </div>
+    <a class="role-card" href="mi-territorio.html" style="margin-top:12px;">
+      <h2>Mi Territorio</h2>
+      <p>Entra con el enlace de tu ruta, o inicia sesión si ya tienes cuenta</p>
+    </a>
 
     <a class="role-card" href="admin.html" style="margin-top:20px;">
       <h2>Administrador</h2>
@@ -38,42 +32,7 @@
     </a>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/depuracion.js"></script>
   <script>
-    document.getElementById("btnIrRutaDepu").addEventListener("click", () => {
-      const val = document.getElementById("inputRutaDepu").value.trim();
-      if (!val) return;
-      location.href = `mi-territorio.html?ruta=${encodeURIComponent(val)}`;
-    });
-
-    async function render() {
-      const cargando = document.getElementById("cargandoRutas");
-      const grid = document.getElementById("rutasGrid");
-      try {
-        await BimboDepuracion.init();
-        const rutas = await BimboDepuracion.getRutas();
-        cargando.style.display = "none";
-        grid.innerHTML = rutas
-          .map((r) => {
-            const link = `mi-territorio.html?ruta=${encodeURIComponent(r.ruta)}`;
-            return `
-              <a class="ruta-card" href="${link}">
-                <div class="ruta-titulo">
-                  <span class="ruta-num">${r.ruta}</span>
-                  <strong class="ruta-propietario">${r.propietario}</strong>
-                </div>
-                <span class="ruta-conteo">${r.total} tiendas</span>
-              </a>
-            `;
-          })
-          .join("");
-      } catch (err) {
-        cargando.textContent = "No se pudo cargar la lista de rutas. Revisa tu conexión y recarga.";
-      }
-    }
-    render();
-
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("sw.js").catch(() => {});

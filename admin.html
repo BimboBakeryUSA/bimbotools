@@ -16,7 +16,20 @@
     <span></span>
   </header>
 
-  <main class="wide">
+  <div id="pantallaLoginAdmin" class="card" style="display:none; max-width:420px; margin:24px auto;">
+    <strong>Iniciar sesión</strong>
+    <p style="font-size:12px; color:var(--gray);">Solo admin/corporativo.</p>
+    <p id="loginAdminError" style="color:var(--rojo); font-size:13px;"></p>
+    <label class="field">Correo
+      <input type="email" id="loginAdminEmail" />
+    </label>
+    <label class="field">Contraseña
+      <input type="password" id="loginAdminPassword" />
+    </label>
+    <button class="btn btn-primary" style="margin-top:10px;" id="btnLoginAdmin">Entrar</button>
+  </div>
+
+  <main class="wide" id="appAdmin" style="display:none;">
     <div class="pill-select tabs-nav" id="tabs">
       <a class="pill active" data-tab="clientes">🏬 Clientes</a>
       <a class="pill" data-tab="importar">📥 Importar CSV</a>
@@ -99,8 +112,8 @@
       <div class="summary-grid" id="resumenTerritorios"></div>
 
       <div class="admin-identidad">
-        ✍️ Editando como <strong id="adminNombreLabel">sin definir</strong>
-        <button class="btn btn-secondary btn-small" onclick="cambiarNombreAdmin()">Cambiar</button>
+        ✍️ Sesión: <strong id="adminSesionLabel">—</strong>
+        <span style="margin-left:auto; color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAdmin">Cerrar sesión</span>
       </div>
 
       <div class="card">
@@ -207,11 +220,32 @@
 
     async function renderEnlaces() {
       const cont = document.getElementById("listaEnlaces");
-      const rutas = await BimboDepuracion.getRutas();
+      const [rutas, perfilesRoute] = await Promise.all([
+        BimboDepuracion.getRutas(),
+        BimboDepuracion.getPerfilesRoute(),
+      ]);
       const base = location.href.replace(/admin\.html.*$/, "mi-territorio.html");
+
+      // perfilesRoute viene ordenado del más reciente al más viejo, así que
+      // el primero que encontremos por ruta es el correo más reciente que
+      // se reportó ahí durante su semana de prueba por token.
+      const correoPorRuta = new Map();
+      perfilesRoute.forEach((p) => {
+        if (p.route_code && p.email && !correoPorRuta.has(p.route_code)) {
+          correoPorRuta.set(p.route_code, p.email);
+        }
+      });
+
       cont.innerHTML = rutas
         .map((r) => {
-          const link = `${base}?ruta=${encodeURIComponent(r.ruta)}`;
+          const link = `${base}?t=${encodeURIComponent(r.token)}`;
+          const correo = correoPorRuta.get(r.ruta);
+          const correoBox = correo
+            ? `<div class="correo-capturado">
+                 ✉️ ${correo}
+                 <span class="link-chico" onclick="invitarDesdeEnlace('${r.ruta}', '${correo.replace(/'/g, "\\'")}')">Invitar</span>
+               </div>`
+            : `<div class="correo-capturado sin-correo">Todavía no ha entrado con su enlace.</div>`;
           return `
             <div class="ruta-card">
               <div class="ruta-titulo">
@@ -219,6 +253,7 @@
                 <strong class="ruta-propietario">${r.propietario}</strong>
               </div>
               <span class="ruta-conteo">${r.total} tiendas</span>
+              ${correoBox}
               <div class="ruta-actions">
                 <button class="btn btn-secondary btn-small" onclick="copiarEnlace('${link}', this)">Copiar enlace</button>
                 <a class="btn btn-primary btn-small" style="text-decoration:none;" href="${link}" target="_blank">Abrir</a>
@@ -227,6 +262,17 @@
           `;
         })
         .join("");
+    }
+
+    async function invitarDesdeEnlace(rutaId, correoSugerido) {
+      const correo = prompt("¿A qué correo mandamos la invitación?", correoSugerido || "");
+      if (!correo) return;
+      try {
+        await BimboDepuracion.invitarIbp(correo.trim(), rutaId);
+        alert(`Invitación enviada a ${correo.trim()}.`);
+      } catch (err) {
+        alert(`No se pudo invitar: ${err.message}`);
+      }
     }
 
     function copiarEnlace(link, boton) {
@@ -243,7 +289,6 @@
     }
 
     async function cargarDepuracion() {
-      actualizarLabelAdmin();
       document.getElementById("listaDepuracion").innerHTML = `<div class="empty-state">Cargando…</div>`;
       todasTerritorios = await BimboDepuracion.getTodasConEstado();
       renderResumenTerritorios();
@@ -303,37 +348,6 @@
     function formatearDias(dias) {
       if (!dias || !dias.length) return "—";
       return dias.map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ");
-    }
-
-    // -------------------------------------------------------------------
-    // Identidad del admin — no hay login todavía, así que se pide el
-    // nombre una vez y se guarda en este navegador. Sirve para que el
-    // historial de cambios (tiendas_historial) sepa quién editó qué.
-    // -------------------------------------------------------------------
-
-    let adminNombre = localStorage.getItem("bimboAdminNombre") || "";
-
-    function actualizarLabelAdmin() {
-      document.getElementById("adminNombreLabel").textContent = adminNombre || "sin definir";
-    }
-
-    function cambiarNombreAdmin() {
-      const nuevo = prompt("Tu nombre (para el historial de cambios):", adminNombre);
-      if (nuevo === null) return;
-      const limpio = nuevo.trim();
-      if (limpio) {
-        adminNombre = limpio;
-        localStorage.setItem("bimboAdminNombre", limpio);
-        actualizarLabelAdmin();
-      }
-    }
-
-    // Se llama antes de cualquier edición desde el modal — si no hay
-    // nombre guardado, lo pide en el momento. Devuelve "" si el admin
-    // cancela el prompt (el llamador debe abortar la acción en ese caso).
-    function requiereNombreAdmin() {
-      if (!adminNombre) cambiarNombreAdmin();
-      return adminNombre;
     }
 
     // -------------------------------------------------------------------
@@ -447,8 +461,6 @@
     }
 
     async function modalCambiarEstatus(estatus) {
-      const nombre = requiereNombreAdmin();
-      if (!nombre) return;
       const t = todasTerritorios.find((x) => x.id === modalTiendaId);
 
       if (estatus === "activa") {
@@ -476,7 +488,7 @@
         motivo = motivo.trim();
       }
       try {
-        await BimboDepuracion.setEstatus(modalTiendaId, estatus, motivo, "admin", nombre);
+        await BimboDepuracion.setEstatus(modalTiendaId, estatus, motivo);
       } catch (err) {
         alert("No se pudo guardar el cambio. Revisa tu conexión e intenta de nuevo.");
         return;
@@ -487,14 +499,9 @@
     }
 
     async function modalCambiarFrecuencia(frecuencia) {
-      const nombre = requiereNombreAdmin();
       const t = todasTerritorios.find((x) => x.id === modalTiendaId);
-      if (!nombre) {
-        document.getElementById("modalBody").innerHTML = renderModalTienda(t); // repinta el select con el valor real
-        return;
-      }
       try {
-        await BimboDepuracion.setFrecuencia(modalTiendaId, frecuencia, "admin", nombre);
+        await BimboDepuracion.setFrecuencia(modalTiendaId, frecuencia);
       } catch (err) {
         alert("No se pudo guardar la frecuencia. Revisa tu conexión e intenta de nuevo.");
         document.getElementById("modalBody").innerHTML = renderModalTienda(t);
@@ -504,7 +511,7 @@
 
       if (t._pendienteActivar) {
         if ((t.dias_visita || []).length > 0) {
-          await modalFinalizarActivacion(nombre); // ya tenía días de antes — se activa de una vez
+          await modalFinalizarActivacion(); // ya tenía días de antes — se activa de una vez
           return;
         }
         document.getElementById("modalBody").innerHTML = renderModalTienda(t);
@@ -515,13 +522,11 @@
     }
 
     async function modalToggleDia(dia) {
-      const nombre = requiereNombreAdmin();
-      if (!nombre) return;
       const t = todasTerritorios.find((x) => x.id === modalTiendaId);
       const actuales = t.dias_visita || [];
       const nuevos = actuales.includes(dia) ? actuales.filter((d) => d !== dia) : [...actuales, dia];
       try {
-        await BimboDepuracion.setDias(modalTiendaId, nuevos, "admin", nombre);
+        await BimboDepuracion.setDias(modalTiendaId, nuevos);
       } catch (err) {
         alert("No se pudo guardar el día. Revisa tu conexión e intenta de nuevo.");
         return;
@@ -529,7 +534,7 @@
       Object.assign(t, { dias_visita: nuevos, revisado_en: new Date().toISOString() });
 
       if (t._pendienteActivar && t.frecuencia && nuevos.length > 0) {
-        await modalFinalizarActivacion(nombre); // último paso listo — se activa
+        await modalFinalizarActivacion(); // último paso listo — se activa
         return;
       }
       _refrescarModalYTabla();
@@ -537,11 +542,11 @@
 
     // Guarda el estatus "activa" una vez que ya se juntaron frecuencia y
     // días — cierra el flujo guiado de activación.
-    async function modalFinalizarActivacion(nombre) {
+    async function modalFinalizarActivacion() {
       const t = todasTerritorios.find((x) => x.id === modalTiendaId);
       if (!t) return;
       try {
-        await BimboDepuracion.setEstatus(modalTiendaId, "activa", null, "admin", nombre);
+        await BimboDepuracion.setEstatus(modalTiendaId, "activa", null);
       } catch (err) {
         alert("La frecuencia y los días se guardaron, pero no se pudo activar la tienda. Intenta marcarla activa de nuevo.");
         _refrescarModalYTabla();
@@ -553,12 +558,10 @@
     }
 
     async function modalReiniciar() {
-      const nombre = requiereNombreAdmin();
-      if (!nombre) return;
       if (!confirm("¿Reiniciar esta tienda? Se borra estatus, motivo, frecuencia y días — queda como si nunca la hubieran revisado.")) return;
       const t = todasTerritorios.find((x) => x.id === modalTiendaId);
       try {
-        await BimboDepuracion.resetTienda(modalTiendaId, nombre);
+        await BimboDepuracion.resetTienda(modalTiendaId);
       } catch (err) {
         alert("No se pudo reiniciar la tienda. Revisa tu conexión e intenta de nuevo.");
         return;
@@ -569,9 +572,11 @@
 
     const ETIQUETA_ACTOR_CAMPO = { estatus: "Estatus", frecuencia: "Frecuencia", dias_visita: "Días de visita", reset: "Reinicio" };
 
+    const ETIQUETA_ROL = { admin: "Admin", corporativo: "Corporativo", route: "IBP" };
+
     function etiquetaActor(h) {
-      if (h.actor === "admin") return h.actor_nombre ? `Admin (${h.actor_nombre})` : "Admin";
-      return "IBP";
+      const rol = ETIQUETA_ROL[h.actor] || h.actor;
+      return h.actor_nombre ? `${rol} (${h.actor_nombre})` : rol;
     }
 
     function formatearCambioHistorial(h) {
@@ -908,7 +913,68 @@
 
     document.getElementById("btnCsvDepuracion").addEventListener("click", descargarCsvDepuracion);
 
-    render();
+    // ---------------------------------------------------------------------
+    // Sesión: admin.html es solo para admin/corporativo, siempre con login
+    // real (a diferencia de mi-territorio.html, aquí no hay entrada por
+    // token) — ver js/depuracion.js.
+    // ---------------------------------------------------------------------
+
+    function mostrarLoginAdmin(mensaje) {
+      document.getElementById("pantallaLoginAdmin").style.display = "block";
+      document.getElementById("appAdmin").style.display = "none";
+      document.getElementById("loginAdminError").textContent = mensaje || "";
+    }
+
+    async function iniciarApp() {
+      await BimboDepuracion.init();
+
+      const sesion = await BimboDepuracion.getSesionValida();
+      if (!sesion) {
+        mostrarLoginAdmin();
+        return;
+      }
+
+      let perfil;
+      try {
+        perfil = await BimboDepuracion.getPerfilActual();
+      } catch (err) {
+        mostrarLoginAdmin("No se pudo cargar tu perfil. Intenta de nuevo.");
+        return;
+      }
+
+      if (!perfil || (perfil.role !== "admin" && perfil.role !== "corporativo")) {
+        await BimboDepuracion.cerrarSesion();
+        mostrarLoginAdmin("Tu cuenta no tiene permiso de administrador.");
+        return;
+      }
+
+      document.getElementById("pantallaLoginAdmin").style.display = "none";
+      document.getElementById("appAdmin").style.display = "block";
+      document.getElementById("adminSesionLabel").textContent = perfil.nombre || perfil.email || perfil.role;
+      render();
+    }
+
+    document.getElementById("btnLoginAdmin").addEventListener("click", async () => {
+      const email = document.getElementById("loginAdminEmail").value.trim();
+      const password = document.getElementById("loginAdminPassword").value;
+      if (!email || !password) {
+        document.getElementById("loginAdminError").textContent = "Escribe tu correo y contraseña.";
+        return;
+      }
+      try {
+        await BimboDepuracion.iniciarSesion(email, password);
+        await iniciarApp();
+      } catch (err) {
+        document.getElementById("loginAdminError").textContent = "Correo o contraseña incorrectos.";
+      }
+    });
+
+    document.getElementById("btnCerrarSesionAdmin").addEventListener("click", async () => {
+      await BimboDepuracion.cerrarSesion();
+      location.reload();
+    });
+
+    iniciarApp();
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

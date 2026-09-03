@@ -17,13 +17,28 @@
 // (set_tienda_estatus / set_tienda_frecuencia / set_tienda_dias /
 // set_tienda_reset) — la tabla en sí no acepta UPDATE directo con la llave
 // pública (ver políticas de RLS en el esquema). Cada una de esas funciones
-// deja rastro en tiendas_historial (quién — ibp o admin — cambió qué y
-// cuándo), consultable con getHistorial().
+// deja rastro en tiendas_historial (quién — route/admin/corporativo —
+// cambió qué y cuándo), consultable con getHistorial().
+//
+// Autenticación real: ya no hay lectura pública de las tablas — un "route"
+// solo ve/edita su propia ruta (profiles.route_code), admin/corporativo ven
+// todo. La sesión se resuelve de una de estas formas:
+//   - Sesión ya iniciada (login real, o una entrada por token anterior que
+//     sigue viva) — getSesionValida() la valida y la cierra sola si pasaron
+//     6h sin actividad.
+//   - Entrada directa por token de ruta (primeros 7 días desde el primer
+//     uso) — reclamarRutaPorToken() crea una sesión anónima y liga el
+//     perfil a esa ruta.
+//   - Login con correo/contraseña — iniciarSesion().
 // ============================================================================
 
 (function () {
 const SUPABASE_URL = "https://obfikwhukpzelsghowcq.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM";
+
+// Sesión cerrada sola tras 6h sin actividad (clics/teclas) en la página.
+const INACTIVIDAD_LIMITE_MS = 6 * 60 * 60 * 1000;
+const LS_ULTIMA_ACTIVIDAD = "bimboUltimaActividad";
 
 // Semanas del reporte con el que se sembró la base (12 semanas, W24–W35 de
 // 2026). Si se carga un reporte más nuevo con otro rango, actualizar esta
@@ -44,6 +59,119 @@ async function init() {
   // supabase-js viene por CDN (ver <script> en las páginas que usan este
   // módulo) y expone el global `supabase` con createClient.
   _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Cualquier interacción cuenta como actividad, para el cierre de sesión
+  // por inactividad — así ninguna página que use este módulo tiene que
+  // acordarse de reportarlo por su cuenta.
+  ["click", "keydown"].forEach((ev) => document.addEventListener(ev, marcarActividad, { passive: true }));
+}
+
+// ---------------------------------------------------------------------------
+// Sesión / autenticación
+// ---------------------------------------------------------------------------
+
+function marcarActividad() {
+  try {
+    localStorage.setItem(LS_ULTIMA_ACTIVIDAD, String(Date.now()));
+  } catch (e) {
+    // localStorage puede fallar (modo privado, cuota) — no es crítico.
+  }
+}
+
+function _pasoElLimiteDeInactividad() {
+  try {
+    const ultima = Number(localStorage.getItem(LS_ULTIMA_ACTIVIDAD) || 0);
+    return !!ultima && Date.now() - ultima > INACTIVIDAD_LIMITE_MS;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Revisa si hay una sesión de Supabase viva. Si la hay pero ya pasaron 6h
+// sin actividad en la página, la cierra ella misma (para que el siguiente
+// intento de entrar pida login/token de nuevo). Devuelve la sesión (o null).
+async function getSesionValida() {
+  const { data } = await _client.auth.getSession();
+  const sesion = data && data.session;
+  if (!sesion) return null;
+  if (_pasoElLimiteDeInactividad()) {
+    await _client.auth.signOut();
+    return null;
+  }
+  marcarActividad();
+  return sesion;
+}
+
+async function iniciarSesion(email, password) {
+  const { error } = await _client.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(`login: ${error.message}`);
+  marcarActividad();
+}
+
+async function cerrarSesion() {
+  await _client.auth.signOut();
+  try {
+    localStorage.removeItem(LS_ULTIMA_ACTIVIDAD);
+  } catch (e) {}
+}
+
+// Entrada directa por el token de una ruta (mi-territorio.html?t=...) —
+// primeros 7 días desde el primer uso de ese token. Crea una sesión anónima
+// si hace falta y liga el perfil a esa ruta (role=route, estado=activo).
+// Devuelve { ruta, propietario } de la ruta reclamada.
+async function reclamarRutaPorToken(token, email) {
+  let sesion = (await _client.auth.getSession()).data.session;
+  if (!sesion) {
+    const { error: errAnon } = await _client.auth.signInAnonymously();
+    if (errAnon) throw new Error(`signInAnonymously: ${errAnon.message}`);
+  }
+  const { data, error } = await _client.rpc("reclamar_ruta_por_token", {
+    p_token: token,
+    p_email: email || null,
+  });
+  if (error) throw new Error(`reclamar_ruta_por_token: ${error.message}`);
+  marcarActividad();
+  return data && data[0] ? data[0] : null;
+}
+
+// Perfil (rol/ruta/nombre) del usuario ya autenticado — null si no hay sesión.
+async function getPerfilActual() {
+  const { data: userData } = await _client.auth.getUser();
+  const uid = userData && userData.user && userData.user.id;
+  if (!uid) return null;
+  const { data, error } = await _client
+    .from("profiles")
+    .select("id, nombre, role, route_code, email")
+    .eq("id", uid)
+    .maybeSingle();
+  if (error) throw new Error(`profiles: ${error.message}`);
+  return data;
+}
+
+// Todos los perfiles "route" (uno por sesión ligada a una ruta) — para que
+// admin.html sepa qué correo se reportó en cada ruta durante su semana de
+// prueba por token, y a quién invitar. Solo lo pueden ver admin/corporativo
+// (RLS de profiles ya existente en bimbo-inventory-pro).
+async function getPerfilesRoute() {
+  return _checar(
+    await _client
+      .from("profiles")
+      .select("id, nombre, route_code, email, estado, created_at")
+      .eq("role", "route")
+      .order("created_at", { ascending: false }),
+    "profiles"
+  );
+}
+
+// Invita por correo a un IBP a crear su cuenta permanente — solo
+// admin/corporativo (la función de servidor vuelve a validar esto, no basta
+// con que el botón esté oculto en la interfaz). Requiere sesión real.
+async function invitarIbp(email, rutaId, nombre) {
+  const { data, error } = await _client.functions.invoke("invitar-ibp", {
+    body: { email, route_code: rutaId, nombre: nombre || null },
+  });
+  if (error) throw new Error(`invitar-ibp: ${error.message}`);
+  if (data && data.error) throw new Error(`invitar-ibp: ${data.error}`);
+  return data;
 }
 
 function _checar(resultado, contexto) {
@@ -130,11 +258,20 @@ async function _ventasDeTiendas(tiendaIds) {
 // ---------------------------------------------------------------------------
 
 async function getRutas() {
-  const ibps = _checar(await _client.from("ibps").select("id, propietario").order("id"), "ibps");
+  const ibps = _checar(
+    await _client.from("ibps").select("id, propietario, token, token_primer_uso").order("id"),
+    "ibps"
+  );
   const tiendas = _checar(await _client.from("tiendas").select("id, ibp_id"), "tiendas (conteo)");
   const conteo = new Map();
   tiendas.forEach((t) => conteo.set(t.ibp_id, (conteo.get(t.ibp_id) || 0) + 1));
-  return ibps.map((i) => ({ ruta: i.id, propietario: i.propietario, total: conteo.get(i.id) || 0 }));
+  return ibps.map((i) => ({
+    ruta: i.id,
+    propietario: i.propietario,
+    token: i.token,
+    tokenPrimerUso: i.token_primer_uso,
+    total: conteo.get(i.id) || 0,
+  }));
 }
 
 async function getRutaInfo(rutaId) {
@@ -179,55 +316,46 @@ function getResumenRuta(tiendas) {
 // "activa" (cubre tanto "está pausada" como "quiero que se elimine" — ver
 // nota en README sobre por qué ya no hay un tercer estatus de "borrar").
 //
-// actor: "ibp" (default) o "admin" — queda registrado en tiendas_historial
-// junto con actorNombre, para saber quién hizo cada cambio (ver
-// getHistorial). mi-territorio.html no manda actor (siempre es el IBP);
-// admin.html sí, cuando edita directamente una tienda.
-async function setEstatus(tiendaId, estatus, motivo, actor = "ibp", actorNombre = null) {
+// Quién hizo el cambio (route/admin/corporativo + su nombre) ya NO lo manda
+// el navegador — la función de Postgres lo deriva de la sesión real
+// (profiles, vía auth.uid()) y valida que un "route" solo toque tiendas de
+// su propia ruta. Ver getHistorial() para consultar ese registro.
+async function setEstatus(tiendaId, estatus, motivo) {
   const { error } = await _client.rpc("set_tienda_estatus", {
     p_tienda_id: tiendaId,
     p_estatus: estatus,
     p_motivo: estatus === "activa" ? null : motivo || null,
-    p_actor: actor,
-    p_actor_nombre: actorNombre,
   });
   if (error) throw new Error(`set_tienda_estatus: ${error.message}`);
 }
 
-async function setFrecuencia(tiendaId, frecuencia, actor = "ibp", actorNombre = null) {
+async function setFrecuencia(tiendaId, frecuencia) {
   const { error } = await _client.rpc("set_tienda_frecuencia", {
     p_tienda_id: tiendaId,
     p_frecuencia: frecuencia,
-    p_actor: actor,
-    p_actor_nombre: actorNombre,
   });
   if (error) throw new Error(`set_tienda_frecuencia: ${error.message}`);
 }
 
 // dias: arreglo de días ("lunes".."sabado") en que se visita la tienda.
-async function setDias(tiendaId, dias, actor = "ibp", actorNombre = null) {
+async function setDias(tiendaId, dias) {
   const { error } = await _client.rpc("set_tienda_dias", {
     p_tienda_id: tiendaId,
     p_dias: dias,
-    p_actor: actor,
-    p_actor_nombre: actorNombre,
   });
   if (error) throw new Error(`set_tienda_dias: ${error.message}`);
 }
 
-// Reinicio total de una tienda — solo lo usa admin.html (pruebas, o
-// deshacer un error del IBP). La deja "sin revisar", como si nunca la
-// hubieran tocado.
-async function resetTienda(tiendaId, actorNombre = null) {
-  const { error } = await _client.rpc("set_tienda_reset", {
-    p_tienda_id: tiendaId,
-    p_actor_nombre: actorNombre,
-  });
+// Reinicio total de una tienda — solo admin.html, y solo admin/corporativo
+// (la función de Postgres rechaza a un "route" aunque lo intente). La deja
+// "sin revisar", como si nunca la hubieran tocado.
+async function resetTienda(tiendaId) {
+  const { error } = await _client.rpc("set_tienda_reset", { p_tienda_id: tiendaId });
   if (error) throw new Error(`set_tienda_reset: ${error.message}`);
 }
 
 // Historial de cambios de una tienda (más reciente primero) — quién
-// (ibp/admin + nombre si es admin), qué campo, valor antes/después y
+// (route/admin/corporativo + nombre), qué campo, valor antes/después y
 // cuándo. Solo se usa desde admin.html.
 async function getHistorial(tiendaId) {
   return _checar(
@@ -281,5 +409,14 @@ window.BimboDepuracion = {
   resetTienda,
   getHistorial,
   getTodasConEstado,
+  // Sesión / autenticación
+  marcarActividad,
+  getSesionValida,
+  iniciarSesion,
+  cerrarSesion,
+  reclamarRutaPorToken,
+  getPerfilActual,
+  getPerfilesRoute,
+  invitarIbp,
 };
 })();
