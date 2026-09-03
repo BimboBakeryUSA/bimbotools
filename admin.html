@@ -105,26 +105,18 @@
       </div>
 
       <div class="card">
-        <strong>Importar territorios</strong>
-        <p style="font-size:12px; color:var(--gray);">
-          Sube aquí el/los archivo(s) <code>.json</code> que cada IBP te mande desde el botón
-          "Descargar mis cambios" en su territorio. Se pueden subir varios a la vez.
-        </p>
-        <input type="file" id="fileDepuracion" accept=".json" multiple />
-        <div id="resultadoImportDepuracion" style="margin-top:10px; font-size:13px;"></div>
-      </div>
-
-      <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <strong>Vista general de territorios</strong>
           <button class="btn btn-secondary btn-small" id="btnCsvDepuracion">⬇️ Descargar CSV</button>
         </div>
+        <p style="font-size:12px; color:var(--gray); margin-top:4px;">
+          En vivo — lo que marque cada IBP aparece aquí sin que nadie tenga que subir nada.
+        </p>
         <div class="pill-select" id="filtroDepuTabs" style="margin-top:10px;">
           <a class="pill active" data-filtro="todas">Todas</a>
           <a class="pill" data-filtro="sinRevisar">Sin revisar</a>
           <a class="pill" data-filtro="activa">Activas</a>
           <a class="pill" data-filtro="inactiva">Inactivas</a>
-          <a class="pill" data-filtro="borrar">Para borrar</a>
         </div>
       </div>
 
@@ -138,11 +130,9 @@
   </main>
 
   <script src="js/data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/depuracion.js"></script>
   <script>
-    // Namespace propio en localStorage para no mezclar la depuración
-    // consolidada del admin con la de ningún IBP que use este mismo navegador.
-    const ADMIN_DEPU_KEY = "bimbo_tools_depuracion_admin_v1";
     let filtroDepu = "todas";
     let nuevoClienteDias = []; // días marcados en el formulario de alta (antes de tener id)
 
@@ -179,18 +169,21 @@
       renderFrescura();
       renderHistorial();
 
-      await BimboDepuracion.init(ADMIN_DEPU_KEY);
-      renderEnlaces();
-      renderDepuracion();
+      await BimboDepuracion.init();
+      await renderEnlaces();
+      await cargarDepuracion();
     }
 
     // ---------------------------------------------------------------------
-    // Territorios (Mi Territorio, vista del admin)
+    // Territorios (Mi Territorio, vista del admin) — todo en vivo desde
+    // Supabase, ya no hay archivos que importar.
     // ---------------------------------------------------------------------
 
-    function renderEnlaces() {
+    let todasTerritorios = [];
+
+    async function renderEnlaces() {
       const cont = document.getElementById("listaEnlaces");
-      const rutas = BimboDepuracion.getRutas();
+      const rutas = await BimboDepuracion.getRutas();
       const base = location.href.replace(/admin\.html.*$/, "mi-territorio.html");
       cont.innerHTML = rutas
         .map((r) => {
@@ -224,22 +217,26 @@
       }
     }
 
-    function renderDepuracion() {
-      const todas = BimboDepuracion.getTodasConEstado();
-      const visibles = todas.filter((t) => {
-        const est = t._estatus.estatus;
+    async function cargarDepuracion() {
+      document.getElementById("listaDepuracion").innerHTML = `<div class="empty-state">Cargando…</div>`;
+      todasTerritorios = await BimboDepuracion.getTodasConEstado();
+      renderTablaDepuracion();
+    }
+
+    function renderTablaDepuracion() {
+      const visibles = todasTerritorios.filter((t) => {
         if (filtroDepu === "todas") return true;
-        if (filtroDepu === "sinRevisar") return !est;
-        return est === filtroDepu;
+        if (filtroDepu === "sinRevisar") return !t.estatus;
+        return t.estatus === filtroDepu;
       });
 
       const cont = document.getElementById("listaDepuracion");
       if (!visibles.length) {
-        cont.innerHTML = `<div class="empty-state">Sin datos todavía — importa los .json que te manden los IBPs.</div>`;
+        cont.innerHTML = `<div class="empty-state">Sin tiendas en este filtro.</div>`;
         return;
       }
 
-      const etiquetaEstatus = { activa: "Activa", inactiva: "Inactiva", borrar: "Pidió borrado" };
+      const etiquetaEstatus = { activa: "Activa", inactiva: "Inactiva" };
 
       cont.innerHTML = `
         <div class="card">
@@ -251,19 +248,18 @@
               <tbody>
                 ${visibles
                   .map((t) => {
-                    const est = t._estatus;
-                    const badge = est.estatus
-                      ? `<span class="badge">${etiquetaEstatus[est.estatus] || est.estatus}</span>`
+                    const badge = t.estatus
+                      ? `<span class="badge">${etiquetaEstatus[t.estatus] || t.estatus}</span>`
                       : `<span class="badge sin-revisar-badge">Sin revisar</span>`;
-                    const revisado = est.revisadoEn ? new Date(est.revisadoEn).toLocaleDateString() : "—";
+                    const revisado = t.revisado_en ? new Date(t.revisado_en).toLocaleDateString() : "—";
                     return `
                       <tr>
                         <td>${t.ruta}</td>
                         <td>${t.nombre}</td>
                         <td>${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}</td>
                         <td>${badge}</td>
-                        <td>${est.motivo || "—"}</td>
-                        <td>${est.frecuencia || "—"}</td>
+                        <td>${t.motivo || "—"}</td>
+                        <td>${t.frecuencia || "—"}</td>
                         <td>${t.semanasDesdeUltimaActividad}</td>
                         <td>${revisado}</td>
                       </tr>
@@ -278,10 +274,9 @@
     }
 
     function descargarCsvDepuracion() {
-      const todas = BimboDepuracion.getTodasConEstado();
       const encabezado = ["ruta", "propietario", "tienda_id", "tienda", "direccion", "ciudad", "estado", "zip", "estatus", "motivo", "frecuencia", "semanas_sin_actividad", "revisado_en"];
       const escapar = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-      const filas = todas.map((t) =>
+      const filas = todasTerritorios.map((t) =>
         [
           t.ruta,
           t.propietario,
@@ -289,13 +284,13 @@
           t.nombre,
           t.direccion,
           t.ciudad,
-          t.estado,
+          t.estado_us,
           t.zip,
-          t._estatus.estatus || "sin_revisar",
-          t._estatus.motivo,
-          t._estatus.frecuencia,
+          t.estatus || "sin_revisar",
+          t.motivo,
+          t.frecuencia,
           t.semanasDesdeUltimaActividad,
-          t._estatus.revisadoEn || "",
+          t.revisado_en || "",
         ]
           .map(escapar)
           .join(",")
@@ -305,7 +300,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `depuracion-rutas-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `territorios-${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -500,40 +495,13 @@
       });
     });
 
-    document.getElementById("fileDepuracion").addEventListener("change", async (e) => {
-      const files = Array.from(e.target.files || []);
-      if (!files.length) return;
-      await BimboDepuracion.init(ADMIN_DEPU_KEY); // por si el usuario importa antes de que termine la carga inicial
-      let pendientes = files.length;
-      let totalImportadas = 0;
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          try {
-            const payload = JSON.parse(reader.result);
-            const { importadas } = BimboDepuracion.importarExportacion(payload);
-            totalImportadas += importadas;
-          } catch (err) {
-            console.error("No se pudo leer " + file.name, err);
-          }
-          pendientes--;
-          if (pendientes === 0) {
-            document.getElementById("resultadoImportDepuracion").textContent =
-              `${totalImportadas} tienda(s) actualizadas de ${files.length} archivo(s).`;
-            renderDepuracion();
-          }
-        };
-        reader.readAsText(file);
-      });
-    });
-
     document.getElementById("filtroDepuTabs").addEventListener("click", (e) => {
       const el = e.target.closest(".pill");
       if (!el) return;
       document.querySelectorAll("#filtroDepuTabs .pill").forEach((p) => p.classList.remove("active"));
       el.classList.add("active");
       filtroDepu = el.dataset.filtro;
-      renderDepuracion();
+      renderTablaDepuracion();
     });
 
     document.getElementById("btnCsvDepuracion").addEventListener("click", descargarCsvDepuracion);

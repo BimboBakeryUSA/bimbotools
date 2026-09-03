@@ -37,19 +37,22 @@ Luego abre `http://localhost:8080`.
   este archivo, nunca directo con JSON/localStorage. El día que se conecte
   Supabase, solo se reescribe el cuerpo de estas funciones — las páginas
   no cambian.
-- `js/depuracion.js` — capa de datos de "Mi Territorio" (catálogo de tiendas
-  + estatus guardado en localStorage). Mismo patrón que `js/data.js`, archivo
-  separado porque trabaja sobre otro dataset (`data/tiendas.json`); el nombre
-  interno (`depuracion.js` / `BimboDepuracion`) se quedó como estaba al
-  renombrar la página, es solo la capa de datos.
+- `js/depuracion.js` — capa de datos de "Mi Territorio". A diferencia de
+  `js/data.js` (todavía local/localStorage), este archivo habla directo con
+  **Supabase** — ver "Base de datos" abajo. El nombre interno
+  (`depuracion.js` / `BimboDepuracion`) se quedó como estaba al renombrar la
+  página, es solo la capa de datos.
 - `js/geo.js` — geofence (confirmación automática de visita por GPS).
 - `data/seed.json` — datos de ejemplo (usuarios, rutas, clientes) usados por
   index/ibp/msl/admin.
-- `data/tiendas.json` — catálogo real de tiendas por ruta (dueño de ruta,
-  dirección, ventas de las últimas 12 semanas), generado desde el reporte de
-  ventas — ver `scripts/generar_tiendas.py`.
+- `data/tiendas.json` — foto del catálogo de tiendas (dueño de ruta,
+  dirección, ventas de las últimas 12 semanas) tal como se generó del
+  reporte de ventas — es el insumo que se usó para sembrar Supabase (ver
+  `scripts/generar_tiendas.py`); la app ya no lee este archivo directamente.
 - `scripts/generar_tiendas.py` — regenera `data/tiendas.json` a partir de un
   nuevo reporte Excel "Central List / Account L4 / Route / Product Name".
+- `scripts/mi_territorio_schema.sql` — el esquema de Supabase de Mi
+  Territorio (tablas, RLS, funciones), tal cual se aplicó al proyecto real.
 - `manifest.json` + `sw.js` + `icons/` — lo que hace la app instalable como
   PWA.
 
@@ -59,40 +62,58 @@ Se llama así a propósito: es la lista de tiendas del IBP, no un trámite
 administrativo genérico. Cada IBP entra por un enlace con su número de
 ruta: `mi-territorio.html?ruta=0150`. Ahí, por cada tienda:
 
-- La marca **activa**, **inactiva** o **pide su borrado** — inactiva y
-  borrado siempre piden el motivo (con `prompt`, obligatorio).
-- Elige su **frecuencia de visita**: semanal, quincenal o a pedido del
-  cliente.
+- La marca **activa** o **inactiva** — inactiva siempre pide el motivo (con
+  `prompt`, obligatorio). No hay un estatus aparte de "pedir borrado": pedir
+  que se elimine una tienda es simplemente marcarla inactiva y explicar por
+  qué en el motivo — es la misma decisión, la diferencia es solo el motivo.
+- Elige su **frecuencia de visita**: semanal, 2 veces por semana, quincenal,
+  o a pedido del cliente.
 - Ve un aviso automático (⚠️) cuando la tienda lleva 4+ semanas sin ventas
   en el periodo del reporte, para priorizar cuáles revisar primero.
 
-Los cambios se guardan solos en el dispositivo del IBP (localStorage, igual
-que el resto de la app hoy). Cuando termina, el IBP descarga un `.json` con
-sus cambios ("Descargar mis cambios") y se lo manda a su manager. El admin
-sube esos archivos en `admin.html` → pestaña **Territorios**, donde se ven
-consolidados en una vista general de todas las rutas, con filtros y
-exportación a CSV.
+Los cambios se guardan **directo en la base de datos, al toque** — ya no hay
+que exportar ni mandarle nada a nadie. El admin ve todo en vivo en
+`admin.html` → pestaña **Territorios** (vista general de todas las rutas,
+con filtros y exportación a CSV) y ahí también están los enlaces por
+territorio para mandarle a cada IBP el suyo.
 
-Los enlaces por territorio (para mandarle a cada IBP el suyo) también están
-ahí, en la misma pestaña.
+## Base de datos (Supabase)
 
-**Por qué así y no directo a una base compartida:** es el mismo estado
-actual del resto de la app (local, sin backend) — ver "Pendientes conocidos"
-abajo. El importar/exportar es el puente mientras tanto; el día que haya
-Supabase, esto se vuelve automático (cada IBP guarda directo en la base y el
-admin ve todo en vivo, sin subir archivos).
+Mi Territorio usa Supabase — tablas `ibps`, `tiendas` y `ventas_semanales`
+(esquema completo en `scripts/mi_territorio_schema.sql`). Vive dentro del
+proyecto **`bimbo-inventory-pro`** (mismo Supabase, tablas con nombre
+propio): la organización tiene tope de 2 proyectos activos en el plan free
+y ya estaban ocupados por `bimbo-inventory-pro` y `catalogo-bimbo`, así que
+se reusó ese en vez de crear uno nuevo. Si más adelante hace falta separarlo
+a su propio proyecto, es cuestión de correr ese mismo `.sql` ahí y copiar
+los datos — son tablas Postgres normales, no hay nada que las ate para
+siempre a estar juntas.
 
-## Estado actual (demo funcional)
+**Seguridad (RLS):** la app no tiene login todavía, así que las tres tablas
+tienen lectura abierta con la llave pública (`sb_publishable_...`, ya
+embebida en `js/depuracion.js` — es la llave anónima, pensada para vivir en
+el cliente). La escritura NO es un `UPDATE` directo a la tabla: pasa por dos
+funciones de Postgres (`set_tienda_estatus`, `set_tienda_frecuencia`) que
+son las únicas con permiso de escritura. Esto acota lo que cualquiera con el
+link puede tocar a exactamente el estatus/motivo/frecuencia de una tienda —
+nunca el catálogo (nombre, dirección, ventas), que solo se actualiza vía
+migración.
 
-Todo corre en el navegador con datos de ejemplo + `localStorage` (para que
-las visitas marcadas, clientes movidos y notificaciones sobrevivan al
-refrescar la página). No hay backend todavía.
+**Refrescar el catálogo** (nuevo reporte de ventas): correr
+`scripts/generar_tiendas.py` para regenerar `data/tiendas.json`, y de ahí
+pedirle a Claude (con acceso a Supabase) que aplique el refresh a las tablas
+— hoy no hay un botón para hacerlo solo, es un paso asistido.
+
+## Estado actual
+
+- **Mi Territorio**: en vivo sobre Supabase (ver arriba) — esto ya no es una
+  demo local.
+- El resto de la app (`index.html`, `ibp.html`, `msl.html`, `admin.html` con
+  excepción de la pestaña Territorios) sigue corriendo con datos de ejemplo
+  + `localStorage`, sin backend.
 
 ## Pendientes conocidos
 
-- **Supabase**: la organización llegó al límite de proyectos gratis: hay que
-  pausar/eliminar uno de los dos existentes (`bimbo-inventory-pro` o
-  `catalogo-bimbo`) o subir de plan antes de crear el proyecto de este.
 - **Google Maps API key**: hoy el orden de la ruta usa vecino-más-cercano en
   línea recta (`js/data.js` → `ordenarPorVecinoMasCercano`). Cuando haya key,
   cambiar esa función por una llamada a Directions/Distance Matrix o Route
@@ -101,12 +122,10 @@ refrescar la página). No hay backend todavía.
   directo por ahora; si faltan, el cliente queda marcado como "pendiente
   geocodificar" en el panel admin.
 - **Autenticación real** por rol (hoy se simula eligiendo el usuario desde
-  `index.html`).
-- **Mi Territorio centralizado**: hoy cada IBP guarda sus cambios local y se
-  consolidan importando archivos `.json` en `admin.html` — con Supabase esto
-  sería automático y en vivo (ver sección de arriba).
-- `data/tiendas.json` es una foto de un reporte de ventas (12 semanas hasta
-  la W35/2026) — para refrescarlo con un reporte más reciente, correr
-  `scripts/generar_tiendas.py` de nuevo.
+  `index.html`). Cuando exista, vale la pena revisar si Mi Territorio debe
+  restringir el UPDATE por usuario en vez de dejarlo abierto a quien tenga
+  el link de su ruta.
+- El resto de la app (index/ibp/msl/admin fuera de Territorios) todavía no
+  se migra a Supabase — sigue en `localStorage`.
 - Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de
   decisiones pendientes y el roadmap de próximas herramientas.

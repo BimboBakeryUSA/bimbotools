@@ -3,7 +3,7 @@
 // falta: se asume conexión de datos móviles casi siempre disponible, ver
 // spec §6), solo mejora la carga inicial.
 
-const CACHE_NAME = "bimbo-tools-v3";
+const CACHE_NAME = "bimbo-tools-v4";
 const ARCHIVOS_SHELL = [
   "index.html",
   "ibp.html",
@@ -15,7 +15,6 @@ const ARCHIVOS_SHELL = [
   "js/geo.js",
   "js/depuracion.js",
   "data/seed.json",
-  "data/tiendas.json",
   "manifest.json",
 ];
 
@@ -36,13 +35,20 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  // Solo cacheamos GET del propio origen (el shell de la app). Las llamadas
+  // a Supabase (API cruzada, y las RPC son POST) van directo a la red — el
+  // Cache API tampoco acepta cachear peticiones que no sean GET.
+  if (req.method !== "GET") return;
   event.respondWith(
-    fetch(event.request)
+    fetch(req)
       .then((res) => {
-        const copia = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
+        if (req.url.startsWith(self.location.origin)) {
+          const copia = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copia));
+        }
         return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(req))
   );
 });

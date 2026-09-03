@@ -3,215 +3,224 @@
 // IBP decide qué tiendas siguen en su lista.
 // ----------------------------------------------------------------------------
 // El archivo y el nombre interno (BimboDepuracion) se quedaron como estaban
-// al renombrar la página — es la misma capa de datos, solo cambió lo que ve
-// el IBP.
+// desde que la página se llamaba "depuración" — es la misma capa de datos,
+// solo cambió lo que ve el IBP.
 //
-// Catálogo (solo lectura): data/tiendas.json, generado una vez a partir del
-// reporte "Central List / Account L4 / Route / Product Name" (12 semanas).
-// Trae, por tienda: dueño de ruta, nombre, dirección y su historial de ventas
-// semana a semana — usado para avisar qué tiendas llevan tiempo sin actividad.
+// A diferencia de js/data.js (que todavía es local/localStorage), este
+// archivo SÍ habla con un backend real: Supabase (proyecto "bimbo-inventory-pro",
+// tablas con prefijo propio para no chocar con esa otra app — ver
+// scripts/mi_territorio_schema.sql). Todas las tiendas, decisiones (activa/
+// inactiva/motivo/frecuencia) y ventas semanales viven ahí, compartidas entre
+// todos los IBPs y el admin en vivo — ya no hay exportar/importar .json.
 //
-// Estado (mutable): decisiones del IBP — activa/inactiva/solicitar salida,
-// motivo, frecuencia de visita, notas — guardadas en localStorage bajo la
-// clave `storageKey` que recibe init(). Cada página elige su propia clave:
-//   - mi-territorio.html -> clave del dispositivo del IBP (su propio territorio)
-//   - admin.html         -> clave separada, alimentada por los archivos que
-//                            cada IBP exporta y el admin importa ahí
-// Esto es igual de "local por ahora, Supabase después" que js/data.js — ver
-// README para el plan de centralizar sin depender de importar/exportar.
+// Escritura desde el navegador: solo a través de dos funciones de Postgres
+// (set_tienda_estatus / set_tienda_frecuencia) — la tabla en sí no acepta
+// UPDATE directo con la llave pública (ver políticas de RLS en el esquema).
 // ============================================================================
 
-// Todo dentro de un IIFE: este archivo se carga junto con js/data.js en la
-// misma página (admin.html) y, como son <script> planos (sin módulos), sin
-// esto sus variables de nivel superior (_estado, init, _guardar...)
-// chocarían con las de mismo nombre en js/data.js.
 (function () {
-const TIENDAS_URL = "data/tiendas.json";
-const DEFAULT_STORAGE_KEY = "bimbo_tools_depuracion_v1";
+const SUPABASE_URL = "https://obfikwhukpzelsghowcq.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM";
 
-let _catalogo = null; // contenido crudo de data/tiendas.json
-let _estado = null; // { tiendas: { [tiendaId]: { estatus, motivo, frecuencia, notas, revisadoEn } } }
-let _storageKey = DEFAULT_STORAGE_KEY;
+// Semanas del reporte con el que se sembró la base (12 semanas, W24–W35 de
+// 2026). Si se carga un reporte más nuevo con otro rango, actualizar esta
+// lista junto con scripts/generar_tiendas.py.
+const SEMANAS_ETIQUETAS = [
+  "24/2026", "25/2026", "26/2026", "27/2026", "28/2026", "29/2026",
+  "30/2026", "31/2026", "32/2026", "33/2026", "34/2026", "35/2026",
+];
+const SEMANA_INDICE = new Map(SEMANAS_ETIQUETAS.map((s, i) => [s, i]));
 
-// ---------------------------------------------------------------------------
-// Carga inicial
-// ---------------------------------------------------------------------------
+let _client = null;
 
-async function init(storageKey) {
-  _storageKey = storageKey || DEFAULT_STORAGE_KEY;
+async function init() {
+  if (_client) return;
+  // supabase-js viene por CDN (ver <script> en las páginas que usan este
+  // módulo) y expone el global `supabase` con createClient.
+  _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
 
-  if (!_catalogo) {
-    const res = await fetch(TIENDAS_URL);
-    _catalogo = await res.json();
+function _checar(resultado, contexto) {
+  if (resultado.error) {
+    console.error(contexto, resultado.error);
+    throw new Error(`${contexto}: ${resultado.error.message}`);
   }
-
-  const guardado = localStorage.getItem(_storageKey);
-  _estado = guardado ? JSON.parse(guardado) : { tiendas: {} };
-  if (!_estado.tiendas) _estado.tiendas = {};
+  return resultado.data;
 }
-
-function _guardar() {
-  localStorage.setItem(_storageKey, JSON.stringify(_estado));
-}
-
-// ---------------------------------------------------------------------------
-// Catálogo (rutas y tiendas, tal cual vienen del reporte)
-// ---------------------------------------------------------------------------
 
 function getRangoSemanas() {
-  return _catalogo.rangoSemanas;
-}
-
-function getRutas() {
-  return _catalogo.rutas.map((r) => ({ ruta: r.ruta, propietario: r.propietario, total: r.tiendas.length }));
-}
-
-function getRutaCruda(rutaId) {
-  return _catalogo.rutas.find((r) => r.ruta === rutaId) || null;
-}
-
-// ---------------------------------------------------------------------------
-// Estatus de depuración por tienda (activa / inactiva / borrar / sin revisar)
-// ---------------------------------------------------------------------------
-
-function _estatusPorDefecto() {
-  return { estatus: null, motivo: "", frecuencia: "", notas: "", revisadoEn: null };
-}
-
-function getEstatusTienda(tiendaId) {
-  return { ..._estatusPorDefecto(), ...(_estado.tiendas[tiendaId] || {}) };
-}
-
-function _tocar(tiendaId) {
-  if (!_estado.tiendas[tiendaId]) _estado.tiendas[tiendaId] = _estatusPorDefecto();
-  _estado.tiendas[tiendaId].revisadoEn = new Date().toISOString();
-  return _estado.tiendas[tiendaId];
-}
-
-// estatus: "activa" | "inactiva" | "borrar". El motivo se pide siempre que no
-// sea "activa" — se limpia si vuelve a marcarse activa.
-function setEstatus(tiendaId, estatus, motivo) {
-  const t = _tocar(tiendaId);
-  t.estatus = estatus;
-  t.motivo = estatus === "activa" ? "" : motivo || "";
-  _guardar();
-}
-
-function setFrecuencia(tiendaId, frecuencia) {
-  const t = _tocar(tiendaId);
-  t.frecuencia = frecuencia;
-  _guardar();
-}
-
-function setNotas(tiendaId, notas) {
-  const t = _tocar(tiendaId);
-  t.notas = notas;
-  _guardar();
-}
-
-function getTiendasConEstado(rutaId) {
-  const ruta = getRutaCruda(rutaId);
-  if (!ruta) return [];
-  return ruta.tiendas.map((t) => ({ ...t, _estatus: getEstatusTienda(t.id) }));
-}
-
-function getResumenRuta(rutaId) {
-  const tiendas = getTiendasConEstado(rutaId);
-  const total = tiendas.length;
-  let activas = 0, inactivas = 0, borrar = 0, sinRevisar = 0;
-  tiendas.forEach((t) => {
-    if (!t._estatus.estatus) sinRevisar++;
-    else if (t._estatus.estatus === "activa") activas++;
-    else if (t._estatus.estatus === "inactiva") inactivas++;
-    else if (t._estatus.estatus === "borrar") borrar++;
-  });
-  return { total, activas, inactivas, borrar, sinRevisar, revisadas: total - sinRevisar };
-}
-
-// ---------------------------------------------------------------------------
-// Exportar / importar — puente manual mientras no hay backend compartido.
-// El IBP exporta un .json con las decisiones de SU ruta; el admin lo importa
-// en admin.html y ahí se acumulan todas las rutas en una sola vista maestra.
-// ---------------------------------------------------------------------------
-
-function exportarRuta(rutaId) {
-  const ruta = getRutaCruda(rutaId);
-  const tiendas = getTiendasConEstado(rutaId);
   return {
-    tipo: "bimbo-tools-depuracion",
-    version: 1,
-    ruta: rutaId,
-    propietario: ruta ? ruta.propietario : "",
-    exportadoEn: new Date().toISOString(),
-    tiendas: tiendas.map((t) => ({
-      id: t.id,
-      nombre: t.nombre,
-      direccion: t.direccion,
-      ciudad: t.ciudad,
-      estadoUS: t.estado,
-      zip: t.zip,
-      semanasDesdeUltimaActividad: t.semanasDesdeUltimaActividad,
-      estatus: t._estatus.estatus,
-      motivo: t._estatus.motivo,
-      frecuencia: t._estatus.frecuencia,
-      notas: t._estatus.notas,
-      revisadoEn: t._estatus.revisadoEn,
-    })),
+    desde: SEMANAS_ETIQUETAS[0],
+    hasta: SEMANAS_ETIQUETAS[SEMANAS_ETIQUETAS.length - 1],
+    etiquetas: SEMANAS_ETIQUETAS,
   };
 }
 
-// Combina un archivo exportado por un IBP dentro del namespace actual
-// (pensado para usarse desde admin.html). Si ya había algo guardado para esa
-// tienda, se queda con lo más reciente (por revisadoEn) para no pisar una
-// edición más nueva hecha directo en el panel admin.
-function importarExportacion(payload) {
-  if (!payload || !Array.isArray(payload.tiendas)) return { importadas: 0, total: 0 };
-  let importadas = 0;
-  payload.tiendas.forEach((t) => {
-    if (!t.id) return;
-    if (!t.estatus && !t.frecuencia && !t.notas) return; // el IBP no tocó esta tienda, nada que importar
-    const actual = _estado.tiendas[t.id];
-    const fechaActual = actual && actual.revisadoEn ? new Date(actual.revisadoEn).getTime() : 0;
-    const fechaNueva = t.revisadoEn ? new Date(t.revisadoEn).getTime() : 0;
-    if (actual && fechaActual >= fechaNueva) return;
-    _estado.tiendas[t.id] = {
-      estatus: t.estatus || null,
-      motivo: t.motivo || "",
-      frecuencia: t.frecuencia || "",
-      notas: t.notas || "",
-      revisadoEn: t.revisadoEn || null,
-      _rutaOrigen: payload.ruta,
-      _propietarioOrigen: payload.propietario,
-    };
-    importadas++;
+// Arma el arreglo de 12 posiciones (una por semana) para una tienda a partir
+// de las filas de ventas_semanales que le correspondan (las semanas en 0 no
+// se guardan en la base, así que empezamos todo en 0 y solo llenamos lo que
+// haya).
+function _construirSemanas(ventasDeLaTienda) {
+  const semanas = new Array(SEMANAS_ETIQUETAS.length).fill(0);
+  ventasDeLaTienda.forEach((v) => {
+    const idx = SEMANA_INDICE.get(v.semana);
+    if (idx != null) semanas[idx] = v.unidades;
   });
-  _guardar();
-  return { importadas, total: payload.tiendas.length };
+  return semanas;
 }
 
-// Todas las tiendas de todas las rutas del catálogo, con el estatus guardado
-// en el namespace actual — para la vista maestra del admin.
-function getTodasConEstado() {
-  const out = [];
-  _catalogo.rutas.forEach((r) => {
-    r.tiendas.forEach((t) => out.push({ ...t, _estatus: getEstatusTienda(t.id) }));
+function _calcularActividad(semanas) {
+  const conActividad = [];
+  semanas.forEach((v, i) => {
+    if (v !== 0) conActividad.push(i);
   });
-  return out;
+  if (!conActividad.length) {
+    return { semanasConActividad: 0, ultimaSemanaConActividad: null, semanasDesdeUltimaActividad: semanas.length };
+  }
+  const ultimoIdx = Math.max(...conActividad);
+  return {
+    semanasConActividad: conActividad.length,
+    ultimaSemanaConActividad: SEMANAS_ETIQUETAS[ultimoIdx],
+    semanasDesdeUltimaActividad: semanas.length - 1 - ultimoIdx,
+  };
+}
+
+// Junta tiendas + sus ventas (ya traídas por separado) y calcula los campos
+// derivados (semanas, alertas de actividad). Ordena las más urgentes primero.
+function _enriquecerYOrdenar(tiendas, ventasPorTienda) {
+  const enriquecidas = tiendas.map((t) => {
+    const semanas = _construirSemanas(ventasPorTienda.get(t.id) || []);
+    return { ...t, semanas, ...(_calcularActividad(semanas)) };
+  });
+  enriquecidas.sort((a, b) => {
+    if (b.semanasDesdeUltimaActividad !== a.semanasDesdeUltimaActividad) {
+      return b.semanasDesdeUltimaActividad - a.semanasDesdeUltimaActividad;
+    }
+    return a.nombre.localeCompare(b.nombre);
+  });
+  return enriquecidas;
+}
+
+async function _ventasDeTiendas(tiendaIds) {
+  const porTienda = new Map();
+  if (!tiendaIds.length) return porTienda;
+  const datos = _checar(
+    await _client.from("ventas_semanales").select("tienda_id, semana, unidades").in("tienda_id", tiendaIds),
+    "ventas_semanales"
+  );
+  datos.forEach((v) => {
+    if (!porTienda.has(v.tienda_id)) porTienda.set(v.tienda_id, []);
+    porTienda.get(v.tienda_id).push(v);
+  });
+  return porTienda;
+}
+
+// ---------------------------------------------------------------------------
+// Rutas (IBPs)
+// ---------------------------------------------------------------------------
+
+async function getRutas() {
+  const ibps = _checar(await _client.from("ibps").select("id, propietario").order("id"), "ibps");
+  const tiendas = _checar(await _client.from("tiendas").select("id, ibp_id"), "tiendas (conteo)");
+  const conteo = new Map();
+  tiendas.forEach((t) => conteo.set(t.ibp_id, (conteo.get(t.ibp_id) || 0) + 1));
+  return ibps.map((i) => ({ ruta: i.id, propietario: i.propietario, total: conteo.get(i.id) || 0 }));
+}
+
+async function getRutaInfo(rutaId) {
+  const { data, error } = await _client.from("ibps").select("id, propietario").eq("id", rutaId).maybeSingle();
+  if (error) throw new Error(`ibps: ${error.message}`);
+  return data ? { ruta: data.id, propietario: data.propietario } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Tiendas de una ruta, con su estatus y ventas ya calculadas
+// ---------------------------------------------------------------------------
+
+async function getTiendasConEstado(rutaId) {
+  const tiendas = _checar(
+    await _client
+      .from("tiendas")
+      .select("id, nombre, direccion, ciudad, estado_us, zip, tipo_cuenta, productos, estatus, motivo, frecuencia, revisado_en")
+      .eq("ibp_id", rutaId),
+    "tiendas"
+  );
+  const ventasPorTienda = await _ventasDeTiendas(tiendas.map((t) => t.id));
+  return _enriquecerYOrdenar(tiendas, ventasPorTienda);
+}
+
+function getResumenRuta(tiendas) {
+  const total = tiendas.length;
+  let activas = 0, inactivas = 0, sinRevisar = 0;
+  tiendas.forEach((t) => {
+    if (!t.estatus) sinRevisar++;
+    else if (t.estatus === "activa") activas++;
+    else if (t.estatus === "inactiva") inactivas++;
+  });
+  return { total, activas, inactivas, sinRevisar, revisadas: total - sinRevisar };
+}
+
+// ---------------------------------------------------------------------------
+// Decisiones del IBP — solo a través de las funciones de Postgres (RLS no
+// deja UPDATE directo a la tabla desde la llave pública).
+// ---------------------------------------------------------------------------
+
+// estatus: "activa" | "inactiva". El motivo se pide siempre que no sea
+// "activa" (cubre tanto "está pausada" como "quiero que se elimine" — ver
+// nota en README sobre por qué ya no hay un tercer estatus de "borrar").
+async function setEstatus(tiendaId, estatus, motivo) {
+  const { error } = await _client.rpc("set_tienda_estatus", {
+    p_tienda_id: tiendaId,
+    p_estatus: estatus,
+    p_motivo: estatus === "activa" ? null : motivo || null,
+  });
+  if (error) throw new Error(`set_tienda_estatus: ${error.message}`);
+}
+
+async function setFrecuencia(tiendaId, frecuencia) {
+  const { error } = await _client.rpc("set_tienda_frecuencia", {
+    p_tienda_id: tiendaId,
+    p_frecuencia: frecuencia,
+  });
+  if (error) throw new Error(`set_tienda_frecuencia: ${error.message}`);
+}
+
+// ---------------------------------------------------------------------------
+// Vista maestra (admin.html) — todas las tiendas de todas las rutas, en vivo.
+// ---------------------------------------------------------------------------
+
+async function getTodasConEstado() {
+  const tiendas = _checar(
+    await _client
+      .from("tiendas")
+      .select("id, ibp_id, nombre, direccion, ciudad, estado_us, zip, productos, estatus, motivo, frecuencia, revisado_en")
+      .order("ibp_id"),
+    "tiendas"
+  );
+  const ibps = _checar(await _client.from("ibps").select("id, propietario"), "ibps");
+  const propietarios = new Map(ibps.map((i) => [i.id, i.propietario]));
+  const ventasPorTienda = await _ventasDeTiendas(tiendas.map((t) => t.id));
+
+  return tiendas.map((t) => {
+    const semanas = _construirSemanas(ventasPorTienda.get(t.id) || []);
+    return {
+      ...t,
+      ruta: t.ibp_id,
+      propietario: propietarios.get(t.ibp_id) || "",
+      ...(_calcularActividad(semanas)),
+    };
+  });
 }
 
 window.BimboDepuracion = {
   init,
   getRangoSemanas,
   getRutas,
-  getRutaCruda,
-  getEstatusTienda,
+  getRutaInfo,
   getTiendasConEstado,
+  getResumenRuta,
   setEstatus,
   setFrecuencia,
-  setNotas,
-  getResumenRuta,
-  exportarRuta,
-  importarExportacion,
   getTodasConEstado,
 };
 })();

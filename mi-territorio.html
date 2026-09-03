@@ -26,6 +26,8 @@
       <button class="btn btn-primary" style="margin-top:10px;" id="btnIrRuta">Entrar a mi territorio</button>
     </div>
 
+    <div id="cargando" class="card" style="display:none;">Cargando…</div>
+
     <div id="contenidoRuta" style="display:none;">
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -33,9 +35,9 @@
           <span class="badge" id="rutaRango"></span>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:6px;">
-          Revisa cada tienda: márcala <b>activa</b> si se sigue visitando normal, <b>inactiva</b> si por
-          ahora no se está sirviendo, o <b>pide su borrado</b> si ya no debería estar en tu ruta. Elige
-          también cada cuánto la visitas. Tus cambios se guardan solos en este dispositivo.
+          Revisa cada tienda: márcala <b>activa</b> si se sigue visitando normal, o <b>inactiva</b> si por
+          ahora no se está sirviendo (te pedimos el motivo). Elige también cada cuánto la visitas. Tus
+          cambios se guardan al toque, sin necesidad de exportar nada.
         </p>
         <div class="kpi-row">
           <div class="kpi"><div class="num" id="kpiTotal">0</div><div class="label">tiendas</div></div>
@@ -51,27 +53,19 @@
         <a class="pill" data-filtro="alerta">⚠️ Sin actividad</a>
         <a class="pill" data-filtro="activa">Activas</a>
         <a class="pill" data-filtro="inactiva">Inactivas</a>
-        <a class="pill" data-filtro="borrar">Para borrar</a>
       </div>
 
       <div id="listaTiendas"></div>
-
-      <div class="card">
-        <strong>¿Ya terminaste de revisar?</strong>
-        <p style="font-size:12px; color:var(--gray);">
-          Descarga tus cambios y envíaselos a tu manager (WhatsApp, correo) para que los sume a la lista
-          general. Todavía no hay servidor central — este archivo es el puente mientras tanto.
-        </p>
-        <button class="btn btn-secondary" id="btnExportar">⬇️ Descargar mis cambios (.json)</button>
-      </div>
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/depuracion.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
     let rutaId = params.get("ruta") || params.get("r");
     let filtro = "todas";
+    let tiendasActuales = [];
 
     function semaforoAlerta(semanasSin) {
       if (semanasSin >= 4) return "rojo";
@@ -101,47 +95,56 @@
     }
 
     function pasaFiltro(t) {
-      const est = t._estatus.estatus;
       if (filtro === "todas") return true;
-      if (filtro === "sinRevisar") return !est;
+      if (filtro === "sinRevisar") return !t.estatus;
       if (filtro === "alerta") return t.semanasDesdeUltimaActividad >= 4;
-      return est === filtro;
+      return t.estatus === filtro;
     }
 
-    async function render() {
-      await BimboDepuracion.init();
+    async function cargarRuta() {
+      document.getElementById("sinRuta").style.display = "none";
+      document.getElementById("contenidoRuta").style.display = "none";
+      document.getElementById("cargando").style.display = "block";
 
-      if (!rutaId || !BimboDepuracion.getRutaCruda(rutaId)) {
+      let ruta;
+      try {
+        ruta = await BimboDepuracion.getRutaInfo(rutaId);
+      } catch (err) {
+        document.getElementById("cargando").innerHTML =
+          `<span style="color:var(--rojo);">No se pudo conectar. Revisa tu conexión y recarga la página.</span>`;
+        return;
+      }
+      if (!ruta) {
+        document.getElementById("cargando").style.display = "none";
         document.getElementById("sinRuta").style.display = "block";
-        document.getElementById("contenidoRuta").style.display = "none";
-        if (rutaId) {
-          document.getElementById("sinRuta").insertAdjacentHTML(
-            "afterbegin",
-            `<p style="color:var(--rojo); font-size:13px;">No encontré la ruta "${rutaId}". Verifica el número.</p>`
-          );
-        }
+        document.getElementById("sinRuta").insertAdjacentHTML(
+          "afterbegin",
+          `<p style="color:var(--rojo); font-size:13px;">No encontré la ruta "${rutaId}". Verifica el número.</p>`
+        );
         return;
       }
 
-      document.getElementById("sinRuta").style.display = "none";
-      document.getElementById("contenidoRuta").style.display = "block";
-
-      const ruta = BimboDepuracion.getRutaCruda(rutaId);
       const rango = BimboDepuracion.getRangoSemanas();
       document.getElementById("rutaNombre").textContent = `Ruta ${ruta.ruta} — ${ruta.propietario}`;
       document.getElementById("rutaRango").textContent = `Semanas ${rango.desde} – ${rango.hasta}`;
 
-      const resumen = BimboDepuracion.getResumenRuta(rutaId);
+      tiendasActuales = await BimboDepuracion.getTiendasConEstado(rutaId);
+      document.getElementById("cargando").style.display = "none";
+      document.getElementById("contenidoRuta").style.display = "block";
+      render();
+    }
+
+    function render() {
+      const resumen = BimboDepuracion.getResumenRuta(tiendasActuales);
       document.getElementById("kpiTotal").textContent = resumen.total;
       document.getElementById("kpiRevisadas").textContent = resumen.revisadas;
-      const tiendas = BimboDepuracion.getTiendasConEstado(rutaId);
-      const conAlerta = tiendas.filter((t) => t.semanasDesdeUltimaActividad >= 4).length;
+      const conAlerta = tiendasActuales.filter((t) => t.semanasDesdeUltimaActividad >= 4).length;
       document.getElementById("kpiAlerta").textContent = conAlerta;
       document.getElementById("progressFill").style.width = resumen.total
         ? `${(resumen.revisadas / resumen.total) * 100}%`
         : "0%";
 
-      const visibles = tiendas.filter(pasaFiltro);
+      const visibles = tiendasActuales.filter(pasaFiltro);
       const lista = document.getElementById("listaTiendas");
       lista.innerHTML = visibles.length
         ? visibles.map((t) => renderTienda(t)).join("")
@@ -149,19 +152,17 @@
     }
 
     function renderTienda(t) {
-      const est = t._estatus;
       const sem = semaforoAlerta(t.semanasDesdeUltimaActividad);
       const esAlerta = t.semanasDesdeUltimaActividad >= 4;
-      const badgeEstatus = !est.estatus
-        ? `<span class="badge sin-revisar-badge">Sin revisar</span>`
-        : "";
+      const badgeEstatus = !t.estatus ? `<span class="badge sin-revisar-badge">Sin revisar</span>` : "";
 
-      const motivoBox = est.estatus && est.estatus !== "activa"
-        ? `<div class="motivo-box">
-             <strong>Motivo:</strong> ${est.motivo || "(sin especificar)"}
-             <span class="editar" onclick="editarMotivo('${t.id}')">editar</span>
-           </div>`
-        : "";
+      const motivoBox =
+        t.estatus === "inactiva"
+          ? `<div class="motivo-box">
+               <strong>Motivo:</strong> ${t.motivo || "(sin especificar)"}
+               <span class="editar" onclick="editarMotivo('${t.id}')">editar</span>
+             </div>`
+          : "";
 
       return `
         <div class="card tienda-card ${esAlerta ? "alerta" : ""}" data-id="${t.id}">
@@ -169,7 +170,7 @@
             <strong>${t.nombre || "(sin nombre)"}</strong>
             ${badgeEstatus}
           </div>
-          <span class="dir">${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}${t.estado ? ", " + t.estado : ""} ${t.zip || ""}</span>
+          <span class="dir">${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}${t.estado_us ? ", " + t.estado_us : ""} ${t.zip || ""}</span>
           <div>
             <span class="badge"><span class="semaforo ${sem}"></span>${etiquetaAlerta(t)}</span>
             <span class="badge">${t.productos} producto${t.productos === 1 ? "" : "s"} vendidos</span>
@@ -177,48 +178,64 @@
           ${renderSparkline(t.semanas)}
 
           <div class="estado-pills">
-            <label class="estado-pill activa ${est.estatus === "activa" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','activa')">✅ Activa</label>
-            <label class="estado-pill inactiva ${est.estatus === "inactiva" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','inactiva')">⏸️ Inactiva</label>
-            <label class="estado-pill borrar ${est.estatus === "borrar" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','borrar')">🗑️ Pedir borrado</label>
+            <label class="estado-pill activa ${t.estatus === "activa" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','activa')">✅ Activa</label>
+            <label class="estado-pill inactiva ${t.estatus === "inactiva" ? "activo" : ""}" onclick="cambiarEstatus('${t.id}','inactiva')">⏸️ Inactiva</label>
           </div>
           ${motivoBox}
 
           <label class="field">Frecuencia de visita
-            <select onchange="BimboDepuracion.setFrecuencia('${t.id}', this.value); render();">
-              <option value="" ${!est.frecuencia ? "selected" : ""} disabled>Elegir…</option>
-              <option value="semanal" ${est.frecuencia === "semanal" ? "selected" : ""}>Semanal</option>
-              <option value="quincenal" ${est.frecuencia === "quincenal" ? "selected" : ""}>Quincenal</option>
-              <option value="pedido" ${est.frecuencia === "pedido" ? "selected" : ""}>A pedido del cliente</option>
+            <select onchange="cambiarFrecuencia('${t.id}', this.value)">
+              <option value="" ${!t.frecuencia ? "selected" : ""} disabled>Elegir…</option>
+              <option value="semanal" ${t.frecuencia === "semanal" ? "selected" : ""}>Semanal</option>
+              <option value="2x_semana" ${t.frecuencia === "2x_semana" ? "selected" : ""}>2 veces por semana</option>
+              <option value="quincenal" ${t.frecuencia === "quincenal" ? "selected" : ""}>Quincenal</option>
+              <option value="pedido" ${t.frecuencia === "pedido" ? "selected" : ""}>A pedido del cliente</option>
             </select>
           </label>
         </div>
       `;
     }
 
-    function cambiarEstatus(id, estatus) {
-      if (estatus === "activa") {
-        BimboDepuracion.setEstatus(id, "activa", "");
-        render();
+    function _actualizarLocal(id, cambios) {
+      const t = tiendasActuales.find((x) => x.id === id);
+      if (t) Object.assign(t, cambios);
+    }
+
+    async function cambiarEstatus(id, estatus) {
+      let motivo = "";
+      if (estatus === "inactiva") {
+        const actual = tiendasActuales.find((x) => x.id === id);
+        motivo = prompt("¿Por qué está inactiva esta tienda?", actual ? actual.motivo || "" : "");
+        if (motivo === null) return; // canceló, no se cambia nada
+        if (!motivo.trim()) {
+          alert("Necesito un motivo para continuar.");
+          return;
+        }
+        motivo = motivo.trim();
+      }
+      try {
+        await BimboDepuracion.setEstatus(id, estatus, motivo);
+      } catch (err) {
+        alert("No se pudo guardar el cambio. Revisa tu conexión e intenta de nuevo.");
         return;
       }
-      const actual = BimboDepuracion.getEstatusTienda(id).motivo || "";
-      const pregunta =
-        estatus === "borrar"
-          ? "¿Por qué quieres pedir el borrado de esta tienda?"
-          : "¿Por qué está inactiva esta tienda?";
-      const motivo = prompt(pregunta, actual);
-      if (motivo === null) return; // canceló, no se cambia nada
-      if (!motivo.trim()) {
-        alert("Necesito un motivo para continuar.");
-        return;
-      }
-      BimboDepuracion.setEstatus(id, estatus, motivo.trim());
+      _actualizarLocal(id, { estatus, motivo: estatus === "activa" ? null : motivo, revisado_en: new Date().toISOString() });
       render();
     }
 
     function editarMotivo(id) {
-      const actual = BimboDepuracion.getEstatusTienda(id);
-      cambiarEstatus(id, actual.estatus);
+      cambiarEstatus(id, "inactiva");
+    }
+
+    async function cambiarFrecuencia(id, frecuencia) {
+      try {
+        await BimboDepuracion.setFrecuencia(id, frecuencia);
+      } catch (err) {
+        alert("No se pudo guardar la frecuencia. Revisa tu conexión e intenta de nuevo.");
+        render(); // vuelve a pintar el select con el valor real (el cambio no se guardó)
+        return;
+      }
+      _actualizarLocal(id, { frecuencia, revisado_en: new Date().toISOString() });
     }
 
     document.getElementById("btnIrRuta").addEventListener("click", () => {
@@ -228,7 +245,7 @@
       const url = new URL(location.href);
       url.searchParams.set("ruta", rutaId);
       history.replaceState(null, "", url);
-      render();
+      cargarRuta();
     });
 
     document.getElementById("filtroTabs").addEventListener("click", (e) => {
@@ -240,20 +257,15 @@
       render();
     });
 
-    document.getElementById("btnExportar").addEventListener("click", () => {
-      const datos = BimboDepuracion.exportarRuta(rutaId);
-      const blob = new Blob([JSON.stringify(datos, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `mi-territorio-ruta-${rutaId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    });
-
-    render();
+    async function iniciar() {
+      await BimboDepuracion.init();
+      if (!rutaId) {
+        document.getElementById("sinRuta").style.display = "block";
+        return;
+      }
+      await cargarRuta();
+    }
+    iniciar();
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
