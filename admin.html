@@ -30,15 +30,18 @@
   </div>
 
   <main class="wide" id="appAdmin" style="display:none;">
+    <!-- Clientes/Importar CSV/% Frescura/Historial: demo vieja (localStorage,
+         sin Supabase) — inactiva por ahora (botones ocultos, código intacto
+         por si se reusa) hasta decidir qué se borra. Territorios es lo real. -->
     <div class="pill-select tabs-nav" id="tabs">
-      <a class="pill active" data-tab="clientes">🏬 Clientes</a>
-      <a class="pill" data-tab="importar">📥 Importar CSV</a>
-      <a class="pill" data-tab="frescura">🍞 % Frescura</a>
-      <a class="pill" data-tab="historial">🕓 Historial</a>
-      <a class="pill" data-tab="depuracion">🗺️ Territorios</a>
+      <a class="pill" data-tab="clientes" style="display:none;">🏬 Clientes</a>
+      <a class="pill" data-tab="importar" style="display:none;">📥 Importar CSV</a>
+      <a class="pill" data-tab="frescura" style="display:none;">🍞 % Frescura</a>
+      <a class="pill" data-tab="historial" style="display:none;">🕓 Historial</a>
+      <a class="pill active" data-tab="depuracion">🗺️ Territorios</a>
     </div>
 
-    <div id="tabClientes">
+    <div id="tabClientes" style="display:none;">
       <div class="card">
         <strong>Alta manual de cliente</strong>
         <label class="field">Nombre
@@ -108,7 +111,7 @@
       </div>
     </div>
 
-    <div id="tabDepuracion" style="display:none;">
+    <div id="tabDepuracion">
       <div class="summary-grid" id="resumenTerritorios"></div>
 
       <div class="admin-identidad">

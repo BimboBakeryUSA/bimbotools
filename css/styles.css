@@ -293,6 +293,20 @@ a.card:hover {
   text-transform: uppercase;
 }
 
+/* Variante clickeable (agenda del IBP: elegir qué día ver) */
+.dias-resumen-clickable .dia-resumen-item {
+  cursor: pointer;
+}
+
+.dias-resumen-clickable .dia-resumen-item.seleccionado {
+  background: var(--accent);
+}
+
+.dias-resumen-clickable .dia-resumen-item.seleccionado .dia-resumen-num,
+.dias-resumen-clickable .dia-resumen-item.seleccionado .dia-resumen-label {
+  color: white;
+}
+
 .ibp-row {
   display: flex;
   justify-content: space-between;

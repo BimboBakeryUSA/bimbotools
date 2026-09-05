@@ -50,13 +50,34 @@
 
     <div id="cargando" class="card" style="display:none;">Cargando…</div>
 
+    <div id="contenidoAgenda" style="display:none;">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong id="agendaRutaNombre">—</strong>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:16px;">
+          <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnIrEditar">✏️ Editar mi territorio</span>
+          <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAgenda">Cerrar sesión</span>
+        </div>
+        <p style="font-size:12px; color:var(--gray); margin-top:6px;" id="agendaSubtitulo"></p>
+      </div>
+
+      <div class="dias-resumen-bar">
+        <strong>Elige un día</strong>
+        <div class="dias-resumen dias-resumen-clickable" id="agendaDiasResumen"></div>
+      </div>
+
+      <div id="agendaLista"></div>
+    </div>
+
     <div id="contenidoRuta" style="display:none;">
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <strong id="rutaNombre">—</strong>
           <span class="badge" id="rutaRango"></span>
         </div>
-        <div style="margin-top:8px;">
+        <div style="margin-top:8px; display:flex; gap:16px;">
+          <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px; display:none;" id="btnVolverAgenda">‹ Volver a mi agenda</span>
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesion">Cerrar sesión</span>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:6px;">
@@ -102,10 +123,50 @@
     let filtro = "todas";
     let tiendasActuales = [];
 
+    // esRoute: true cuando quien entró es el dueño de la ruta (no
+    // admin/corporativo de soporte) — decide si aterriza en la agenda y si
+    // ve el botón "volver a mi agenda" dentro de la edición.
+    let esRoute = false;
+    // vista: qué pantalla mostrar una vez cargada la ruta.
+    let vista = "editar";
+    let diaAgendaSeleccionado = null;
+
+    const DIA_LABEL = {
+      lunes: "Lunes",
+      martes: "Martes",
+      miercoles: "Miércoles",
+      jueves: "Jueves",
+      viernes: "Viernes",
+      sabado: "Sábado",
+    };
+
+    const FRECUENCIA_LABEL = {
+      semanal: "Semanal",
+      "2x_semana": "2 veces por semana",
+      quincenal: "Quincenal",
+      pedido: "A pedido del cliente",
+    };
+
+    // Día de hoy en las mismas etiquetas que dias_visita — null en domingo
+    // (no se pautan visitas ese día, ver schema).
+    function hoyEnEspanol() {
+      const idx = new Date().getDay(); // 0=domingo..6=sábado
+      return idx === 0 ? null : DIAS[idx - 1];
+    }
+
     function ocultarTodasLasPantallas() {
-      ["pantallaToken", "pantallaLogin", "sinRutaAdmin", "cargando", "contenidoRuta"].forEach((id) => {
+      ["pantallaToken", "pantallaLogin", "sinRutaAdmin", "cargando", "contenidoAgenda", "contenidoRuta"].forEach((id) => {
         document.getElementById(id).style.display = "none";
       });
+    }
+
+    // Muestra la pantalla que toque (agenda o edición) según `vista`, ya con
+    // los datos de tiendasActuales cargados.
+    function mostrarVista() {
+      document.getElementById("contenidoAgenda").style.display = vista === "agenda" ? "block" : "none";
+      document.getElementById("contenidoRuta").style.display = vista === "editar" ? "block" : "none";
+      document.getElementById("btnVolverAgenda").style.display = esRoute && vista === "editar" ? "inline" : "none";
+      render();
     }
 
     function semaforoAlerta(semanasSin) {
@@ -168,11 +229,16 @@
 
       tiendasActuales = await BimboDepuracion.getTiendasConEstado(rutaId);
       document.getElementById("cargando").style.display = "none";
-      document.getElementById("contenidoRuta").style.display = "block";
-      render();
+      diaAgendaSeleccionado = hoyEnEspanol();
+      mostrarVista();
     }
 
     function render() {
+      renderEdicion();
+      renderAgenda();
+    }
+
+    function renderEdicion() {
       const resumen = BimboDepuracion.getResumenRuta(tiendasActuales);
       document.getElementById("kpiTotal").textContent = resumen.total;
       document.getElementById("kpiRevisadas").textContent = resumen.revisadas;
@@ -211,6 +277,58 @@
           </div>
         `
       ).join("");
+    }
+
+    // Pantalla de agenda del IBP: qué le toca visitar hoy (o el día que
+    // elija) — solo lectura, para eso ya está "Editar mi territorio".
+    function renderAgenda() {
+      document.getElementById("agendaRutaNombre").textContent = document.getElementById("rutaNombre").textContent;
+
+      const conteos = {};
+      DIAS.forEach((d) => (conteos[d] = 0));
+      tiendasActuales.forEach((t) => {
+        if (t.estatus !== "activa") return;
+        (t.dias_visita || []).forEach((d) => {
+          if (conteos[d] != null) conteos[d]++;
+        });
+      });
+
+      const hoy = hoyEnEspanol();
+      document.getElementById("agendaDiasResumen").innerHTML = DIAS.map(
+        (d) => `
+          <div class="dia-resumen-item ${d === diaAgendaSeleccionado ? "seleccionado" : ""}" data-dia="${d}">
+            <span class="dia-resumen-num">${conteos[d]}</span>
+            <span class="dia-resumen-label">${d.slice(0, 3)}${d === hoy ? " •" : ""}</span>
+          </div>
+        `
+      ).join("");
+
+      const dia = diaAgendaSeleccionado;
+      document.getElementById("agendaSubtitulo").textContent = !dia
+        ? "Hoy es domingo — no hay tiendas pautadas. Elige un día para ver tu ruta."
+        : dia === hoy
+        ? `Hoy es ${DIA_LABEL[dia]}. Estas son tus tiendas activas para hoy.`
+        : `Viendo ${DIA_LABEL[dia]}. Estas son las tiendas activas pautadas ese día.`;
+
+      const lista = document.getElementById("agendaLista");
+      if (!dia) {
+        lista.innerHTML = "";
+        return;
+      }
+      const visibles = tiendasActuales.filter((t) => t.estatus === "activa" && (t.dias_visita || []).includes(dia));
+      lista.innerHTML = visibles.length
+        ? visibles.map((t) => renderTiendaAgenda(t)).join("")
+        : `<div class="empty-state">No tienes tiendas activas pautadas para ${DIA_LABEL[dia]}.</div>`;
+    }
+
+    function renderTiendaAgenda(t) {
+      return `
+        <div class="card tienda-card">
+          <div class="fila-top"><strong>${t.nombre || "(sin nombre)"}</strong></div>
+          <span class="dir">${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}${t.estado_us ? ", " + t.estado_us : ""} ${t.zip || ""}</span>
+          <div><span class="badge">${FRECUENCIA_LABEL[t.frecuencia] || ""}</span></div>
+        </div>
+      `;
     }
 
     function renderTienda(t) {
@@ -415,6 +533,28 @@
       render();
     });
 
+    document.getElementById("agendaDiasResumen").addEventListener("click", (e) => {
+      const el = e.target.closest(".dia-resumen-item");
+      if (!el) return;
+      diaAgendaSeleccionado = el.dataset.dia;
+      renderAgenda();
+    });
+
+    document.getElementById("btnIrEditar").addEventListener("click", () => {
+      vista = "editar";
+      mostrarVista();
+    });
+
+    document.getElementById("btnVolverAgenda").addEventListener("click", () => {
+      vista = "agenda";
+      mostrarVista();
+    });
+
+    document.getElementById("btnCerrarSesionAgenda").addEventListener("click", async () => {
+      await BimboDepuracion.cerrarSesion();
+      location.href = "mi-territorio.html";
+    });
+
     // ---------------------------------------------------------------------
     // Sesión: entrada directa por token (primeros 7 días de una ruta),
     // login real, o ya venía logueado — ver js/depuracion.js.
@@ -471,6 +611,8 @@
       }
 
       if (perfil && perfil.role === "route" && perfil.route_code) {
+        esRoute = true;
+        vista = "agenda";
         await cargarRuta(perfil.route_code);
         return;
       }
@@ -491,6 +633,8 @@
       try {
         const resultado = await BimboDepuracion.reclamarRutaPorToken(tokenParam, email);
         if (!resultado) throw new Error("No se pudo reclamar la ruta.");
+        esRoute = true;
+        vista = "agenda";
         await cargarRuta(resultado.ruta);
       } catch (err) {
         mostrarPantallaLogin(`No se pudo entrar con ese enlace (${err.message}). Inicia sesión con tu cuenta.`);
