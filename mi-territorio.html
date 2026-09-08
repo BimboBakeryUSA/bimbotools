@@ -26,6 +26,11 @@
       <input type="email" id="inputEmailToken" placeholder="tucorreo@ejemplo.com" />
       <p id="tokenError" style="color:var(--rojo); font-size:13px;"></p>
       <button class="btn btn-primary" style="margin-top:10px;" id="btnEntrarToken">Entrar</button>
+      <p style="font-size:12px; margin-top:12px;">
+        ¿Ya tienes cuenta (correo y contraseña)?
+        <span style="color:var(--accent); cursor:pointer; font-weight:600;" id="btnIrALogin">Inicia sesión aquí</span>
+        — así entras directo la próxima vez, sin este paso.
+      </p>
     </div>
 
     <div id="pantallaLogin" class="card" style="display:none;">
@@ -38,6 +43,10 @@
         <input type="password" id="loginPassword" />
       </label>
       <button class="btn btn-primary" style="margin-top:10px;" id="btnLogin">Entrar</button>
+      <p style="font-size:12px; margin-top:12px; display:none;" id="linkVolverToken">
+        ¿Primera vez y todavía no tienes cuenta?
+        <span style="color:var(--accent); cursor:pointer; font-weight:600;" id="btnIrAToken">Entra solo con tu correo</span>
+      </p>
     </div>
 
     <div id="sinRutaAdmin" class="card" style="display:none;">
@@ -779,6 +788,10 @@
       ocultarTodasLasPantallas();
       document.getElementById("pantallaLogin").style.display = "block";
       document.getElementById("loginError").textContent = mensaje || "";
+      // Solo tiene sentido ofrecer "volver al correo rápido" si llegó con
+      // el enlace de una ruta — si entró directo a mi-territorio.html sin
+      // token, no hay a dónde "volver".
+      document.getElementById("linkVolverToken").style.display = tokenParam ? "block" : "none";
     }
 
     async function continuarConSesion() {
@@ -865,6 +878,9 @@
         document.getElementById("loginError").textContent = "Correo o contraseña incorrectos.";
       }
     });
+
+    document.getElementById("btnIrALogin").addEventListener("click", () => mostrarPantallaLogin());
+    document.getElementById("btnIrAToken").addEventListener("click", () => mostrarPantallaToken());
 
     document.getElementById("btnCerrarSesion").addEventListener("click", async () => {
       detenerPollingMensajes();

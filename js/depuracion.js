@@ -191,6 +191,19 @@ async function invitarIbp(email, rutaId, nombre) {
   return data;
 }
 
+// Para alguien que YA tiene cuenta (correo/contraseña) — le asigna la ruta
+// sin invitación ni tocar su contraseña, así entra con su usuario regular.
+// Si no existe ninguna cuenta con ese correo, la Edge Function lo rechaza
+// (usar invitarIbp en ese caso).
+async function asignarRutaACuenta(email, rutaId, nombre) {
+  const { data, error } = await _client.functions.invoke("asignar-ruta", {
+    body: { email, route_code: rutaId, nombre: nombre || null },
+  });
+  if (error) throw new Error(`asignar-ruta: ${error.message}`);
+  if (data && data.error) throw new Error(`asignar-ruta: ${data.error}`);
+  return data;
+}
+
 // ---------------------------------------------------------------------------
 // Carga del catálogo desde el reporte semanal (admin.html) — solo
 // admin/corporativo (RLS + columnas otorgadas del lado de la base lo
@@ -619,6 +632,7 @@ window.BimboDepuracion = {
   getPerfilActual,
   getPerfilesRoute,
   invitarIbp,
+  asignarRutaACuenta,
   cargarCatalogo,
   marcarVisitada,
   desmarcarVisitada,

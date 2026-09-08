@@ -488,6 +488,7 @@
               <div class="ruta-actions">
                 <button class="btn btn-secondary btn-small" onclick="copiarEnlace('${link}', this)">Copiar enlace</button>
                 <button class="btn btn-secondary btn-small" onclick="enviarMensajeDesdeEnlace('${r.ruta}', '${r.propietario.replace(/'/g, "\\'")}')">✉️ Mensaje</button>
+                <button class="btn btn-secondary btn-small" onclick="asignarCuentaExistente('${r.ruta}', '${r.propietario.replace(/'/g, "\\'")}')">🔗 Asignar cuenta</button>
                 <a class="btn btn-primary btn-small" style="text-decoration:none;" href="${link}" target="_blank">Abrir</a>
               </div>
             </div>
@@ -504,6 +505,25 @@
         alert("Mensaje enviado.");
       } catch (err) {
         alert(`No se pudo enviar: ${err.message}`);
+      }
+    }
+
+    // Para alguien que YA tiene cuenta (correo/contraseña) en otra
+    // herramienta o de antes — le asigna esta ruta sin mandarle invitación
+    // ni tocar su contraseña. Si todavía no tiene cuenta, usa "Invitar".
+    async function asignarCuentaExistente(rutaId, propietario) {
+      const correo = prompt(
+        `¿Cuál es el correo de la cuenta YA EXISTENTE de ${propietario} (ruta ${rutaId})?\n` +
+          `Si todavía no tiene cuenta, usa "Invitar" en vez de esto.`,
+        ""
+      );
+      if (!correo || !correo.trim()) return;
+      try {
+        await BimboDepuracion.asignarRutaACuenta(correo.trim(), rutaId, propietario);
+        alert(`Listo — ${correo.trim()} ya puede entrar con su correo/contraseña de siempre y ve la ruta ${rutaId}.`);
+        await renderEnlaces();
+      } catch (err) {
+        alert(`No se pudo asignar: ${err.message}`);
       }
     }
 

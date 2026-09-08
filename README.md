@@ -213,6 +213,23 @@ una Edge Function (`invitar-ibp`) que corre del lado del servidor — es la
 navegador), y antes de hacer nada verifica que quien la llama sea
 `admin`/`corporativo`.
 
+**Alguien que ya tenía cuenta de antes** (ej. usuarios copiados de otro
+proyecto Supabase — ver más abajo): no se le puede volver a invitar por
+correo (ya tiene contraseña). Botón "🔗 Asignar cuenta" en cada tarjeta de
+ruta — Edge Function `asignar-ruta`, busca la cuenta existente por correo y
+le asigna `role=route` + `route_code` sin tocar su contraseña ni mandarle
+nada; entra directo con su correo/contraseña de siempre.
+
+**Enlace de ruta + cuenta ya existente:** el enlace con token
+(`mi-territorio.html?t=...`) siempre muestra primero la pantalla de "solo tu
+correo" (pensada para quien todavía no tiene cuenta) — pero trae un link
+"¿Ya tienes cuenta? Inicia sesión aquí" para que alguien con cuenta real
+(como alguien a quien ya se le asignó por "🔗 Asignar cuenta") entre con su
+correo/contraseña de siempre en vez de la entrada rápida por correo — así
+sí queda logueado de verdad y entra directo la próxima vez (sesión real,
+30 días de inactividad — ver arriba —, no una sesión anónima nueva cada
+vez que se pierde el localStorage del dispositivo).
+
 **Refrescar el catálogo** (nuevo reporte de ventas): en `admin.html`, tarjeta
 "Actualizar catálogo" — se sube el Excel/CSV semanal tal cual ("Central List
 / Account L4 / Route / Product Name") directamente desde el navegador.
