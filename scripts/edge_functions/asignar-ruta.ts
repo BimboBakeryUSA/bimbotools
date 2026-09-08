@@ -41,7 +41,10 @@ Deno.serve(async (req) => {
 
     const jwt = authHeader.replace("Bearer ", "");
     const { data: callerData, error: callerError } = await adminClient.auth.getUser(jwt);
-    if (callerError || !callerData?.user) return jsonResponse({ error: "Sesión inválida" }, 401);
+    if (callerError || !callerData?.user) {
+      console.error("asignar-ruta: getUser falló", callerError);
+      return jsonResponse({ error: "Sesión inválida" }, 401);
+    }
     const callerId = callerData.user.id;
 
     const { data: callerProfile, error: profileError } = await adminClient
@@ -49,7 +52,10 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("id", callerId)
       .single();
-    if (profileError || !callerProfile) return jsonResponse({ error: "No se encontró tu perfil" }, 403);
+    if (profileError || !callerProfile) {
+      console.error("asignar-ruta: no se encontró perfil del llamante", profileError);
+      return jsonResponse({ error: "No se encontró tu perfil" }, 403);
+    }
     if (callerProfile.role !== "admin" && callerProfile.role !== "corporativo") {
       return jsonResponse({ error: "No tienes permiso para asignar rutas" }, 403);
     }
@@ -63,12 +69,22 @@ Deno.serve(async (req) => {
       .select("id, propietario")
       .eq("id", route_code)
       .maybeSingle();
-    if (rutaError || !ruta) return jsonResponse({ error: `No existe la ruta ${route_code}` }, 400);
+    if (rutaError || !ruta) {
+      console.error("asignar-ruta: ruta no encontrada", route_code, rutaError);
+      return jsonResponse({ error: `No existe la ruta ${route_code}` }, 400);
+    }
 
     // No hay getUserByEmail directo en la API admin -- se busca en la
     // lista (pocos usuarios en este proyecto, alcanza con una página).
-    const { data: listado, error: listError } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (listError) return jsonResponse({ error: listError.message }, 500);
+    let listado;
+    try {
+      const resultado = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      if (resultado.error) throw resultado.error;
+      listado = resultado.data;
+    } catch (e) {
+      console.error("asignar-ruta: listUsers falló", e);
+      return jsonResponse({ error: `No pude leer la lista de cuentas: ${(e as Error).message || e}` }, 500);
+    }
 
     const emailNorm = String(email).trim().toLowerCase();
     const usuario = listado.users.find((u) => (u.email || "").toLowerCase() === emailNorm);
@@ -88,10 +104,14 @@ Deno.serve(async (req) => {
       email: usuario.email,
       creado_por: callerId,
     });
-    if (insertError) return jsonResponse({ error: insertError.message }, 400);
+    if (insertError) {
+      console.error("asignar-ruta: upsert de perfil falló", insertError);
+      return jsonResponse({ error: insertError.message }, 400);
+    }
 
     return jsonResponse({ ok: true, user_id: usuario.id, email: usuario.email }, 200);
   } catch (e) {
-    return jsonResponse({ error: (e as Error).message || "Error inesperado" }, 500);
+    console.error("asignar-ruta: error inesperado", e);
+    return jsonResponse({ error: (e as Error).message || String(e) || "Error inesperado" }, 500);
   }
 });

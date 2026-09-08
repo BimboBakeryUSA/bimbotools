@@ -179,6 +179,24 @@ async function getPerfilesRoute() {
   );
 }
 
+// supabase-js, cuando una Edge Function responde con un status que no es
+// 2xx, solo pone en error.message un texto genérico ("Edge Function
+// returned a non-2xx status code") — el motivo real que sí mandamos
+// nosotros (jsonResponse({error: "..."})) va en el cuerpo de la respuesta,
+// que hay que leer aparte (error.context es la Response cruda).
+async function _mensajeDeErrorFuncion(error) {
+  if (error && error.context && typeof error.context.json === "function") {
+    try {
+      const cuerpo = await error.context.json();
+      if (cuerpo && cuerpo.error) return cuerpo.error;
+    } catch (e) {
+      // el cuerpo no era JSON (ej. la función se cayó sin responder nada) —
+      // nos quedamos con el mensaje genérico de abajo.
+    }
+  }
+  return (error && error.message) || "error desconocido";
+}
+
 // Invita por correo a un IBP a crear su cuenta permanente — solo
 // admin/corporativo (la función de servidor vuelve a validar esto, no basta
 // con que el botón esté oculto en la interfaz). Requiere sesión real.
@@ -186,7 +204,7 @@ async function invitarIbp(email, rutaId, nombre) {
   const { data, error } = await _client.functions.invoke("invitar-ibp", {
     body: { email, route_code: rutaId, nombre: nombre || null },
   });
-  if (error) throw new Error(`invitar-ibp: ${error.message}`);
+  if (error) throw new Error(`invitar-ibp: ${await _mensajeDeErrorFuncion(error)}`);
   if (data && data.error) throw new Error(`invitar-ibp: ${data.error}`);
   return data;
 }
@@ -199,7 +217,7 @@ async function asignarRutaACuenta(email, rutaId, nombre) {
   const { data, error } = await _client.functions.invoke("asignar-ruta", {
     body: { email, route_code: rutaId, nombre: nombre || null },
   });
-  if (error) throw new Error(`asignar-ruta: ${error.message}`);
+  if (error) throw new Error(`asignar-ruta: ${await _mensajeDeErrorFuncion(error)}`);
   if (data && data.error) throw new Error(`asignar-ruta: ${data.error}`);
   return data;
 }
