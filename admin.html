@@ -473,7 +473,7 @@
           const correo = correoPorRuta.get(r.ruta);
           const correoBox = correo
             ? `<div class="correo-capturado">
-                 ✉️ ${correo}
+                 <span class="correo-texto">✉️ ${correo}</span>
                  <span class="link-chico" onclick="invitarDesdeEnlace('${r.ruta}', '${correo.replace(/'/g, "\\'")}')">Invitar</span>
                </div>`
             : `<div class="correo-capturado sin-correo">Todavía no ha entrado con su enlace.</div>`;
