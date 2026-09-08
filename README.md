@@ -82,9 +82,11 @@ pueda arrancar sin fricción:
    enlace lo deja entrar directo, sin pedir contraseña — solo su correo (así
    se sabe quién es, aunque no se verifique todavía).
 2. Esa entrada directa funciona repetida durante **7 días** desde la
-   primera vez que se usa. Cada sesión dura hasta **6 horas de
-   inactividad**; al pasarse, la próxima vez que abra el enlace vuelve a
-   entrar directo (mientras siga dentro de esos 7 días).
+   primera vez que se usa. La sesión en sí queda guardada en el dispositivo
+   (no hay que volver a loguearse cada vez que se cierra la app) y solo se
+   cierra sola tras **30 días de inactividad**; mientras siga dentro de los
+   7 días del token, si de verdad hiciera falta reentrar, el enlace lo mete
+   directo otra vez.
 3. Pasados los 7 días, ese enlace deja de meterlo solo — necesita una
    cuenta real. El admin le manda una invitación por correo (botón
    "Invitar" en `admin.html`, junto al correo que reportó) para que

@@ -264,7 +264,10 @@
       }
 
       mostrarVista();
-      if (esRoute) mostrarAvisoMensajesSiHay();
+      if (esRoute) {
+        mostrarAvisoMensajesSiHay();
+        iniciarPollingMensajes(rutaId);
+      }
     }
 
     function render() {
@@ -454,6 +457,49 @@
     function mostrarAvisoMensajesSiHay() {
       if (!mensajesActuales.some((m) => !m.leido_en)) return;
       abrirModalMensajes();
+    }
+
+    // Revisa mensajes nuevos cada 30s mientras la página siga abierta — no
+    // es push real (eso necesita Service Worker + servidor), pero cubre el
+    // caso normal de "dejé el teléfono con la página abierta". Si llega algo
+    // nuevo, se muestra igual que al entrar.
+    const INTERVALO_POLL_MENSAJES_MS = 30 * 1000;
+    let _intervaloMensajes = null;
+
+    function iniciarPollingMensajes(rutaId) {
+      detenerPollingMensajes();
+      _intervaloMensajes = setInterval(() => revisarMensajesNuevos(rutaId), INTERVALO_POLL_MENSAJES_MS);
+    }
+
+    function detenerPollingMensajes() {
+      if (_intervaloMensajes) {
+        clearInterval(_intervaloMensajes);
+        _intervaloMensajes = null;
+      }
+    }
+
+    async function revisarMensajesNuevos(rutaId) {
+      let nuevos;
+      try {
+        nuevos = await BimboDepuracion.getMensajes(rutaId);
+      } catch (err) {
+        return; // sin conexión momentánea — se reintenta solo en el próximo tick
+      }
+      const idsConocidos = new Set(mensajesActuales.map((m) => m.id));
+      const llegoAlgoNuevo = nuevos.some((m) => !idsConocidos.has(m.id));
+      mensajesActuales = nuevos;
+      renderAgenda(); // refresca el badge aunque no haya nada nuevo (por si se leyó desde otro lado)
+
+      const modalAbierto = document.getElementById("modalMensajes").style.display === "flex";
+      if (!llegoAlgoNuevo) return;
+      if (modalAbierto) {
+        // Ya lo tiene abierto — no le pisamos el popup, solo refrescamos la
+        // lista para que el mensaje nuevo aparezca ahí mismo.
+        renderListaMensajes();
+        marcarTodosMensajesLeidos();
+      } else {
+        mostrarAvisoMensajesSiHay();
+      }
     }
 
     function renderTienda(t) {
@@ -676,6 +722,7 @@
     });
 
     document.getElementById("btnCerrarSesionAgenda").addEventListener("click", async () => {
+      detenerPollingMensajes();
       await BimboDepuracion.cerrarSesion();
       location.href = "mi-territorio.html";
     });
@@ -788,6 +835,7 @@
     });
 
     document.getElementById("btnCerrarSesion").addEventListener("click", async () => {
+      detenerPollingMensajes();
       await BimboDepuracion.cerrarSesion();
       location.href = "mi-territorio.html";
     });

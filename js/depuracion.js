@@ -25,7 +25,11 @@
 // todo. La sesión se resuelve de una de estas formas:
 //   - Sesión ya iniciada (login real, o una entrada por token anterior que
 //     sigue viva) — getSesionValida() la valida y la cierra sola si pasaron
-//     6h sin actividad.
+//     30 días sin actividad (ver INACTIVIDAD_LIMITE_MS). El token de
+//     Supabase ya se guarda solo en localStorage (persiste al cerrar el
+//     navegador/PWA); este límite es solo un tope de seguridad adicional,
+//     no lo que mantiene la sesión — por eso el IBP sigue logueado aunque
+//     cierre y abra la app varios días seguidos.
 //   - Entrada directa por token de ruta (primeros 7 días desde el primer
 //     uso) — reclamarRutaPorToken() crea una sesión anónima y liga el
 //     perfil a esa ruta.
@@ -36,8 +40,11 @@
 const SUPABASE_URL = "https://obfikwhukpzelsghowcq.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM";
 
-// Sesión cerrada sola tras 6h sin actividad (clics/teclas) en la página.
-const INACTIVIDAD_LIMITE_MS = 6 * 60 * 60 * 1000;
+// Sesión cerrada sola tras 30 días sin actividad (clics/teclas) en la
+// página — antes eran 6h, muy poco para un IBP que no abre la app a diario;
+// el token real ya vive en localStorage y sobrevive a cerrar el navegador
+// solo, este límite es un tope de seguridad, no el mecanismo de "recordarme".
+const INACTIVIDAD_LIMITE_MS = 30 * 24 * 60 * 60 * 1000;
 const LS_ULTIMA_ACTIVIDAD = "bimboUltimaActividad";
 
 // Días de visita posibles — domingo no se pauta, igual que en js/data.js.
@@ -90,9 +97,10 @@ function _pasoElLimiteDeInactividad() {
   }
 }
 
-// Revisa si hay una sesión de Supabase viva. Si la hay pero ya pasaron 6h
-// sin actividad en la página, la cierra ella misma (para que el siguiente
-// intento de entrar pida login/token de nuevo). Devuelve la sesión (o null).
+// Revisa si hay una sesión de Supabase viva. Si la hay pero ya pasaron 30
+// días sin actividad en la página, la cierra ella misma (para que el
+// siguiente intento de entrar pida login/token de nuevo). Devuelve la
+// sesión (o null).
 async function getSesionValida() {
   const { data } = await _client.auth.getSession();
   const sesion = data && data.session;
