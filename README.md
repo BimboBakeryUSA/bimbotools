@@ -227,6 +227,28 @@ solo tienen permiso de columna para catálogo/ventas — `tiendas.estatus`,
 se pueden cambiar por las funciones RPC que ya existían, preservando el
 historial de auditoría.
 
+**Agenda del IBP, visitas y mensajes** (`mi-territorio.html`): al entrar, un
+"route" aterriza en su agenda (no en la edición) — tabs por día con el
+conteo de tiendas activas y, debajo, la lista de tiendas activas para el día
+elegido (hoy por defecto). Cada tienda tiene un botón "Marcar visitada"
+(solo editable si el día elegido es hoy de verdad) que escribe en la tabla
+`visitas` (`tienda_id, fecha` únicos — no pisa `dias_visita`, es el registro
+de si REALMENTE se visitó) vía las funciones `marcar_tienda_visitada` /
+`desmarcar_tienda_visitada`. Desde `admin.html`, la tarjeta "Marcar visitas
+ya hechas" sube un archivo (columna "Central Store"/"tienda", y opcionalmente
+su propia columna de fecha) para marcar en bloque — INSERT directo con
+`origen='admin_carga'`, protegido por RLS a admin/corporativo igual que
+"Actualizar catálogo". Botón "✏️ Editar mi territorio" en la agenda lleva a
+la pantalla de siempre (activa/inactiva, frecuencia, días), con "‹ Volver a
+mi agenda" para regresar.
+
+Admin/corporativo puede además enviarle un mensaje a una ruta puntual (botón
+"✉️ Mensaje" en cada tarjeta de "Enlaces por territorio") — tabla `mensajes`
+(RLS: el IBP solo ve/marca leídos los suyos). Al entrar a su agenda, si hay
+mensajes sin leer le aparecen como aviso emergente (se marcan leídos al
+mostrarse); el botón "✉️ Mensajes" reabre el historial completo en cualquier
+momento.
+
 ## Estado actual
 
 - **Mi Territorio** (`mi-territorio.html`, `index.html`, y la pestaña

@@ -412,3 +412,143 @@ grant execute on function public.set_tienda_estatus(text, text, text) to anon, a
 grant execute on function public.set_tienda_frecuencia(text, text) to anon, authenticated;
 grant execute on function public.set_tienda_dias(text, text[]) to anon, authenticated;
 grant execute on function public.set_tienda_reset(text) to anon, authenticated;
+
+-- ----------------------------------------------------------------------------
+-- NOTA: a partir de aquí, lo que sigue documenta migraciones aplicadas
+-- directamente en producción (obfikwhukpzelsghowcq) vía mcp__Supabase__
+-- apply_migration, que no se habían vuelto a mirror-ear en este archivo:
+-- - ibps.manager + semanas_recientes() + grants de columna para que
+--   admin/corporativo carguen catálogo/ventas directo desde admin.html
+--   ("Actualizar catálogo") sin tocar estatus/motivo/frecuencia/dias_visita.
+-- - visitas + mensajes, abajo.
+-- ----------------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------------
+-- Visitas: marca real de que una tienda se visitó en una fecha (agenda del
+-- IBP) — distinto de dias_visita (el plan semanal). El propio IBP marca/
+-- desmarca la suya vía las funciones de abajo; admin.html puede cargar un
+-- archivo con las ya visitadas (INSERT directo, mismo patrón de columnas +
+-- RLS que la carga de catálogo).
+-- ----------------------------------------------------------------------------
+
+create table public.visitas (
+  id uuid primary key default gen_random_uuid(),
+  tienda_id text not null references public.tiendas(id) on delete cascade,
+  fecha date not null,
+  visitada_en timestamptz not null default now(),
+  marcado_por uuid references auth.users(id),
+  origen text not null default 'ibp' check (origen in ('ibp', 'admin_carga')),
+  unique (tienda_id, fecha)
+);
+
+comment on table public.visitas is 'Mi Territorio: marca de que una tienda se visitó de verdad en una fecha — separado de dias_visita (el plan).';
+
+create index visitas_tienda_id_idx on public.visitas (tienda_id);
+create index visitas_fecha_idx on public.visitas (fecha);
+
+alter table public.visitas enable row level security;
+
+create policy "visitas_select" on public.visitas for select
+using (
+  public.current_user_role() = any (array['admin','corporativo']::public.user_role[])
+  or exists (
+    select 1 from public.tiendas t
+    where t.id = visitas.tienda_id
+      and t.ibp_id = public.current_user_route_code()
+  )
+);
+
+-- Carga masiva directa: solo admin/corporativo (el propio IBP marca su
+-- visita vía marcar_tienda_visitada, abajo).
+create policy "visitas_insert_admin" on public.visitas for insert
+with check (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]));
+
+create policy "visitas_update_admin" on public.visitas for update
+using (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]));
+
+create policy "visitas_delete_admin" on public.visitas for delete
+using (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]));
+
+grant select, insert, update, delete on public.visitas to authenticated;
+
+create or replace function public.marcar_tienda_visitada(
+  p_tienda_id text,
+  p_fecha date default current_date
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_acceso record;
+begin
+  select * into v_acceso from public._verificar_acceso_tienda(p_tienda_id);
+
+  insert into public.visitas (tienda_id, fecha, marcado_por, origen, visitada_en)
+  values (p_tienda_id, p_fecha, auth.uid(), 'ibp', now())
+  on conflict (tienda_id, fecha) do update
+    set visitada_en = now(), marcado_por = auth.uid(), origen = 'ibp';
+end;
+$$;
+
+create or replace function public.desmarcar_tienda_visitada(
+  p_tienda_id text,
+  p_fecha date default current_date
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_acceso record;
+begin
+  select * into v_acceso from public._verificar_acceso_tienda(p_tienda_id);
+  delete from public.visitas where tienda_id = p_tienda_id and fecha = p_fecha;
+end;
+$$;
+
+revoke all on function public.marcar_tienda_visitada(text, date) from public;
+revoke all on function public.desmarcar_tienda_visitada(text, date) from public;
+grant execute on function public.marcar_tienda_visitada(text, date) to anon, authenticated;
+grant execute on function public.desmarcar_tienda_visitada(text, date) to anon, authenticated;
+
+-- ----------------------------------------------------------------------------
+-- Mensajes: admin/corporativo -> una ruta puntual. El IBP los ve (y los
+-- marca leídos) en su agenda, con aviso emergente si hay alguno sin leer.
+-- ----------------------------------------------------------------------------
+
+create table public.mensajes (
+  id uuid primary key default gen_random_uuid(),
+  ruta_id text not null references public.ibps(id) on delete cascade,
+  texto text not null,
+  creado_por uuid references auth.users(id),
+  creado_por_nombre text,
+  creado_en timestamptz not null default now(),
+  leido_en timestamptz
+);
+
+comment on table public.mensajes is 'Mi Territorio: mensajes de admin/corporativo a una ruta puntual, con aviso emergente en la agenda del IBP.';
+
+create index mensajes_ruta_id_idx on public.mensajes (ruta_id, creado_en desc);
+
+alter table public.mensajes enable row level security;
+
+create policy "mensajes_select" on public.mensajes for select
+using (
+  public.current_user_role() = any (array['admin','corporativo']::public.user_role[])
+  or ruta_id = public.current_user_route_code()
+);
+
+create policy "mensajes_insert_admin" on public.mensajes for insert
+with check (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]));
+
+-- El IBP solo puede tocar leido_en de sus propios mensajes (columna
+-- otorgada abajo) — no puede editar el texto ni mensajes de otra ruta.
+create policy "mensajes_update_leido" on public.mensajes for update
+using (ruta_id = public.current_user_route_code())
+with check (ruta_id = public.current_user_route_code());
+
+grant select, insert on public.mensajes to authenticated;
+grant update (leido_en) on public.mensajes to authenticated;

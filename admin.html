@@ -135,6 +135,22 @@
 
       <div class="card">
         <div class="seccion-header">
+          <span class="icono">✅</span>
+          <h2>Marcar visitas ya hechas</h2>
+        </div>
+        <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
+          Sube un archivo con una columna "Central Store" (o "tienda") — cada una queda marcada como
+          visitada en la fecha de abajo, o en su propia columna "Fecha" si el archivo la trae.
+        </p>
+        <label class="field">Fecha (si el archivo no trae su propia columna de fecha)
+          <input type="date" id="fechaVisitasCarga" />
+        </label>
+        <input type="file" id="fileVisitas" accept=".xlsx,.xls,.csv" />
+        <div id="resultadoVisitas" style="margin-top:8px; font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="seccion-header">
           <span class="icono">🔗</span>
           <h2>Enlaces por territorio</h2>
         </div>
@@ -357,11 +373,81 @@
     });
 
     // ---------------------------------------------------------------------
+    // Marcar visitas ya hechas — mismo patrón de arriba (SheetJS en el
+    // navegador), pero solo necesita el id de tienda (y opcionalmente su
+    // propia fecha por fila); si no trae fecha, se usa la que elija el admin.
+    // ---------------------------------------------------------------------
+
+    document.getElementById("fechaVisitasCarga").value = new Date().toISOString().slice(0, 10);
+
+    function _excelFechaAIso(v) {
+      if (v == null || v === "") return null;
+      if (typeof v === "number") {
+        // Fecha serial de Excel (días desde 1899-12-30).
+        return new Date(Math.round((v - 25569) * 86400 * 1000)).toISOString().slice(0, 10);
+      }
+      const s = String(v).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // M/D/YYYY
+      return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : null;
+    }
+
+    async function procesarArchivoVisitas(file, fechaPorDefecto) {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const filas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+      const esColTienda = (c) => /^(central store|tienda|store)$/i.test(String(c ?? "").trim());
+      const esColFecha = (c) => /^(fecha|date)$/i.test(String(c ?? "").trim());
+
+      const idxHeader = filas.findIndex((r) => Array.isArray(r) && r.some(esColTienda));
+      if (idxHeader === -1) {
+        throw new Error('No encontré una columna "Central Store" (o "tienda") — revisa el archivo.');
+      }
+      const header = filas[idxHeader];
+      const idxTienda = header.findIndex(esColTienda);
+      const idxFecha = header.findIndex(esColFecha);
+
+      const filasVisitas = [];
+      for (let i = idxHeader + 1; i < filas.length; i++) {
+        const r = filas[i];
+        if (!r) continue;
+        const tiendaId = r[idxTienda] != null ? String(r[idxTienda]).trim() : "";
+        if (!tiendaId) continue;
+        const fecha = (idxFecha !== -1 ? _excelFechaAIso(r[idxFecha]) : null) || fechaPorDefecto;
+        if (!fecha) continue;
+        filasVisitas.push({ tienda_id: tiendaId, fecha });
+      }
+      return filasVisitas;
+    }
+
+    document.getElementById("fileVisitas").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const resultado = document.getElementById("resultadoVisitas");
+      const fechaPorDefecto = document.getElementById("fechaVisitasCarga").value || null;
+      resultado.textContent = "Procesando archivo…";
+      try {
+        const filas = await procesarArchivoVisitas(file, fechaPorDefecto);
+        if (!filas.length) throw new Error("No encontré filas válidas para marcar (¿falta la fecha?).");
+        resultado.textContent = `Marcando ${filas.length} visitas…`;
+        await BimboDepuracion.cargarVisitas(filas);
+        resultado.textContent = `Listo: ${filas.length} tiendas marcadas como visitadas.`;
+        e.target.value = "";
+      } catch (err) {
+        resultado.textContent = `Error: ${err.message}`;
+        e.target.value = "";
+      }
+    });
+
+    // ---------------------------------------------------------------------
     // Territorios (Mi Territorio, vista del admin) — todo en vivo desde
     // Supabase, ya no hay archivos que importar.
     // ---------------------------------------------------------------------
 
     let todasTerritorios = [];
+    let perfilAdmin = null; // sesión actual — para firmar los mensajes que se envían a una ruta
 
     async function renderEnlaces() {
       const cont = document.getElementById("listaEnlaces");
@@ -401,12 +487,24 @@
               ${correoBox}
               <div class="ruta-actions">
                 <button class="btn btn-secondary btn-small" onclick="copiarEnlace('${link}', this)">Copiar enlace</button>
+                <button class="btn btn-secondary btn-small" onclick="enviarMensajeDesdeEnlace('${r.ruta}', '${r.propietario.replace(/'/g, "\\'")}')">✉️ Mensaje</button>
                 <a class="btn btn-primary btn-small" style="text-decoration:none;" href="${link}" target="_blank">Abrir</a>
               </div>
             </div>
           `;
         })
         .join("");
+    }
+
+    async function enviarMensajeDesdeEnlace(rutaId, propietario) {
+      const texto = prompt(`Mensaje para ${propietario} (ruta ${rutaId}):`, "");
+      if (!texto || !texto.trim()) return;
+      try {
+        await BimboDepuracion.enviarMensaje(rutaId, texto.trim(), (perfilAdmin && perfilAdmin.nombre) || null);
+        alert("Mensaje enviado.");
+      } catch (err) {
+        alert(`No se pudo enviar: ${err.message}`);
+      }
     }
 
     async function invitarDesdeEnlace(rutaId, correoSugerido) {
@@ -1093,6 +1191,7 @@
         return;
       }
 
+      perfilAdmin = perfil;
       document.getElementById("pantallaLoginAdmin").style.display = "none";
       document.getElementById("appAdmin").style.display = "block";
       document.getElementById("adminSesionLabel").textContent = perfil.nombre || perfil.email || perfil.role;

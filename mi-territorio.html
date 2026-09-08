@@ -55,8 +55,9 @@
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <strong id="agendaRutaNombre">—</strong>
         </div>
-        <div style="margin-top:8px; display:flex; gap:16px;">
+        <div style="margin-top:8px; display:flex; gap:16px; flex-wrap:wrap;">
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnIrEditar">✏️ Editar mi territorio</span>
+          <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnAbrirMensajes">✉️ Mensajes <span id="mensajesNoLeidos" class="badge-conteo" style="display:none;"></span></span>
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAgenda">Cerrar sesión</span>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:6px;" id="agendaSubtitulo"></p>
@@ -108,6 +109,16 @@
 
       <div id="listaTiendas"></div>
     </div>
+
+    <div id="modalMensajes" class="modal-overlay" style="display:none;">
+      <div class="modal-box">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong>Mensajes</strong>
+          <span style="cursor:pointer; font-size:22px; line-height:1; color:var(--gray);" id="btnCerrarModalMensajes">&times;</span>
+        </div>
+        <div id="listaMensajes" style="margin-top:10px;"></div>
+      </div>
+    </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -130,6 +141,10 @@
     // vista: qué pantalla mostrar una vez cargada la ruta.
     let vista = "editar";
     let diaAgendaSeleccionado = null;
+
+    const HOY_ISO = new Date().toISOString().slice(0, 10);
+    let mensajesActuales = [];
+    let visitasHoy = new Map(); // tienda_id -> visitada_en (solo tiendas activas, fecha = HOY_ISO)
 
     const DIA_LABEL = {
       lunes: "Lunes",
@@ -230,7 +245,26 @@
       tiendasActuales = await BimboDepuracion.getTiendasConEstado(rutaId);
       document.getElementById("cargando").style.display = "none";
       diaAgendaSeleccionado = hoyEnEspanol();
+
+      if (esRoute) {
+        try {
+          mensajesActuales = await BimboDepuracion.getMensajes(rutaId);
+        } catch (err) {
+          mensajesActuales = [];
+        }
+        const idsActivos = tiendasActuales.filter((t) => t.estatus === "activa").map((t) => t.id);
+        try {
+          visitasHoy = await BimboDepuracion.getVisitasDeFecha(idsActivos, HOY_ISO);
+        } catch (err) {
+          visitasHoy = new Map();
+        }
+      } else {
+        mensajesActuales = [];
+        visitasHoy = new Map();
+      }
+
       mostrarVista();
+      if (esRoute) mostrarAvisoMensajesSiHay();
     }
 
     function render() {
@@ -284,6 +318,11 @@
     function renderAgenda() {
       document.getElementById("agendaRutaNombre").textContent = document.getElementById("rutaNombre").textContent;
 
+      const noLeidos = mensajesActuales.filter((m) => !m.leido_en).length;
+      const badgeMensajes = document.getElementById("mensajesNoLeidos");
+      badgeMensajes.textContent = noLeidos;
+      badgeMensajes.style.display = noLeidos ? "inline-block" : "none";
+
       const conteos = {};
       DIAS.forEach((d) => (conteos[d] = 0));
       tiendasActuales.forEach((t) => {
@@ -322,13 +361,99 @@
     }
 
     function renderTiendaAgenda(t) {
+      const esHoy = diaAgendaSeleccionado === hoyEnEspanol();
+      const visitadaEn = visitasHoy.get(t.id);
+      const accion = !esHoy
+        ? `<span class="badge">Vista previa — no editable</span>`
+        : visitadaEn
+        ? `<span class="badge visitada-badge">✔️ Visitada ${new Date(visitadaEn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px; margin-left:8px;" onclick="desmarcarVisitaAgenda('${t.id}')">deshacer</span>`
+        : `<button class="btn btn-primary btn-small" onclick="marcarVisitaAgenda('${t.id}')">✅ Marcar visitada</button>`;
+
       return `
         <div class="card tienda-card">
           <div class="fila-top"><strong>${t.nombre || "(sin nombre)"}</strong></div>
           <span class="dir">${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}${t.estado_us ? ", " + t.estado_us : ""} ${t.zip || ""}</span>
           <div><span class="badge">${FRECUENCIA_LABEL[t.frecuencia] || ""}</span></div>
+          <div style="margin-top:8px;">${accion}</div>
         </div>
       `;
+    }
+
+    async function marcarVisitaAgenda(id) {
+      try {
+        await BimboDepuracion.marcarVisitada(id, HOY_ISO);
+      } catch (err) {
+        alert("No se pudo marcar la visita. Revisa tu conexión e intenta de nuevo.");
+        return;
+      }
+      visitasHoy.set(id, new Date().toISOString());
+      renderAgenda();
+    }
+
+    async function desmarcarVisitaAgenda(id) {
+      try {
+        await BimboDepuracion.desmarcarVisitada(id, HOY_ISO);
+      } catch (err) {
+        alert("No se pudo deshacer. Revisa tu conexión e intenta de nuevo.");
+        return;
+      }
+      visitasHoy.delete(id);
+      renderAgenda();
+    }
+
+    // ---------------------------------------------------------------------
+    // Mensajes de admin/corporativo a esta ruta — aviso emergente si hay
+    // alguno sin leer al entrar, y un historial siempre disponible ("✉️
+    // Mensajes" en la agenda).
+    // ---------------------------------------------------------------------
+
+    function _escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function renderListaMensajes() {
+      const cont = document.getElementById("listaMensajes");
+      cont.innerHTML = mensajesActuales.length
+        ? mensajesActuales
+            .map(
+              (m) => `
+                <div class="mensaje-item ${m.leido_en ? "" : "no-leido"}">
+                  <div class="mensaje-texto">${_escapeHtml(m.texto)}</div>
+                  <div class="mensaje-meta">${_escapeHtml(m.creado_por_nombre || "Admin")} — ${new Date(m.creado_en).toLocaleString()}</div>
+                </div>
+              `
+            )
+            .join("")
+        : `<div class="empty-state">Todavía no tienes mensajes.</div>`;
+    }
+
+    async function marcarTodosMensajesLeidos() {
+      const sinLeer = mensajesActuales.filter((m) => !m.leido_en);
+      if (!sinLeer.length) return;
+      await Promise.all(sinLeer.map((m) => BimboDepuracion.marcarMensajeLeido(m.id).catch(() => {})));
+      const ahora = new Date().toISOString();
+      sinLeer.forEach((m) => (m.leido_en = ahora));
+      renderAgenda();
+    }
+
+    function abrirModalMensajes() {
+      renderListaMensajes();
+      document.getElementById("modalMensajes").style.display = "flex";
+      marcarTodosMensajesLeidos();
+    }
+
+    function cerrarModalMensajes() {
+      document.getElementById("modalMensajes").style.display = "none";
+    }
+
+    // Al entrar (o volver a entrar) a la agenda, si hay mensajes sin leer se
+    // le muestran de una vez como aviso emergente.
+    function mostrarAvisoMensajesSiHay() {
+      if (!mensajesActuales.some((m) => !m.leido_en)) return;
+      abrirModalMensajes();
     }
 
     function renderTienda(t) {
@@ -553,6 +678,12 @@
     document.getElementById("btnCerrarSesionAgenda").addEventListener("click", async () => {
       await BimboDepuracion.cerrarSesion();
       location.href = "mi-territorio.html";
+    });
+
+    document.getElementById("btnAbrirMensajes").addEventListener("click", abrirModalMensajes);
+    document.getElementById("btnCerrarModalMensajes").addEventListener("click", cerrarModalMensajes);
+    document.getElementById("modalMensajes").addEventListener("click", (e) => {
+      if (e.target.id === "modalMensajes") cerrarModalMensajes();
     });
 
     // ---------------------------------------------------------------------

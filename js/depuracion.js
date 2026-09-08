@@ -435,6 +435,73 @@ async function getHistorial(tiendaId) {
 }
 
 // ---------------------------------------------------------------------------
+// Visitas: marca real de que una tienda se visitó en una fecha (agenda del
+// IBP) — distinto de dias_visita (el plan). El propio IBP marca/desmarca la
+// suya vía las funciones de Postgres; admin.html puede cargar un archivo con
+// las ya visitadas (INSERT directo, mismo patrón que cargarCatalogo).
+// ---------------------------------------------------------------------------
+
+async function marcarVisitada(tiendaId, fecha) {
+  const { error } = await _client.rpc("marcar_tienda_visitada", { p_tienda_id: tiendaId, p_fecha: fecha });
+  if (error) throw new Error(`marcar_tienda_visitada: ${error.message}`);
+}
+
+async function desmarcarVisitada(tiendaId, fecha) {
+  const { error } = await _client.rpc("desmarcar_tienda_visitada", { p_tienda_id: tiendaId, p_fecha: fecha });
+  if (error) throw new Error(`desmarcar_tienda_visitada: ${error.message}`);
+}
+
+// tiendaIds ya visitadas en esa fecha (para pintar el estado en la agenda).
+async function getVisitasDeFecha(tiendaIds, fecha) {
+  if (!tiendaIds.length) return new Map();
+  const { data, error } = await _client
+    .from("visitas")
+    .select("tienda_id, visitada_en")
+    .eq("fecha", fecha)
+    .in("tienda_id", tiendaIds);
+  if (error) throw new Error(`visitas: ${error.message}`);
+  return new Map(data.map((v) => [v.tienda_id, v.visitada_en]));
+}
+
+// admin.html: carga masiva de visitas ya hechas desde un archivo — filas
+// [{tienda_id, fecha}] ya armadas por quien llama.
+async function cargarVisitas(filas) {
+  const conOrigen = filas.map((f) => ({ ...f, origen: "admin_carga" }));
+  await _upsertPorLotes("visitas", conOrigen, "tienda_id,fecha");
+}
+
+// ---------------------------------------------------------------------------
+// Mensajes: admin/corporativo -> una ruta puntual. El IBP los ve (y los
+// marca leídos) en su agenda, con aviso emergente si hay alguno sin leer.
+// ---------------------------------------------------------------------------
+
+async function enviarMensaje(rutaId, texto, nombreRemitente) {
+  const { data: userData } = await _client.auth.getUser();
+  const uid = userData && userData.user && userData.user.id;
+  const { error } = await _client
+    .from("mensajes")
+    .insert({ ruta_id: rutaId, texto, creado_por: uid || null, creado_por_nombre: nombreRemitente || null });
+  if (error) throw new Error(`mensajes: ${error.message}`);
+}
+
+// Mensajes de una ruta, más reciente primero.
+async function getMensajes(rutaId) {
+  return _checar(
+    await _client
+      .from("mensajes")
+      .select("id, texto, creado_por_nombre, creado_en, leido_en")
+      .eq("ruta_id", rutaId)
+      .order("creado_en", { ascending: false }),
+    "mensajes"
+  );
+}
+
+async function marcarMensajeLeido(mensajeId) {
+  const { error } = await _client.from("mensajes").update({ leido_en: new Date().toISOString() }).eq("id", mensajeId);
+  if (error) throw new Error(`mensajes: ${error.message}`);
+}
+
+// ---------------------------------------------------------------------------
 // Vista maestra (admin.html) — todas las tiendas de todas las rutas, en vivo.
 // ---------------------------------------------------------------------------
 
@@ -486,5 +553,12 @@ window.BimboDepuracion = {
   getPerfilesRoute,
   invitarIbp,
   cargarCatalogo,
+  marcarVisitada,
+  desmarcarVisitada,
+  getVisitasDeFecha,
+  cargarVisitas,
+  enviarMensaje,
+  getMensajes,
+  marcarMensajeLeido,
 };
 })();
