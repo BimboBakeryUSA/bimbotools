@@ -552,3 +552,76 @@ with check (ruta_id = public.current_user_route_code());
 
 grant select, insert on public.mensajes to authenticated;
 grant update (leido_en) on public.mensajes to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- Notificaciones push (Web Push) para mensajes admin -> IBP. Guarda la
+-- suscripción del navegador de cada ruta; al insertarse un mensaje, un
+-- trigger llama automáticamente a la Edge Function "enviar-push" (vía
+-- pg_net) que le manda la notificación real al dispositivo — probado en
+-- Android/Chrome (los IBP usan handhelds Honeywell); en iPhone Safari solo
+-- funciona si la página se agregó a la pantalla de inicio.
+-- ----------------------------------------------------------------------------
+
+create extension if not exists pg_net;
+
+create table public.push_subscripciones (
+  id uuid primary key default gen_random_uuid(),
+  ruta_id text not null references public.ibps(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  creado_en timestamptz not null default now()
+);
+
+comment on table public.push_subscripciones is 'Mi Territorio: suscripciones de Web Push por ruta, para el aviso emergente de mensajes cuando la app no está abierta.';
+
+create index push_subscripciones_ruta_id_idx on public.push_subscripciones (ruta_id);
+
+alter table public.push_subscripciones enable row level security;
+
+create policy "push_subs_select" on public.push_subscripciones for select
+using (
+  public.current_user_role() = any (array['admin','corporativo']::public.user_role[])
+  or ruta_id = public.current_user_route_code()
+);
+
+create policy "push_subs_insert" on public.push_subscripciones for insert
+with check (ruta_id = public.current_user_route_code());
+
+create policy "push_subs_delete" on public.push_subscripciones for delete
+using (
+  ruta_id = public.current_user_route_code()
+  or public.current_user_role() = any (array['admin','corporativo']::public.user_role[])
+);
+
+grant select, insert, delete on public.push_subscripciones to authenticated;
+
+alter table public.push_subscripciones add constraint push_subscripciones_endpoint_key2 unique (endpoint, ruta_id);
+
+-- Trigger: al insertar un mensaje, llama a la Edge Function enviar-push.
+-- Fire-and-forget (pg_net es asíncrono) — si falla, el mensaje igual se
+-- guarda y se ve en la agenda/polling; el push es un plus, no la fuente de
+-- verdad. La llave publicable (Bearer) es la misma que usa el navegador —
+-- no es secreta.
+create or replace function public._notificar_mensaje_nuevo()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform net.http_post(
+    url := 'https://obfikwhukpzelsghowcq.supabase.co/functions/v1/enviar-push',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM'
+    ),
+    body := jsonb_build_object('ruta_id', NEW.ruta_id, 'texto', NEW.texto, 'mensaje_id', NEW.id)
+  );
+  return NEW;
+end;
+$$;
+
+create trigger mensajes_notificar_push
+after insert on public.mensajes
+for each row execute function public._notificar_mensaje_nuevo();

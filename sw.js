@@ -11,7 +11,7 @@
 // cacheado de antes). `cache: "reload"` obliga a ignorar esa caché HTTP y sí
 // ir a la red de verdad en cada visita.
 
-const CACHE_NAME = "bimbo-tools-v7";
+const CACHE_NAME = "bimbo-tools-v8";
 const ARCHIVOS_SHELL = [
   "index.html",
   "ibp.html",
@@ -50,6 +50,39 @@ self.addEventListener("activate", (event) => {
     )
   );
   self.clients.claim();
+});
+
+// Notificaciones push (mensajes admin -> IBP, ver enviar-push). El payload
+// ya viene armado por la Edge Function como { title, body, url }.
+self.addEventListener("push", (event) => {
+  let datos = { title: "Bimbo Tools", body: "Tienes un mensaje nuevo." };
+  try {
+    if (event.data) datos = { ...datos, ...event.data.json() };
+  } catch (e) {
+    // payload no era JSON válido — se queda con el texto por defecto.
+  }
+  event.waitUntil(
+    self.registration.showNotification(datos.title, {
+      body: datos.body,
+      icon: "icons/icon-192.png",
+      badge: "icons/icon-192.png",
+      data: { url: datos.url || "mi-territorio.html" },
+    })
+  );
+});
+
+// Al tocar la notificación: si ya hay una pestaña abierta de la app, la
+// enfoca; si no, abre una nueva.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "mi-territorio.html";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((lista) => {
+      const existente = lista.find((c) => c.url.includes("mi-territorio.html"));
+      if (existente) return existente.focus();
+      return self.clients.openWindow(url);
+    })
+  );
 });
 
 self.addEventListener("fetch", (event) => {

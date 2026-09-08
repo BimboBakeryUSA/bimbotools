@@ -249,7 +249,25 @@ Admin/corporativo puede además enviarle un mensaje a una ruta puntual (botón
 (RLS: el IBP solo ve/marca leídos los suyos). Al entrar a su agenda, si hay
 mensajes sin leer le aparecen como aviso emergente (se marcan leídos al
 mostrarse); el botón "✉️ Mensajes" reabre el historial completo en cualquier
-momento.
+momento. Mientras la agenda sigue abierta, revisa mensajes nuevos cada 30s
+(sin recargar) — no es push real, solo cubre "la tengo abierta pero no la
+estoy viendo".
+
+**Notificaciones push reales** (llegan aunque no tengan la app abierta —
+probado en Android/Chrome, que es lo que usan los IBP en sus handhelds
+Honeywell; en iPhone Safari solo funciona si la página se agregó a la
+pantalla de inicio): botón "🔔 Activar notificaciones" en la agenda —pide
+permiso una vez y guarda la suscripción del navegador en
+`push_subscripciones` (RLS: cada ruta solo la suya). Al insertarse un
+mensaje, un trigger de Postgres (`mensajes_notificar_push`, vía la extensión
+`pg_net`) llama automáticamente a la Edge Function `enviar-push`, que manda
+la notificación real con el protocolo Web Push (librería `web-push` sobre
+Deno, firmada con un par de llaves VAPID). `sw.js` la muestra (evento
+`push`) y abre/enfoca la app al tocarla (`notificationclick`). La llave
+privada VAPID queda embebida en el código de la Edge Function (no en un
+secreto real de Supabase, por límite de las herramientas usadas para
+armarlo) — si se quiere mover a un secreto de verdad más adelante, ver la
+nota al principio de `scripts/edge_functions/enviar-push.ts`.
 
 ## Estado actual
 

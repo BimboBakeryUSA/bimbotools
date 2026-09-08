@@ -40,6 +40,11 @@
 const SUPABASE_URL = "https://obfikwhukpzelsghowcq.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM";
 
+// Llave pública VAPID — debe coincidir con la privada embebida en la Edge
+// Function enviar-push (scripts/edge_functions/enviar-push.ts). No es
+// secreta (viaja al navegador por diseño del protocolo Web Push).
+const VAPID_PUBLIC_KEY = "BLFPiseSMlKivquERfG16C4lrY3k-CAedeuECWfscLcJ1VV4XlgcIfAtk0zqeedelXzuS66NfLnrfCruwRHwGhc";
+
 // Sesión cerrada sola tras 30 días sin actividad (clics/teclas) en la
 // página — antes eran 6h, muy poco para un IBP que no abre la app a diario;
 // el token real ya vive en localStorage y sobrevive a cerrar el navegador
@@ -510,6 +515,60 @@ async function marcarMensajeLeido(mensajeId) {
 }
 
 // ---------------------------------------------------------------------------
+// Notificaciones push (Web Push) — para que los mensajes le lleguen al IBP
+// como notificación real aunque no tenga la página abierta (hoy probado
+// contra Android/Chrome, ver README). El registro del Service Worker ya se
+// hace en cada página; aquí solo se pide permiso, se suscribe y se guarda.
+// ---------------------------------------------------------------------------
+
+function _urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const binario = atob(base64);
+  return Uint8Array.from([...binario].map((c) => c.charCodeAt(0)));
+}
+
+function soportaPush() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+// true si ya hay permiso concedido y una suscripción activa guardada.
+async function tieneNotificacionesActivas() {
+  if (!soportaPush() || Notification.permission !== "granted") return false;
+  const registro = await navigator.serviceWorker.getRegistration();
+  if (!registro) return false;
+  const sub = await registro.pushManager.getSubscription();
+  return !!sub;
+}
+
+// Pide permiso (si hace falta), crea/recupera la suscripción del navegador
+// y la guarda ligada a esta ruta.
+async function activarNotificacionesPush(rutaId) {
+  if (!soportaPush()) throw new Error("Este navegador no soporta notificaciones push.");
+
+  const permiso = await Notification.requestPermission();
+  if (permiso !== "granted") throw new Error("No se dio permiso de notificaciones.");
+
+  const registro = await navigator.serviceWorker.ready;
+  let sub = await registro.pushManager.getSubscription();
+  if (!sub) {
+    sub = await registro.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+  }
+
+  const json = sub.toJSON();
+  const { error } = await _client
+    .from("push_subscripciones")
+    .upsert(
+      { ruta_id: rutaId, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth },
+      { onConflict: "endpoint,ruta_id" }
+    );
+  if (error) throw new Error(`push_subscripciones: ${error.message}`);
+}
+
+// ---------------------------------------------------------------------------
 // Vista maestra (admin.html) — todas las tiendas de todas las rutas, en vivo.
 // ---------------------------------------------------------------------------
 
@@ -568,5 +627,7 @@ window.BimboDepuracion = {
   enviarMensaje,
   getMensajes,
   marcarMensajeLeido,
+  tieneNotificacionesActivas,
+  activarNotificacionesPush,
 };
 })();

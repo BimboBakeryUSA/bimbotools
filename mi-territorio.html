@@ -58,6 +58,7 @@
         <div style="margin-top:8px; display:flex; gap:16px; flex-wrap:wrap;">
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnIrEditar">✏️ Editar mi territorio</span>
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnAbrirMensajes">✉️ Mensajes <span id="mensajesNoLeidos" class="badge-conteo" style="display:none;"></span></span>
+          <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px; display:none;" id="btnActivarPush">🔔 Activar notificaciones</span>
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAgenda">Cerrar sesión</span>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:6px;" id="agendaSubtitulo"></p>
@@ -265,6 +266,7 @@
 
       mostrarVista();
       if (esRoute) {
+        actualizarBotonPush(rutaId);
         mostrarAvisoMensajesSiHay();
         iniciarPollingMensajes(rutaId);
       }
@@ -501,6 +503,36 @@
         mostrarAvisoMensajesSiHay();
       }
     }
+
+    // ---------------------------------------------------------------------
+    // Notificaciones push — el botón solo aparece si el navegador las
+    // soporta y todavía no están activas (una vez activadas, ya no hace
+    // falta volver a mostrarlo).
+    // ---------------------------------------------------------------------
+
+    async function actualizarBotonPush(rutaId) {
+      const boton = document.getElementById("btnActivarPush");
+      let activas = false;
+      try {
+        activas = await BimboDepuracion.tieneNotificacionesActivas();
+      } catch (err) {
+        activas = false;
+      }
+      boton.style.display = activas ? "none" : "inline";
+      boton.dataset.rutaId = rutaId;
+    }
+
+    document.getElementById("btnActivarPush").addEventListener("click", async (e) => {
+      const boton = e.currentTarget;
+      const rutaId = boton.dataset.rutaId;
+      try {
+        await BimboDepuracion.activarNotificacionesPush(rutaId);
+        boton.style.display = "none";
+        alert("Listo — ahora te llegan los mensajes como notificación, aunque no tengas la app abierta.");
+      } catch (err) {
+        alert(`No se pudo activar: ${err.message}`);
+      }
+    });
 
     function renderTienda(t) {
       const sem = semaforoAlerta(t.semanasDesdeUltimaActividad);
