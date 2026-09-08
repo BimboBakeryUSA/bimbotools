@@ -1,15 +1,14 @@
 // =========================================================
 // Edge Function: asignar-ruta
-// Para cuentas que YA EXISTEN (ej. las que ya estaban registradas en otra
-// herramienta y se copiaron a este proyecto) -- les asigna role=route +
-// route_code sin mandar invitación ni tocar su contraseña. Solo Admin y
-// Corporativo pueden llamarla. Para gente que TODAVÍA NO tiene cuenta, sigue
-// usando invitar-ibp (esa sí manda el correo de invitación).
+// Para cuentas que YA EXISTEN -- les asigna role=route + route_code sin
+// mandar invitación ni tocar su contraseña. Solo Admin y Corporativo.
+// Para gente sin cuenta todavía, sigue usando invitar-ibp.
 //
-// Esto es exactamente lo que está desplegado en el proyecto real
-// (obfikwhukpzelsghowcq) -- se deja aquí como referencia, igual que
-// invitar-ibp.ts y scripts/mi_territorio_schema.sql. Para redeployarla:
-// mcp__Supabase__deploy_edge_function con este archivo como index.ts.
+// Busca la cuenta con la función SQL _buscar_usuario_por_email en vez de
+// adminClient.auth.admin.listUsers() -- esa API fallaba en este proyecto
+// ("AuthRetryableFetchError: Database error finding users", probablemente
+// por los usuarios insertados directo por SQL al copiarlos de otro
+// proyecto Supabase).
 // =========================================================
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -24,38 +23,23 @@ const corsHeaders = {
 };
 
 function jsonResponse(obj: unknown, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return new Response(JSON.stringify(obj), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return jsonResponse({ error: "No autorizado (sin sesión)" }, 401);
 
     const adminClient = createClient(SUPABASE_URL!, SERVICE_ROLE_KEY!);
-
     const jwt = authHeader.replace("Bearer ", "");
     const { data: callerData, error: callerError } = await adminClient.auth.getUser(jwt);
-    if (callerError || !callerData?.user) {
-      console.error("asignar-ruta: getUser falló", callerError);
-      return jsonResponse({ error: "Sesión inválida" }, 401);
-    }
+    if (callerError || !callerData?.user) return jsonResponse({ error: "Sesión inválida" }, 401);
     const callerId = callerData.user.id;
 
-    const { data: callerProfile, error: profileError } = await adminClient
-      .from("profiles")
-      .select("role")
-      .eq("id", callerId)
-      .single();
-    if (profileError || !callerProfile) {
-      console.error("asignar-ruta: no se encontró perfil del llamante", profileError);
-      return jsonResponse({ error: "No se encontró tu perfil" }, 403);
-    }
+    const { data: callerProfile, error: profileError } = await adminClient.from("profiles").select("role").eq("id", callerId).single();
+    if (profileError || !callerProfile) return jsonResponse({ error: "No se encontró tu perfil" }, 403);
     if (callerProfile.role !== "admin" && callerProfile.role !== "corporativo") {
       return jsonResponse({ error: "No tienes permiso para asignar rutas" }, 403);
     }
@@ -64,44 +48,25 @@ Deno.serve(async (req) => {
     const { email, route_code, nombre } = body;
     if (!email || !route_code) return jsonResponse({ error: "Faltan email o route_code" }, 400);
 
-    const { data: ruta, error: rutaError } = await adminClient
-      .from("ibps")
-      .select("id, propietario")
-      .eq("id", route_code)
-      .maybeSingle();
-    if (rutaError || !ruta) {
-      console.error("asignar-ruta: ruta no encontrada", route_code, rutaError);
-      return jsonResponse({ error: `No existe la ruta ${route_code}` }, 400);
-    }
+    const { data: ruta, error: rutaError } = await adminClient.from("ibps").select("id, propietario").eq("id", route_code).maybeSingle();
+    if (rutaError || !ruta) return jsonResponse({ error: `No existe la ruta ${route_code}` }, 400);
 
-    // No hay getUserByEmail directo en la API admin -- se busca en la
-    // lista (pocos usuarios en este proyecto, alcanza con una página).
-    let listado;
-    try {
-      const resultado = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (resultado.error) throw resultado.error;
-      listado = resultado.data;
-    } catch (e) {
-      console.error("asignar-ruta: listUsers falló", e);
-      return jsonResponse({ error: `No pude leer la lista de cuentas: ${(e as Error).message || e}` }, 500);
+    const { data: userId, error: buscarError } = await adminClient.rpc("_buscar_usuario_por_email", { p_email: email });
+    if (buscarError) {
+      console.error("asignar-ruta: _buscar_usuario_por_email falló", buscarError);
+      return jsonResponse({ error: `No pude buscar la cuenta: ${buscarError.message}` }, 500);
     }
-
-    const emailNorm = String(email).trim().toLowerCase();
-    const usuario = listado.users.find((u) => (u.email || "").toLowerCase() === emailNorm);
-    if (!usuario) {
-      return jsonResponse(
-        { error: `No encontré ninguna cuenta con el correo ${email} — usa "Invitar IBP" si todavía no tiene cuenta.` },
-        404
-      );
+    if (!userId) {
+      return jsonResponse({ error: `No encontré ninguna cuenta con el correo ${email} — usa "Invitar IBP" si todavía no tiene cuenta.` }, 404);
     }
 
     const { error: insertError } = await adminClient.from("profiles").upsert({
-      id: usuario.id,
+      id: userId,
       nombre: nombre || ruta.propietario || null,
       role: "route",
       route_code,
       estado: "activo",
-      email: usuario.email,
+      email,
       creado_por: callerId,
     });
     if (insertError) {
@@ -109,7 +74,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: insertError.message }, 400);
     }
 
-    return jsonResponse({ ok: true, user_id: usuario.id, email: usuario.email }, 200);
+    return jsonResponse({ ok: true, user_id: userId, email }, 200);
   } catch (e) {
     console.error("asignar-ruta: error inesperado", e);
     return jsonResponse({ error: (e as Error).message || String(e) || "Error inesperado" }, 500);

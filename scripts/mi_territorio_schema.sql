@@ -625,3 +625,19 @@ $$;
 create trigger mensajes_notificar_push
 after insert on public.mensajes
 for each row execute function public._notificar_mensaje_nuevo();
+
+-- Usada por la Edge Function asignar-ruta -- adminClient.auth.admin.listUsers()
+-- fallaba en este proyecto ("Database error finding users"), se busca la
+-- cuenta directo por SQL en su lugar.
+create or replace function public._buscar_usuario_por_email(p_email text)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id from auth.users where lower(email) = lower(p_email) limit 1;
+$$;
+
+revoke all on function public._buscar_usuario_por_email(text) from public;
+grant execute on function public._buscar_usuario_por_email(text) to service_role;
