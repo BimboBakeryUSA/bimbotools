@@ -1,0 +1,834 @@
+[
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752800868",
+    "descripcion": "BAR TAK FUEGO 9.9Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804807",
+    "descripcion": "BAR TAK FUEGO 3.25Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804811",
+    "descripcion": "BAR TAK BLHEAT 3.25Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752803747",
+    "descripcion": "BAR TAK BLUHEAT 9.9Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752802796",
+    "descripcion": "BAR TAK KTLZ FUE 8Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804636",
+    "descripcion": "BAR TAK KTLZ FUE2.5Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752801060",
+    "descripcion": "BAR STIX FUEGO 4Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752800894",
+    "descripcion": "BAR FUEGO HOTNT 3.2Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752800858",
+    "descripcion": "BAR STX FUEGO 9.9Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805133",
+    "descripcion": "BAR RUNNERS SNACK 4Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752800893",
+    "descripcion": "BAR HOTNT CH&L 3.2Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804910",
+    "descripcion": "BAR TAK NITRO 3.25Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804962",
+    "descripcion": "BAR TAK ZOMBIE 3.25Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805411",
+    "descripcion": "TAK XTRMLIME 3.25Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805152",
+    "descripcion": "BAR TK CHIL LIM3.25Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805409",
+    "descripcion": "TAK PKLPNCHTORCHP SS",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805405",
+    "descripcion": "TK PIXFGOCHLLM2.875Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805404",
+    "descripcion": "TK PIX FGOCHLLM 8.5Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805347",
+    "descripcion": "BAR TAK CHURRO 3Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805417",
+    "descripcion": "TK PIX CHZYBLST 8.5Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805406",
+    "descripcion": "TK PIXCHZYBLST2.875Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432309122",
+    "descripcion": "BIM MINMANT SS4P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432309139",
+    "descripcion": "BIM MANTECD SS2P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432309975",
+    "descripcion": "BIM NITO DUO SS2P FC",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM FAMILY SERVE",
+    "upc": "7432301085",
+    "descripcion": "BIM PANQUE CAS FS FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432309145",
+    "descripcion": "BIM CONCHAS SS2P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432309123",
+    "descripcion": "BIM PANQCTO SS2P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM FAMILY SERVE",
+    "upc": "7432309183",
+    "descripcion": "BIM PANQUE NUE FS FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432309157",
+    "descripcion": "BIM CUERNITO SS2P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432301061",
+    "descripcion": "BIM MNMNT NUE SS4P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM MULTIPACK TRAY",
+    "upc": "7432300583",
+    "descripcion": "BIM MINMCDA MP8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM MULTIPACK TRAY",
+    "upc": "7432308224",
+    "descripcion": "BIM CONCHAS VAN MP8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM-MULTIPACK FLEX",
+    "upc": "7432309119",
+    "descripcion": "BIM NITO MF4P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM-MULTIPACK FLEX",
+    "upc": "7432302816",
+    "descripcion": "BIM MANTECD MF3P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DONUTS",
+    "upc": "7203096003",
+    "descripcion": "EN SFT ASST DON 12P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DONUTS",
+    "upc": "7203096010",
+    "descripcion": "EN VAR DON 8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN COOKIES",
+    "upc": "7203095916",
+    "descripcion": "EN CHOCCH CKY 10Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DONUTS",
+    "upc": "7203095996",
+    "descripcion": "EN POPM GLZ 13Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DONUTS",
+    "upc": "7203095997",
+    "descripcion": "EN RCH FRST DON 8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DONUTS",
+    "upc": "7203095993",
+    "descripcion": "EN CRMB DON 8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203001370",
+    "descripcion": "EN GLZ HNY BN SS 4Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DONUTS",
+    "upc": "7203096070",
+    "descripcion": "EN SFTASSTFRSTDON12P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203096002",
+    "descripcion": "EN PND CK SS 2P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DONUTS",
+    "upc": "7203000026",
+    "descripcion": "EN RCH FRST JR DON12",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203001365",
+    "descripcion": "EN ICE HNY BN SS 4Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203002299",
+    "descripcion": "EN CIN RL SS 4Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203096000",
+    "descripcion": "EN CRMB CK SS2P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203096044",
+    "descripcion": "EN RCH FRST DON 2P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN LOAF CAKES",
+    "upc": "7203000021",
+    "descripcion": "EN ALLBTR LFCK 11.5Z",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203095938",
+    "descripcion": "EN BROOKIE SS 2P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN BITES",
+    "upc": "7203096039",
+    "descripcion": "EN LB CHCYCH MFN 5P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN BITES",
+    "upc": "7203096013",
+    "descripcion": "EN LB PTYCK MN MFN5P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN BITES",
+    "upc": "7203096018",
+    "descripcion": "EN LB BLUBRY MFN 5P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432309523",
+    "descripcion": "MLA SPONCH STR SS6P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432309501",
+    "descripcion": "MLA GANSITO SS2P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432309438",
+    "descripcion": "MLA BARRIT FRE SS4P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432309535",
+    "descripcion": "MLA PINGUINO SS2P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432309585",
+    "descripcion": "MLA SUBMRNO STR SS2P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-FAMILY SERVE",
+    "upc": "7432309552",
+    "descripcion": "MLA CINNAS FS25P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432309398",
+    "descripcion": "MLA PRINCP CHO SS8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-FAMILY SERVE",
+    "upc": "7432309206",
+    "descripcion": "MLA POLVORO FS15P FT",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-BOX",
+    "upc": "7432309524",
+    "descripcion": "MLA GANSITO 8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-BOX",
+    "upc": "7432302962",
+    "descripcion": "MLA SPONCH BX8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-BOX",
+    "upc": "7432373935",
+    "descripcion": "MLA BRTS STR CKY 8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-BOX",
+    "upc": "7432302960",
+    "descripcion": "MLA CANELITAS BX8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-BOX",
+    "upc": "7432302961",
+    "descripcion": "MLA POLVORONES BX8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-BOX",
+    "upc": "7432308869",
+    "descripcion": "MLA PRINCP CHO BX8P",
+    "abc": "A",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752802807",
+    "descripcion": "BAR TAK ZOMBIE 9.9Z",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM FAMILY SERVE",
+    "upc": "7432309182",
+    "descripcion": "BIM PANQUE PAS FS FT",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432373943",
+    "descripcion": "BIM HRSH MINI MFN2P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432373951",
+    "descripcion": "BIM HRSH MIN CROSS6P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN COOKIES",
+    "upc": "7203095922",
+    "descripcion": "EN MLK CHCHP CKY 10Z",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203002499",
+    "descripcion": "EN PWD DON SS 6P 3Z",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SINGLE SERVE",
+    "upc": "7203002501",
+    "descripcion": "EN FRST DON SS6P3.25",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "MINI SNACK CAKES",
+    "upc": "7203095995",
+    "descripcion": "EN MINI CRMB CK 6P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DANISH",
+    "upc": "7203001191",
+    "descripcion": "EN CIN SWRL BN 6P18Z",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN SPECIALTY",
+    "upc": "7203096066",
+    "descripcion": "EN BTR ULT MADE 11P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DESSERT CAKES",
+    "upc": "7203096075",
+    "descripcion": "ENFDG ICD GLD CK 17Z",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN BITES",
+    "upc": "7203096022",
+    "descripcion": "EN LB FDGBRN MFN 5P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN LOAF CAKES",
+    "upc": "7203000035",
+    "descripcion": "EN MRBLE LFCK 12Z",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432373937",
+    "descripcion": "MLA PNG HRSH CPCK 2P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432305156",
+    "descripcion": "MLA PASTISE SS10P FT",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-FAMILY SERVE",
+    "upc": "7432372988",
+    "descripcion": "MLA TRIKITRAKE FS11P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432373936",
+    "descripcion": "MLA HRSH CH SNCK SS",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432309300",
+    "descripcion": "MLA PRINCP LIM SS8P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432373920",
+    "descripcion": "MLA CINNAS SNKCK 2P",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-BOX",
+    "upc": "7432373813",
+    "descripcion": "MLA TRIK MP 8P14.11Z",
+    "abc": "B",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804537",
+    "descripcion": "BAR TAK WAV FUE 2.5Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804912",
+    "descripcion": "BAR TAK GUAC 3.25Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752800914",
+    "descripcion": "BAR CHICHARONES 2.5Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805410",
+    "descripcion": "BAR TAK JALP 3.25Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752804638",
+    "descripcion": "BAR TAK KTLZ JAL2.5Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805184",
+    "descripcion": "BAR RUNNERS 9.9Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805151",
+    "descripcion": "BAR TK CHIL LIM 9.9Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805415",
+    "descripcion": "BAR TAK JALP 9.9Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805414",
+    "descripcion": "TAK PKLPNCH TOR CHP",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805165",
+    "descripcion": "BAR TK NACHXPL 3.25Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805041",
+    "descripcion": "BAR TAK CHURRO 9.9Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BARCEL",
+    "brandLevel3": "BARCEL",
+    "upc": "5752805416",
+    "descripcion": "BAR TAK XTRMLIME9.9Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM SINGLE SERVE",
+    "upc": "7432373791",
+    "descripcion": "BIM MINMNT VANCCSS4P",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM FAMILY SERVE",
+    "upc": "7432300236",
+    "descripcion": "BIM CUERNITOS FS20P",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "BIMBO",
+    "brandLevel3": "BM-MULTIPACK FLEX",
+    "upc": "7432300244",
+    "descripcion": "BIM BUNUELO MF3P FT",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "ENTENMANNS",
+    "brandLevel3": "EN DANISH",
+    "upc": "7203095986",
+    "descripcion": "EN RASP DAN TWST 14Z",
+    "abc": "C",
+    "neList": "KEEP"
+  },
+  {
+    "brandLevel4": "MARINELA",
+    "brandLevel3": "MR-SINGLE SERVE",
+    "upc": "7432373880",
+    "descripcion": "MLA BRITA MNGSM SS4P",
+    "abc": "C",
+    "neList": "KEEP"
+  }
+]
