@@ -11,9 +11,9 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="index.html">&larr;</a>
-    <h1 id="titulo">Dashboard MSL</h1>
-    <span></span>
+    <a class="back" href="index.html" aria-label="Volver"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <div class="topbar-title"><h1 id="titulo">Dashboard MSL</h1><span class="topbar-sub">Dashboard MSL</span></div>
+    <span class="topbar-spacer"></span>
   </header>
 
   <main class="wide">
@@ -29,10 +29,13 @@
   </main>
 
   <script src="js/data.js"></script>
+  <script src="js/ui.js"></script>
+
   <script>
     const params = new URLSearchParams(location.search);
     const mslId = params.get("u") || "msl-1";
     let nivel = "ibp";
+    const { icono, tonoPct, etiquetaSemaforo, iniciales, statCard } = BimboUI;
 
     function renderResumenGeneral(ibps) {
       const cont = document.getElementById("resumenGeneral");
@@ -59,28 +62,46 @@
       const semFrescura = BimboData.semaforoFrescura(frescuraProm);
       const pctFrescura = frescuraProm != null ? Math.round(frescuraProm * 100) + "%" : "—";
 
-      cont.innerHTML = `
-        <div class="summary-card">
-          <div class="icon">👥</div>
-          <div class="num">${ibps.length}</div>
-          <div class="label">IBPs a cargo</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--verde);">
-          <div class="icon">📍</div>
-          <div class="num">${pctHoy}%</div>
-          <div class="label">Cumplimiento hoy (${hoyVisitados}/${hoyTotal})</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--amarillo);">
-          <div class="icon">📅</div>
-          <div class="num">${pctSem}%</div>
-          <div class="label">Progreso semanal (${semVisitados}/${semTotal})</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--${semFrescura});">
-          <div class="icon">🍞</div>
-          <div class="num">${pctFrescura}</div>
-          <div class="label">Frescura promedio</div>
-        </div>
-      `;
+      const tonoHoy = tonoPct(pctHoy, hoyTotal);
+      const tonoSem = tonoPct(pctSem, semTotal);
+      const ibpsAlDia = ibps.filter((ibp) => {
+        const h = BimboData.getCumplimientoIbp(ibp.id);
+        return h.total > 0 && h.visitadas === h.total;
+      }).length;
+
+      cont.innerHTML = [
+        statCard({
+          titulo: "IBPs a cargo",
+          icono: "users",
+          tono: "accent",
+          valor: ibps.length,
+          sub: `<span class="chip tono-verde">${ibpsAlDia} al día</span> ruta de hoy completa`,
+        }),
+        statCard({
+          titulo: "Cumplimiento hoy",
+          icono: "pin",
+          tono: tonoHoy,
+          valor: `${pctHoy}%`,
+          sub: `${hoyVisitados} de ${hoyTotal} clientes visitados`,
+          meter: pctHoy,
+        }),
+        statCard({
+          titulo: "Progreso semanal",
+          icono: "calendar",
+          tono: tonoSem,
+          valor: `${pctSem}%`,
+          sub: `${semVisitados} de ${semTotal} visitas de la semana`,
+          meter: pctSem,
+        }),
+        statCard({
+          titulo: "Frescura promedio",
+          icono: "leaf",
+          tono: semFrescura,
+          valor: pctFrescura,
+          sub: `<span class="chip tono-${semFrescura}">${etiquetaSemaforo(semFrescura)}</span> ${conFrescura} de ${ibps.length} IBPs con dato`,
+          meter: frescuraProm != null ? Math.round(frescuraProm * 100) : null,
+        }),
+      ].join("");
     }
 
     function renderSemanaChart(porDia) {
@@ -117,7 +138,7 @@
       renderResumenGeneral(ibps);
 
       if (nivel === "ibp") {
-        cont.innerHTML = ibps
+        const tarjetas = ibps
           .map((ibp) => {
             const { total, visitadas, pendientes } = BimboData.getCumplimientoIbp(ibp.id);
             const semanal = BimboData.getProgresoSemanalIbp(ibp.id);
@@ -125,28 +146,39 @@
             const frescura = BimboData.getFrescuraIbp(ibp.id);
             const sem = BimboData.semaforoFrescura(frescura);
             const pct = frescura != null ? Math.round(frescura * 100) + "%" : "—";
+            const pctHoy = total ? Math.round((visitadas / total) * 100) : 0;
             const pctSemanal = semanal.total ? Math.round((semanal.visitados / semanal.total) * 100) : 0;
+            const ruta = BimboData.getRutaDeIbp(ibp.id);
             return `
-              <a class="card" style="display:block; text-decoration:none; color:inherit;" href="ibp.html?u=${ibp.id}&rol=MSL&msl=${mslId}">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <strong>${ibp.nombre}</strong>
-                  <span class="badge"><span class="semaforo ${sem}"></span>Frescura ${pct}</span>
+              <a class="card ibp-card" href="ibp.html?u=${ibp.id}&rol=MSL&msl=${mslId}">
+                <div class="ibp-head">
+                  <span class="avatar">${iniciales(ibp.nombre)}</span>
+                  <div class="nombre">
+                    <strong>${ibp.nombre}</strong>
+                    <span>${ruta ? ruta.nombre : "Sin ruta asignada"}</span>
+                  </div>
+                  <span class="chip tono-${sem}">Frescura ${pct}</span>
+                  <span class="chevron">${icono("chevron", 18)}</span>
                 </div>
 
-                <div class="seccion-label"><span>Hoy</span><span class="valor">${visitadas}/${total}</span></div>
-                <div class="kpi-row">
-                  <div class="kpi"><div class="num">${total}</div><div class="label">clientes hoy</div></div>
-                  <div class="kpi"><div class="num">${visitadas}</div><div class="label">visitados</div></div>
-                  <div class="kpi"><div class="num">${pendientes}</div><div class="label">pendientes</div></div>
+                <div class="kpi-strip">
+                  <div><div class="num">${total}</div><div class="label">clientes hoy</div></div>
+                  <div class="tono-verde"><div class="num">${visitadas}</div><div class="label">visitados</div></div>
+                  <div class="${pendientes ? "tono-amarillo" : ""}"><div class="num">${pendientes}</div><div class="label">pendientes</div></div>
                 </div>
-                <div class="progress-bar"><div class="progress-fill" style="width:${total ? (visitadas / total) * 100 : 0}%"></div></div>
+
+                <div class="seccion-label"><span>Hoy</span><span class="valor">${pctHoy}%</span></div>
+                <div class="stat-meter tono-${tonoPct(pctHoy, total)}"><span style="width:${pctHoy}%"></span></div>
 
                 <div class="seccion-label"><span>Progreso semanal</span><span class="valor">${semanal.visitados}/${semanal.total} · ${pctSemanal}%</span></div>
                 ${renderSemanaChart(porDia)}
               </a>
             `;
           })
-          .join("") || `<div class="empty-state">No tienes IBPs asignados.</div>`;
+          .join("");
+        cont.innerHTML = tarjetas
+          ? `<div class="ibp-grid">${tarjetas}</div>`
+          : `<div class="empty-state">No tienes IBPs asignados.</div>`;
       }
 
       if (nivel === "ruta") {
@@ -164,13 +196,13 @@
               <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <strong>${ruta.nombre}</strong>
-                  <span class="badge"><span class="semaforo ${sem}"></span>Frescura promedio ${pct}</span>
+                  <span class="chip tono-${sem}">Frescura promedio ${pct}</span>
                 </div>
                 <p style="font-size:13px; color:var(--gray); margin:6px 0 0;">
                   IBP: ${ibp.nombre} · ${clientes.length} clientes en la ruta
                 </p>
                 <div class="seccion-label"><span>Progreso semanal</span><span class="valor">${semanal.visitados}/${semanal.total} · ${pctSemanal}%</span></div>
-                <div class="progress-bar"><div class="progress-fill" style="width:${pctSemanal}%"></div></div>
+                <div class="stat-meter tono-${tonoPct(pctSemanal, semanal.total)}"><span style="width:${pctSemanal}%"></span></div>
               </div>
             `;
           })

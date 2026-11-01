@@ -12,6 +12,7 @@ const ARCHIVOS_SHELL = [
   "css/styles.css",
   "js/data.js",
   "js/geo.js",
+  "js/ui.js",
   "data/seed.json",
   "manifest.json",
 ];

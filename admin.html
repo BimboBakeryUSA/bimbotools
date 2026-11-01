@@ -11,12 +11,14 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="index.html">&larr;</a>
-    <h1>Administrador</h1>
-    <span></span>
+    <a class="back" href="index.html" aria-label="Volver"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <div class="topbar-title"><h1>Administrador</h1><span class="topbar-sub">Clientes · Frescura · Historial</span></div>
+    <span class="topbar-spacer"></span>
   </header>
 
   <main class="wide">
+    <div class="summary-grid" id="resumenAdmin"></div>
+
     <div class="pill-select" id="tabs">
       <a class="pill active" data-tab="clientes">Clientes</a>
       <a class="pill" data-tab="importar">Importar CSV</a>
@@ -26,7 +28,12 @@
 
     <div id="tabClientes">
       <div class="card">
-        <strong>Alta manual de cliente</strong>
+        <div class="card-head">
+        <div>
+          <h2 class="card-title"><span data-icono="plus"></span>Alta manual de cliente</h2>
+          <p class="card-desc">Agrega un cliente a una ruta y define sus días de visita.</p>
+        </div>
+      </div>
         <label class="field">Nombre
           <input type="text" id="fNombre" placeholder="Tienda La Esquina" />
         </label>
@@ -52,10 +59,12 @@
       </div>
 
       <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <strong>Clientes cargados</strong>
-          <span style="font-size:12px; color:var(--gray);">Un clic en cualquier campo lo guarda al toque</span>
+<div class="card-head">
+        <div>
+          <h2 class="card-title"><span data-icono="store"></span>Clientes cargados</h2>
+          <p class="card-desc">Un clic en cualquier campo lo guarda al toque.</p>
         </div>
+      </div>
       </div>
 
       <div id="listaClientes"></div>
@@ -63,14 +72,18 @@
 
     <div id="tabImportar" style="display:none;">
       <div class="card">
-        <strong>Importar clientes (CSV)</strong>
-        <p style="font-size:12px; color:var(--gray);">
+        <div class="card-head">
+        <div>
+          <h2 class="card-title"><span data-icono="plus"></span>Importar clientes (CSV)</h2>
+        <p class="card-desc">
           Columnas esperadas: <code>nombre,direccion,rutaId,frecuencia,dias,lat,lng</code>.
           Para bisemanal, la columna <code>dias</code> acepta dos días separados por
           "|" (ej. <code>lunes|jueves</code>). Si faltan lat/lng, el cliente queda
           marcado como "geocodificación pendiente" (hoy no hay API key de Google
           Geocoding conectada).
         </p>
+        </div>
+        </div>
         <input type="file" id="fileCsv" accept=".csv" />
         <div id="resultadoImport" style="margin-top:10px; font-size:13px;"></div>
       </div>
@@ -78,18 +91,23 @@
 
     <div id="tabFrescura" style="display:none;">
       <div class="card">
-        <strong>Cargar % de frescura por cliente</strong>
-        <p style="font-size:12px; color:var(--gray);">
-          Se carga el % ya calculado (no ventas/devoluciones en crudo). El promedio
-          por ruta/IBP se calcula simple sobre estos valores.
-        </p>
+<div class="card-head">
+        <div>
+          <h2 class="card-title"><span data-icono="leaf"></span>Cargar % de frescura por cliente</h2>
+          <p class="card-desc">Se carga el % ya calculado (no ventas/devoluciones en crudo). El promedio por ruta/IBP se calcula simple sobre estos valores.</p>
+        </div>
+      </div>
         <div id="listaFrescura"></div>
       </div>
     </div>
 
     <div id="tabHistorial" style="display:none;">
       <div class="card">
-        <strong>Historial de movimientos de clientes entre días</strong>
+        <div class="card-head">
+        <div>
+          <h2 class="card-title"><span data-icono="clock"></span>Historial de movimientos entre días</h2>
+        </div>
+      </div>
         <div id="listaHistorial"></div>
       </div>
     </div>
@@ -101,7 +119,12 @@
   </main>
 
   <script src="js/data.js"></script>
+  <script src="js/ui.js"></script>
   <script>
+    const { icono, statCard, etiquetaSemaforo } = BimboUI;
+    document.querySelectorAll("[data-icono]").forEach((el) => (el.outerHTML = icono(el.dataset.icono, 16)));
+    document.getElementById("btnAlta").innerHTML = icono("plus", 16) + "Agregar cliente";
+
     let nuevoClienteDias = []; // días marcados en el formulario de alta (antes de tener id)
 
     function renderDiasPillsFormulario() {
@@ -133,9 +156,46 @@
       if (!nuevoClienteDias.length) nuevoClienteDias = ["lunes"];
       renderDiasPillsFormulario();
 
+      renderResumen();
       renderListaClientes();
       renderFrescura();
       renderHistorial();
+    }
+
+    function renderResumen() {
+      const clientes = BimboData.getClientes();
+      const rutas = BimboData.getRutas();
+      const sinGeo = clientes.filter((c) => c.geocodificacionPendiente).length;
+      const conFrescura = clientes.filter((c) => c.frescura != null);
+      const prom = conFrescura.length ? conFrescura.reduce((a, c) => a + c.frescura, 0) / conFrescura.length : null;
+      const sem = BimboData.semaforoFrescura(prom);
+      const criticos = clientes.filter((c) => BimboData.semaforoFrescura(c.frescura) === "rojo").length;
+      document.getElementById("resumenAdmin").innerHTML = [
+        statCard({ titulo: "Clientes", icono: "store", valor: clientes.length, sub: `en ${rutas.length} rutas` }),
+        statCard({
+          titulo: "Geocodificación",
+          icono: "pin",
+          tono: sinGeo ? "amarillo" : "verde",
+          valor: clientes.length - sinGeo,
+          sub: sinGeo ? `<span class="chip tono-amarillo">${sinGeo} pendientes</span>` : `<span class="chip tono-verde">Todos con coordenadas</span>`,
+          meter: clientes.length ? Math.round(((clientes.length - sinGeo) / clientes.length) * 100) : 0,
+        }),
+        statCard({
+          titulo: "Frescura promedio",
+          icono: "leaf",
+          tono: sem,
+          valor: prom != null ? Math.round(prom * 100) + "%" : "—",
+          sub: `<span class="chip tono-${sem}">${etiquetaSemaforo(sem)}</span> ${conFrescura.length} con dato`,
+          meter: prom != null ? Math.round(prom * 100) : null,
+        }),
+        statCard({
+          titulo: "Clientes críticos",
+          icono: "alert",
+          tono: criticos ? "rojo" : "verde",
+          valor: criticos,
+          sub: "frescura en rojo",
+        }),
+      ].join("");
     }
 
     function renderListaClientes() {
@@ -148,8 +208,8 @@
         ? clientes
             .map((c) => {
               const coords = c.geocodificacionPendiente
-                ? `<span class="badge">Pendiente geocodificar</span>`
-                : `<span class="badge">${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}</span>`;
+                ? `<span class="chip tono-amarillo">Pendiente geocodificar</span>`
+                : `<span class="chip tono-gris">${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}</span>`;
               return `
                 <div class="card cliente-card" data-id="${c.id}">
                   <div class="fila-top">
@@ -218,10 +278,14 @@
       cont.innerHTML = clientes
         .map((c) => {
           const pct = c.frescura != null ? Math.round(c.frescura * 100) : "";
+          const sem = BimboData.semaforoFrescura(c.frescura);
           return `
             <div class="stop">
               <div class="stop-body">
-                <strong>${c.nombre}</strong>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <strong>${c.nombre}</strong>
+                  <span class="chip tono-${sem}">${pct !== "" ? pct + "%" : "Sin dato"}</span>
+                </div>
                 <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
                   <input type="text" style="width:80px;" value="${pct}" id="fresc-${c.id}" />
                   <span>%</span>
@@ -248,9 +312,12 @@
         ? historial
             .map(
               (h) => `
-          <div class="notif">
-            <strong>${h.clienteNombre}</strong>: ${h.de} → ${h.a} (por ${h.quien})
-            <span class="cuando">${new Date(h.cuando).toLocaleString()}</span>
+          <div class="timeline-item">
+            <span class="dot">${icono("calendar", 14)}</span>
+            <div>
+              <strong>${h.clienteNombre}</strong>: ${h.de} → ${h.a} <span class="chip tono-gris">${h.quien}</span>
+              <span class="cuando">${new Date(h.cuando).toLocaleString()}</span>
+            </div>
           </div>`
             )
             .join("")
