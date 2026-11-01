@@ -8,12 +8,13 @@
   <meta name="theme-color" content="#c0392b" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/ui.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="index.html">&larr;</a>
-    <h1>Administrador</h1>
-    <span></span>
+    <a class="back" href="index.html" aria-label="Volver"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <div class="topbar-title"><h1>Administrador</h1><span class="topbar-sub">Territorios y catálogo</span></div>
+    <span class="topbar-spacer"></span>
   </header>
 
   <div id="pantallaLoginAdmin" class="card" style="display:none; max-width:420px; margin:24px auto;">
@@ -115,13 +116,13 @@
       <div class="summary-grid" id="resumenTerritorios"></div>
 
       <div class="admin-identidad">
-        ✍️ Sesión: <strong id="adminSesionLabel">—</strong>
+        <span data-icono="user" data-size="16" style="display:inline-flex; color:var(--accent);"></span> Sesión: <strong id="adminSesionLabel">—</strong>
         <span style="margin-left:auto; color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAdmin">Cerrar sesión</span>
       </div>
 
       <div class="card">
         <div class="seccion-header">
-          <span class="icono">📤</span>
+          <span class="icono" data-icono="upload" data-size="16"></span>
           <h2>Actualizar catálogo</h2>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
@@ -135,7 +136,7 @@
 
       <div class="card">
         <div class="seccion-header">
-          <span class="icono">✅</span>
+          <span class="icono" data-icono="checkCircle" data-size="16"></span>
           <h2>Marcar visitas ya hechas</h2>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
@@ -151,7 +152,7 @@
 
       <div class="card">
         <div class="seccion-header">
-          <span class="icono">🔗</span>
+          <span class="icono" data-icono="link" data-size="16"></span>
           <h2>Enlaces por territorio</h2>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
@@ -163,7 +164,7 @@
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <div class="seccion-header" style="margin:0;">
-            <span class="icono">📊</span>
+            <span class="icono" data-icono="chart" data-size="16"></span>
             <h2>Vista general de territorios</h2>
           </div>
           <button class="btn btn-secondary btn-small" id="btnCsvDepuracion">⬇️ Descargar CSV</button>
@@ -566,38 +567,22 @@
       const sinRevisar = total - activas - inactivas;
       const sinActividad = todasTerritorios.filter((t) => t.semanasDesdeUltimaActividad >= 4).length;
 
-      document.getElementById("resumenTerritorios").innerHTML = `
-        <div class="summary-card">
-          <div class="icon">🗺️</div>
-          <div class="num">${rutas}</div>
-          <div class="label">rutas</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--dark);">
-          <div class="icon">🏬</div>
-          <div class="num">${total}</div>
-          <div class="label">tiendas totales</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--verde);">
-          <div class="icon">✅</div>
-          <div class="num">${activas}</div>
-          <div class="label">activas</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--amarillo);">
-          <div class="icon">⏸️</div>
-          <div class="num">${inactivas}</div>
-          <div class="label">inactivas</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--gris);">
-          <div class="icon">❔</div>
-          <div class="num">${sinRevisar}</div>
-          <div class="label">sin revisar</div>
-        </div>
-        <div class="summary-card" style="border-top-color:var(--rojo);">
-          <div class="icon">⚠️</div>
-          <div class="num">${sinActividad}</div>
-          <div class="label">sin actividad 4+ sem</div>
-        </div>
-      `;
+      const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+      const { statCard } = BimboUI;
+      document.getElementById("resumenTerritorios").innerHTML = [
+        statCard({ titulo: "Rutas", icono: "map", tono: "accent", valor: rutas, sub: "territorios cargados" }),
+        statCard({ titulo: "Tiendas totales", icono: "store", tono: "dark", valor: total, sub: `${pct(activas + inactivas)}% ya revisadas`, meter: pct(activas + inactivas) }),
+        statCard({ titulo: "Activas", icono: "checkCircle", tono: "verde", valor: activas, sub: `${pct(activas)}% del total`, meter: pct(activas) }),
+        statCard({ titulo: "Inactivas", icono: "pause", tono: "amarillo", valor: inactivas, sub: `${pct(inactivas)}% del total`, meter: pct(inactivas) }),
+        statCard({ titulo: "Sin revisar", icono: "help", tono: "gris", valor: sinRevisar, sub: `${pct(sinRevisar)}% pendiente`, meter: pct(sinRevisar) }),
+        statCard({
+          titulo: "Sin actividad",
+          icono: "alert",
+          tono: sinActividad ? "rojo" : "verde",
+          valor: sinActividad,
+          sub: sinActividad ? `<span class="chip tono-rojo">4+ semanas</span>` : `<span class="chip tono-verde">Todo al día</span>`,
+        }),
+      ].join("");
     }
 
     const ETIQUETA_ESTATUS = { activa: "Activa", inactiva: "Inactiva" };
@@ -872,7 +857,7 @@
       }
       if (modalTiendaId !== id) return; // se abrió otra tienda mientras tanto
       cont.innerHTML = `
-        <div class="seccion-header" style="margin-top:16px;"><span class="icono">🕓</span><h2>Historial</h2></div>
+        <div class="seccion-header" style="margin-top:16px;"><span class="icono">${BimboUI.icono("clock", 16)}</span><h2>Historial</h2></div>
         ${
           historial.length
             ? historial

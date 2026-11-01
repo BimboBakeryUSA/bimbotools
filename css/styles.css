@@ -1122,3 +1122,299 @@ table.data-table tbody tr:hover {
 table.data-table td {
   font-size: 13px;
 }
+
+/* =====================================================================
+   Rediseño visual (estilo shadcn/ui): barra superior, tarjetas de resumen,
+   chips de estado y encabezados de sección. Va al final para sobrescribir.
+   ===================================================================== */
+
+header.topbar {
+  --topbar-1: #d24a38;
+  --topbar-2: var(--accent);
+  --topbar-3: #8a2318;
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+  gap: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(255, 255, 255, 0.18), transparent 55%),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.09) 1px, transparent 1.5px) 0 0 / 14px 14px,
+    linear-gradient(135deg, var(--topbar-1) 0%, var(--topbar-2) 45%, var(--topbar-3) 100%);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12), 0 6px 20px rgba(150, 43, 31, 0.22);
+}
+
+header.topbar::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  top: -80px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 65%);
+  pointer-events: none;
+}
+
+header.topbar > * { position: relative; z-index: 1; }
+
+.topbar-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  line-height: 1.15;
+}
+
+header.topbar h1 {
+  font-size: 17px;
+  font-weight: 750;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.topbar-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.78;
+  margin-top: 2px;
+}
+
+header.topbar a.back,
+header.topbar .topbar-spacer {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+header.topbar a.back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  transition: background 0.12s ease;
+}
+
+header.topbar a.back:hover { background: rgba(255, 255, 255, 0.24); }
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-brand .topbar-title { text-align: left; }
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ---- Tarjetas de resumen ---- */
+
+.summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray);
+}
+
+.stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--tono, var(--accent)) 12%, white);
+  color: var(--tono, var(--accent));
+}
+
+.stat-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--dark);
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: var(--gray);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stat-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gray-light);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.stat-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tono, var(--accent));
+  transition: width 0.4s ease;
+}
+
+@media (max-width: 480px) {
+  .stat-card { padding: 14px; }
+  .stat-value { font-size: 24px; }
+  .stat-icon { width: 28px; height: 28px; }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tono, var(--gris)) 30%, white);
+  background: color-mix(in srgb, var(--tono, var(--gris)) 10%, white);
+  color: color-mix(in srgb, var(--tono, var(--gris)) 80%, black);
+  white-space: nowrap;
+}
+
+.chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tono, var(--gris));
+}
+
+.tono-verde { --tono: var(--verde); }
+.tono-amarillo { --tono: var(--amarillo); }
+.tono-rojo { --tono: var(--rojo); }
+.tono-gris { --tono: var(--gris); }
+.tono-accent { --tono: var(--accent); }
+.tono-dark { --tono: var(--dark); }
+
+/* ---- Encabezado de sección: icono dentro de un cuadrito de color ---- */
+
+.seccion-header {
+  align-items: center;
+  gap: 10px;
+}
+
+.seccion-header .icono {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  background: color-mix(in srgb, var(--accent) 10%, white);
+  color: var(--accent);
+}
+
+/* ---- Tarjetas generales y sesión ---- */
+
+.card {
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.admin-identidad {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* ---- Selector de inicio ---- */
+
+.role-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-left: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.role-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.role-card .nombre { flex: 1; min-width: 0; }
+
+.role-card h2 {
+  color: var(--dark);
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+
+.role-card .avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--tono, var(--accent)) 12%, white);
+  color: var(--tono, var(--accent));
+}
+
+.role-card .chevron {
+  color: var(--gris);
+  display: inline-flex;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+
+.role-card:hover .chevron {
+  transform: translateX(3px);
+  color: var(--accent);
+}

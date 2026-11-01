@@ -9,10 +9,14 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/ui.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <h1>Bimbo Tools</h1>
+    <div class="topbar-brand">
+      <span class="brand-mark"><span data-icono="route" data-size="20"></span></span>
+      <div class="topbar-title"><h1>Bimbo Tools</h1><span class="topbar-sub">Optimizador de Ruta</span></div>
+    </div>
   </header>
 
   <main>
@@ -22,13 +26,21 @@
     </p>
 
     <a class="role-card" href="mi-territorio.html" style="margin-top:12px;">
-      <h2>Mi Territorio</h2>
-      <p>Entra con el enlace de tu ruta, o inicia sesión si ya tienes cuenta</p>
+      <span class="avatar tono-accent" data-icono="map" data-size="20"></span>
+      <div class="nombre">
+        <h2>Mi Territorio</h2>
+        <p>Entra con el enlace de tu ruta, o inicia sesión si ya tienes cuenta</p>
+      </div>
+      <span class="chevron" data-icono="chevron"></span>
     </a>
 
     <a class="role-card" href="admin.html" style="margin-top:20px;">
-      <h2>Administrador</h2>
-      <p>Ver todas las rutas y tiendas, cargar clientes</p>
+      <span class="avatar tono-gris" data-icono="shield" data-size="20"></span>
+      <div class="nombre">
+        <h2>Administrador</h2>
+        <p>Ver todas las rutas y tiendas, cargar clientes</p>
+      </div>
+      <span class="chevron" data-icono="chevron"></span>
     </a>
   </main>
 
