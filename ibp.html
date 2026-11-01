@@ -11,8 +11,8 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="index.html" id="linkVolver">&larr;</a>
-    <h1 id="titulo">Mi Ruta</h1>
+    <a class="back" href="index.html" id="linkVolver" aria-label="Volver"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <div class="topbar-title"><h1 id="titulo">Mi Ruta</h1><span class="topbar-sub" id="subtitulo">Ruta del día</span></div>
     <a class="icon-btn" href="#" id="btnNotif" aria-label="Notificaciones"><span id="iconoCampana"></span><span class="contador" id="notifCount"></span></a>
   </header>
 
@@ -107,8 +107,8 @@
       if (!diaSeleccionado) diaSeleccionado = diaDeHoy;
 
       const usuario = BimboData.getUsuario(ibpId);
-      document.getElementById("titulo").textContent =
-        (usuario ? usuario.nombre : "Mi Ruta") + (viendoComoMSL ? " (vista MSL)" : "");
+      document.getElementById("titulo").textContent = usuario ? usuario.nombre : "Mi Ruta";
+      document.getElementById("subtitulo").textContent = viendoComoMSL ? "Ruta del día · vista MSL" : "Ruta del día";
       document.getElementById("linkVolver").href = volverA;
 
       renderDiasTabs(diaDeHoy);

@@ -24,28 +24,115 @@ body {
 }
 
 header.topbar {
-  background: var(--accent);
+  --topbar-1: #d24a38;
+  --topbar-2: var(--accent);
+  --topbar-3: #8a2318;
   color: white;
-  padding: 14px 20px;
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top));
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   position: sticky;
   top: 0;
   z-index: 10;
+  overflow: hidden;
+  /* luz suave arriba a la izquierda + trama de puntos muy tenue + degradado diagonal */
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(255, 255, 255, 0.18), transparent 55%),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.09) 1px, transparent 1.5px) 0 0 / 14px 14px,
+    linear-gradient(135deg, var(--topbar-1) 0%, var(--topbar-2) 45%, var(--topbar-3) 100%);
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 6px 20px rgba(150, 43, 31, 0.22);
+}
+
+/* brillo decorativo a la derecha (círculo difuso) */
+header.topbar::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  top: -80px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 65%);
+  pointer-events: none;
+}
+
+header.topbar > * { position: relative; z-index: 1; }
+
+.topbar-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  line-height: 1.15;
 }
 
 header.topbar h1 {
-  font-size: 18px;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.topbar-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.78;
+  margin-top: 2px;
+}
+
+header.topbar a.back,
+header.topbar .topbar-spacer {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
 }
 
 header.topbar a.back {
   color: white;
   text-decoration: none;
-  font-size: 14px;
-  opacity: 0.9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  transition: background 0.12s ease;
 }
+
+header.topbar a.back:hover { background: rgba(255, 255, 255, 0.24); }
+
+/* Marca en la pantalla de inicio */
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.topbar-brand .topbar-title { text-align: left; }
 
 main {
   max-width: 720px;
@@ -796,11 +883,14 @@ label.field {
   justify-content: center;
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 10px;
   text-decoration: none;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
 }
 
-.icon-btn:hover { background: rgba(255, 255, 255, 0.15); }
+.icon-btn:hover { background: rgba(255, 255, 255, 0.24); }
 
 .icon-btn .contador {
   position: absolute;
