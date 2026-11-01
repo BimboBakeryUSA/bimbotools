@@ -21,3 +21,14 @@ jobs:
             -H "apikey: sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM")
           echo "HTTP $code"
           [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
+
+      # catalogo-bimbo (sitio Bimbo-Catalog) — llave anon pública, la misma
+      # que ya usa ese sitio.
+      - name: Consultar catalogo-bimbo
+        if: always()
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+            "https://zzoyblybwkxbitbvusfc.supabase.co/rest/v1/eventos_actividad?select=*&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6b3libHlid2t4Yml0YnZ1c2ZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MDc4MjgsImV4cCI6MjA5OTM4MzgyOH0.5aYA67sT5gHbS6bgvaT5Q1zMuvtAvmb3nwLxLf3U_KU")
+          echo "HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
