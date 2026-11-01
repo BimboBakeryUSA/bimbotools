@@ -113,6 +113,12 @@
     </div>
 
     <div id="tabDepuracion">
+      <div class="filtros-jerarquia" id="filtrosJerarquia">
+        <label>DOS<select data-nivel="dos"></select></label>
+        <label>ZSL<select data-nivel="zsl"></select></label>
+        <label>MSL<select data-nivel="msl"></select></label>
+        <label>Ruta<select data-nivel="ruta"></select></label>
+      </div>
       <div class="summary-grid" id="resumenTerritorios"></div>
 
       <div class="admin-identidad">
@@ -448,26 +454,79 @@
     // ---------------------------------------------------------------------
 
     let todasTerritorios = [];
+    let rutasEnlaces = []; // getRutas(), para pintar las tarjetas de enlaces según el filtro
+
+    // Filtro DOS > ZSL > MSL > Ruta. Cada nivel solo ofrece lo que cabe en
+    // los niveles de arriba; "" = todos.
+    const NIVELES_JERARQUIA = ["dos", "zsl", "msl", "ruta"];
+    const filtroJerarquia = { dos: "", zsl: "", msl: "", ruta: "" };
+
+    function pasaJerarquia(x, hasta = NIVELES_JERARQUIA.length) {
+      return NIVELES_JERARQUIA.slice(0, hasta).every((n) => !filtroJerarquia[n] || x[n] === filtroJerarquia[n]);
+    }
+
+    function territoriosFiltrados() {
+      return todasTerritorios.filter((t) => pasaJerarquia(t));
+    }
+
+    function renderFiltrosJerarquia() {
+      const fuente = rutasEnlaces.length ? rutasEnlaces : todasTerritorios;
+      NIVELES_JERARQUIA.forEach((nivel, i) => {
+        const select = document.querySelector(`#filtrosJerarquia select[data-nivel="${nivel}"]`);
+        const opciones = new Map();
+        fuente
+          .filter((x) => pasaJerarquia(x, i))
+          .forEach((x) => {
+            if (!x[nivel]) return;
+            opciones.set(x[nivel], nivel === "ruta" ? `${x.ruta} · ${x.propietario}` : x[nivel]);
+          });
+        // Si lo elegido ya no cabe con los filtros de arriba, se suelta.
+        if (filtroJerarquia[nivel] && !opciones.has(filtroJerarquia[nivel])) filtroJerarquia[nivel] = "";
+        const ordenadas = [...opciones.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+        select.innerHTML =
+          `<option value="">Todos (${ordenadas.length})</option>` +
+          ordenadas.map(([v, txt]) => `<option value="${v}" ${v === filtroJerarquia[nivel] ? "selected" : ""}>${txt}</option>`).join("");
+      });
+    }
+
+    function aplicarFiltroJerarquia() {
+      renderFiltrosJerarquia();
+      pintarEnlaces();
+      renderResumenTerritorios();
+      renderTablaDepuracion();
+    }
     let perfilAdmin = null; // sesión actual — para firmar los mensajes que se envían a una ruta
 
     async function renderEnlaces() {
-      const cont = document.getElementById("listaEnlaces");
       const [rutas, perfilesRoute] = await Promise.all([
         BimboDepuracion.getRutas(),
         BimboDepuracion.getPerfilesRoute(),
       ]);
-      const base = location.href.replace(/admin\.html.*$/, "mi-territorio.html");
-
+      rutasEnlaces = rutas;
+      correoPorRutaCache = new Map();
       // perfilesRoute viene ordenado del más reciente al más viejo, así que
       // el primero que encontremos por ruta es el correo más reciente que
       // se reportó ahí durante su semana de prueba por token.
-      const correoPorRuta = new Map();
       perfilesRoute.forEach((p) => {
-        if (p.route_code && p.email && !correoPorRuta.has(p.route_code)) {
-          correoPorRuta.set(p.route_code, p.email);
+        if (p.route_code && p.email && !correoPorRutaCache.has(p.route_code)) {
+          correoPorRutaCache.set(p.route_code, p.email);
         }
       });
+      renderFiltrosJerarquia();
+      pintarEnlaces();
+    }
 
+    let correoPorRutaCache = new Map();
+
+    function pintarEnlaces() {
+      const cont = document.getElementById("listaEnlaces");
+      const base = location.href.replace(/admin\.html.*$/, "mi-territorio.html");
+      const correoPorRuta = correoPorRutaCache;
+      const rutas = rutasEnlaces.filter((r) => pasaJerarquia(r));
+      if (!rutas.length) {
+        cont.innerHTML = `<div class="empty-state">Sin rutas en este filtro.</div>`;
+        return;
+      }
       cont.innerHTML = rutas
         .map((r) => {
           const link = `${base}?t=${encodeURIComponent(r.token)}`;
@@ -484,6 +543,7 @@
                 <span class="ruta-num">${r.ruta}</span>
                 <strong class="ruta-propietario">${r.propietario}</strong>
               </div>
+              ${r.msl ? `<span class="ruta-conteo">MSL ${r.msl}</span>` : ""}
               <span class="ruta-conteo">${r.total} tiendas</span>
               ${correoBox}
               <div class="ruta-actions">
@@ -555,17 +615,19 @@
     async function cargarDepuracion() {
       document.getElementById("listaDepuracion").innerHTML = `<div class="empty-state">Cargando…</div>`;
       todasTerritorios = await BimboDepuracion.getTodasConEstado();
+      renderFiltrosJerarquia();
       renderResumenTerritorios();
       renderTablaDepuracion();
     }
 
     function renderResumenTerritorios() {
-      const total = todasTerritorios.length;
-      const rutas = new Set(todasTerritorios.map((t) => t.ruta)).size;
-      const activas = todasTerritorios.filter((t) => t.estatus === "activa").length;
-      const inactivas = todasTerritorios.filter((t) => t.estatus === "inactiva").length;
+      const lista = territoriosFiltrados();
+      const total = lista.length;
+      const rutas = new Set(lista.map((t) => t.ruta)).size;
+      const activas = lista.filter((t) => t.estatus === "activa").length;
+      const inactivas = lista.filter((t) => t.estatus === "inactiva").length;
       const sinRevisar = total - activas - inactivas;
-      const sinActividad = todasTerritorios.filter((t) => t.semanasDesdeUltimaActividad >= 4).length;
+      const sinActividad = lista.filter((t) => t.semanasDesdeUltimaActividad >= 4).length;
 
       const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
       const { statCard } = BimboUI;
@@ -877,7 +939,7 @@
     }
 
     function renderTablaDepuracion() {
-      const visibles = todasTerritorios.filter((t) => {
+      const visibles = territoriosFiltrados().filter((t) => {
         if (filtroDepu === "todas") return true;
         if (filtroDepu === "sinRevisar") return !t.estatus;
         return t.estatus === filtroDepu;
@@ -894,7 +956,7 @@
           <div class="tabla-scroll">
             <table class="data-table">
               <thead>
-                <tr><th>Ruta</th><th>Tienda</th><th>Dirección</th><th>Estatus</th><th>Motivo</th><th>Frecuencia</th><th>Días</th><th>Sin actividad</th><th>Revisado</th><th>Acciones</th></tr>
+                <tr><th>MSL</th><th>Ruta</th><th>Tienda</th><th>Dirección</th><th>Estatus</th><th>Motivo</th><th>Frecuencia</th><th>Días</th><th>Sin actividad</th><th>Revisado</th><th>Acciones</th></tr>
               </thead>
               <tbody>
                 ${visibles
@@ -906,6 +968,7 @@
                     const alerta = t.semanasDesdeUltimaActividad >= 4 ? "color:var(--rojo); font-weight:700;" : "";
                     return `
                       <tr>
+                        <td>${t.msl || "—"}</td>
                         <td>${t.ruta}</td>
                         <td>${t.nombre}</td>
                         <td>${t.direccion}${t.ciudad ? ", " + t.ciudad : ""}</td>
@@ -928,10 +991,13 @@
     }
 
     function descargarCsvDepuracion() {
-      const encabezado = ["ruta", "propietario", "tienda_id", "tienda", "direccion", "ciudad", "estado", "zip", "estatus", "motivo", "frecuencia", "dias_visita", "semanas_sin_actividad", "revisado_en"];
+      const encabezado = ["dos", "zsl", "msl", "ruta", "propietario", "tienda_id", "tienda", "direccion", "ciudad", "estado", "zip", "estatus", "motivo", "frecuencia", "dias_visita", "semanas_sin_actividad", "revisado_en"];
       const escapar = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-      const filas = todasTerritorios.map((t) =>
+      const filas = territoriosFiltrados().map((t) =>
         [
+          t.dos,
+          t.zsl,
+          t.msl,
           t.ruta,
           t.propietario,
           t.id,
@@ -1160,6 +1226,15 @@
     });
 
     document.getElementById("btnCsvDepuracion").addEventListener("click", descargarCsvDepuracion);
+
+    document.getElementById("filtrosJerarquia").addEventListener("change", (e) => {
+      const nivel = e.target.dataset.nivel;
+      if (!nivel) return;
+      filtroJerarquia[nivel] = e.target.value;
+      // Cambiar un nivel suelta los de abajo (ej. otro MSL -> cualquier ruta).
+      NIVELES_JERARQUIA.slice(NIVELES_JERARQUIA.indexOf(nivel) + 1).forEach((n) => (filtroJerarquia[n] = ""));
+      aplicarFiltroJerarquia();
+    });
 
     // ---------------------------------------------------------------------
     // Sesión: admin.html es solo para admin/corporativo, siempre con login

@@ -329,26 +329,46 @@ function _enriquecerYOrdenar(tiendas, ventasPorTienda) {
 async function _ventasDeTiendas(tiendaIds) {
   const porTienda = new Map();
   if (!tiendaIds.length) return porTienda;
-  const TAMANO_PAGINA = 1000;
-  let desde = 0;
-  for (;;) {
-    const { data, error } = await _client
-      .from("ventas_semanales")
-      .select("tienda_id, semana, unidades")
-      .in("tienda_id", tiendaIds)
-      .range(desde, desde + TAMANO_PAGINA - 1);
-    if (error) {
-      console.error("ventas_semanales", error);
-      throw new Error(`ventas_semanales: ${error.message}`);
-    }
-    data.forEach((v) => {
+  // Los ids van en la URL (?tienda_id=in.(...)); con 1500+ tiendas la URL se
+  // pasa del límite del servidor, así que se piden por bloques de ids.
+  const IDS_POR_BLOQUE = 200;
+  for (let i = 0; i < tiendaIds.length; i += IDS_POR_BLOQUE) {
+    const bloque = tiendaIds.slice(i, i + IDS_POR_BLOQUE);
+    const filas = await _traerTodo(
+      () => _client.from("ventas_semanales").select("tienda_id, semana, unidades").in("tienda_id", bloque).order("id"),
+      "ventas_semanales"
+    );
+    filas.forEach((v) => {
       if (!porTienda.has(v.tienda_id)) porTienda.set(v.tienda_id, []);
       porTienda.get(v.tienda_id).push(v);
     });
-    if (data.length < TAMANO_PAGINA) break; // última página
-    desde += TAMANO_PAGINA;
   }
   return porTienda;
+}
+
+// Trae TODAS las filas de una consulta, en páginas de 1000 (el máximo que
+// devuelve Supabase por respuesta). `crearConsulta` debe regresar una consulta
+// nueva cada vez y con .order() estable, para que las páginas no se crucen.
+async function _traerTodo(crearConsulta, contexto) {
+  const TAMANO_PAGINA = 1000;
+  const todas = [];
+  for (let desde = 0; ; desde += TAMANO_PAGINA) {
+    const { data, error } = await crearConsulta().range(desde, desde + TAMANO_PAGINA - 1);
+    if (error) {
+      console.error(contexto, error);
+      throw new Error(`${contexto}: ${error.message}`);
+    }
+    todas.push(...data);
+    if (data.length < TAMANO_PAGINA) return todas;
+  }
+}
+
+// "Dsde Ne Msl Douglas Morales Reyes Bmbex" -> "Douglas Morales Reyes"
+function _nombreJerarquia(valor) {
+  return String(valor || "")
+    .replace(/^dsde\s+ne\s+(msl|zsl|dos)\s+/i, "")
+    .replace(/\s+bmbex$/i, "")
+    .trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -357,10 +377,10 @@ async function _ventasDeTiendas(tiendaIds) {
 
 async function getRutas() {
   const ibps = _checar(
-    await _client.from("ibps").select("id, propietario, token, token_primer_uso").order("id"),
+    await _client.from("ibps").select("id, propietario, token, token_primer_uso, manager, zsl, dos").order("id"),
     "ibps"
   );
-  const tiendas = _checar(await _client.from("tiendas").select("id, ibp_id"), "tiendas (conteo)");
+  const tiendas = await _traerTodo(() => _client.from("tiendas").select("id, ibp_id").order("id"), "tiendas (conteo)");
   const conteo = new Map();
   tiendas.forEach((t) => conteo.set(t.ibp_id, (conteo.get(t.ibp_id) || 0) + 1));
   return ibps.map((i) => ({
@@ -368,6 +388,9 @@ async function getRutas() {
     propietario: i.propietario,
     token: i.token,
     tokenPrimerUso: i.token_primer_uso,
+    msl: _nombreJerarquia(i.manager),
+    zsl: _nombreJerarquia(i.zsl),
+    dos: _nombreJerarquia(i.dos),
     total: conteo.get(i.id) || 0,
   }));
 }
@@ -604,23 +627,29 @@ async function activarNotificacionesPush(rutaId) {
 // ---------------------------------------------------------------------------
 
 async function getTodasConEstado() {
-  const tiendas = _checar(
-    await _client
-      .from("tiendas")
-      .select("id, ibp_id, nombre, direccion, ciudad, estado_us, zip, productos, estatus, motivo, frecuencia, dias_visita, revisado_en")
-      .order("ibp_id"),
+  const tiendas = await _traerTodo(
+    () =>
+      _client
+        .from("tiendas")
+        .select("id, ibp_id, nombre, direccion, ciudad, estado_us, zip, productos, estatus, motivo, frecuencia, dias_visita, revisado_en")
+        .order("ibp_id")
+        .order("id"),
     "tiendas"
   );
-  const ibps = _checar(await _client.from("ibps").select("id, propietario"), "ibps");
-  const propietarios = new Map(ibps.map((i) => [i.id, i.propietario]));
+  const ibps = _checar(await _client.from("ibps").select("id, propietario, manager, zsl, dos"), "ibps");
+  const ibpPorId = new Map(ibps.map((i) => [i.id, i]));
   const ventasPorTienda = await _ventasDeTiendas(tiendas.map((t) => t.id));
 
   return tiendas.map((t) => {
     const semanas = _construirSemanas(ventasPorTienda.get(t.id) || []);
+    const ibp = ibpPorId.get(t.ibp_id) || {};
     return {
       ...t,
       ruta: t.ibp_id,
-      propietario: propietarios.get(t.ibp_id) || "",
+      propietario: ibp.propietario || "",
+      msl: _nombreJerarquia(ibp.manager),
+      zsl: _nombreJerarquia(ibp.zsl),
+      dos: _nombreJerarquia(ibp.dos),
       ...(_calcularActividad(semanas)),
     };
   });

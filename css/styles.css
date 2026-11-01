@@ -1418,3 +1418,27 @@ header.topbar a.back:hover { background: rgba(255, 255, 255, 0.24); }
   transform: translateX(3px);
   color: var(--accent);
 }
+
+/* Filtro DOS > ZSL > MSL > Ruta (admin.html, Territorios) */
+.filtros-jerarquia {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.filtros-jerarquia label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray);
+  min-width: 0;
+}
+.filtros-jerarquia select {
+  margin-top: 0;
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .filtros-jerarquia { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
