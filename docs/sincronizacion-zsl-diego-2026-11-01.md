@@ -90,3 +90,16 @@ El archivo traía MSL desactualizados. Se reasignaron las rutas según Doug:
 
 Sin MSL confirmado: 0453 (Pr Nolasco, 4 tiendas), 5537 (Francisco Munoz, 17), 5543 (Saravia Gomez, 19).
 "Open Guzman" ya no tiene rutas confirmadas.
+
+## Sincronización con el reporte de ventas del sistema (semanas 33–44/2026)
+
+Fuente: `2026ResultsTotalw46.csv` (DSDE Level 3 = ZSL Diego Guzmán). 1715 tiendas, 56 rutas, MSL igual a la lista de Doug.
+Respaldo previo: `respaldo.tiendas_pre_w44`, `respaldo.ibps_pre_w44`; archivo en `respaldo.ventas_w44`.
+
+- **82 tiendas reactivadas**: el listado ZSL las había dejado fuera, pero el sistema sí les registra ventas. Regresaron las 24 activas con días de visita (Walmart, Kroger, Family Dollar, etc.) con su plan intacto.
+- **Rutas corregidas según el sistema** (143 tiendas). Entre ellas, 16 de 5537 → 3778, las 4 de 0453 → 3795 y las 19 de 5543 repartidas en 4416/4417/4448/4449. Ninguna tenía plan.
+- **0813323** volvió a 4339 con el estatus que su IBP le había puesto. **0147873** pasó a 0150 y quedó pendiente.
+- **119 tiendas nuevas**, pendientes de revisar y sin días.
+- **Ventas**: 14,409 filas, semanas 33–44.
+- **Plan de visitas**: 154 tiendas con días, todas visibles; ninguna cambió.
+- **Pendiente de decidir**: 83 tiendas visibles que no aparecen en el sistema (sin ventas en 12 semanas). Rutas 0453 y 5543 quedaron vacías; a la 5537 solo le queda 0342400 Riveras Grocery.
