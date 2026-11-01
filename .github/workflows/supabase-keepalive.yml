@@ -1,0 +1,23 @@
+name: Mantener Supabase despierto
+
+# Supabase (plan free) pausa el proyecto tras ~7 días sin actividad, y
+# entonces el login de admin.html / mi-territorio.html falla con "correo o
+# contraseña incorrectos". Esto hace una consulta liviana cada 3 días para
+# que no se duerma. Usa la llave publicable (la misma que ya está en
+# js/depuracion.js, es pública). Si falla, GitHub manda correo al dueño.
+on:
+  schedule:
+    - cron: "17 12 */3 * *" # cada 3 días, ~8:17 am Virginia
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar bimbo-inventory-pro
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+            "https://obfikwhukpzelsghowcq.supabase.co/rest/v1/ibps?select=ruta&limit=1" \
+            -H "apikey: sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM")
+          echo "HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
