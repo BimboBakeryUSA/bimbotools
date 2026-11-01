@@ -113,20 +113,66 @@
     </div>
 
     <div id="tabDepuracion">
+      <div class="admin-identidad">
+        <span data-icono="user" data-size="16" style="display:inline-flex; color:var(--accent);"></span> Sesión: <strong id="adminSesionLabel">—</strong>
+        <span style="margin-left:auto; color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAdmin">Cerrar sesión</span>
+      </div>
+
       <div class="filtros-jerarquia" id="filtrosJerarquia">
         <label>DOS<select data-nivel="dos"></select></label>
         <label>ZSL<select data-nivel="zsl"></select></label>
         <label>MSL<select data-nivel="msl"></select></label>
         <label>Ruta<select data-nivel="ruta"></select></label>
       </div>
+      <nav class="migas" id="migasTerritorio" aria-label="Nivel actual"></nav>
       <div class="summary-grid" id="resumenTerritorios"></div>
 
-      <div class="admin-identidad">
-        <span data-icono="user" data-size="16" style="display:inline-flex; color:var(--accent);"></span> Sesión: <strong id="adminSesionLabel">—</strong>
-        <span style="margin-left:auto; color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAdmin">Cerrar sesión</span>
+      <div class="card">
+        <div class="drill-header">
+          <div class="seccion-header" style="margin:0;">
+            <span class="icono" data-icono="chart" data-size="16"></span>
+            <h2 id="tituloDrill">Territorios</h2>
+          </div>
+          <div class="drill-acciones">
+            <input type="search" id="buscarTienda" placeholder="Buscar tienda (nombre, número o ciudad)" autocomplete="off" />
+            <button class="btn btn-secondary btn-small" id="btnCsvDepuracion">⬇️ CSV</button>
+          </div>
+        </div>
+        <div id="drillTerritorios"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="cardTiendas" style="display:none;">
+        <div class="seccion-header" style="margin:0 0 4px;">
+          <span class="icono" data-icono="store" data-size="16"></span>
+          <h2 id="tituloTiendas">Tiendas</h2>
+        </div>
+        <p style="font-size:12px; color:var(--gray); margin:0;">
+          En vivo — lo que marque cada IBP aparece aquí sin que nadie tenga que subir nada.
+        </p>
+        <div class="pill-select" id="filtroDepuTabs" style="margin-top:10px;">
+          <a class="pill active" data-filtro="todas">Todas</a>
+          <a class="pill" data-filtro="sinRevisar">Sin revisar</a>
+          <a class="pill" data-filtro="activa">Activas</a>
+          <a class="pill" data-filtro="inactiva">Inactivas</a>
+          <a class="pill" data-filtro="sinActividad">Sin actividad 4+ sem</a>
+        </div>
+      </div>
+      <div id="listaDepuracion"></div>
+
+      <div class="card" id="cardEnlaces">
+        <div class="seccion-header">
+          <span class="icono" data-icono="link" data-size="16"></span>
+          <h2>Enlaces por territorio</h2>
+        </div>
+        <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
+          Envía a cada IBP el enlace de su territorio para que decida qué tiendas siguen en su lista.
+        </p>
+        <div class="rutas-grid" id="listaEnlaces"></div>
+      </div>
+
+      <details class="card herramientas">
+        <summary>Herramientas: actualizar catálogo y marcar visitas</summary>
+      <div class="herramienta">
         <div class="seccion-header">
           <span class="icono" data-icono="upload" data-size="16"></span>
           <h2>Actualizar catálogo</h2>
@@ -140,7 +186,7 @@
         <div id="resultadoCatalogo" style="margin-top:8px; font-size:13px;"></div>
       </div>
 
-      <div class="card">
+      <div class="herramienta">
         <div class="seccion-header">
           <span class="icono" data-icono="checkCircle" data-size="16"></span>
           <h2>Marcar visitas ya hechas</h2>
@@ -156,37 +202,7 @@
         <div id="resultadoVisitas" style="margin-top:8px; font-size:13px;"></div>
       </div>
 
-      <div class="card">
-        <div class="seccion-header">
-          <span class="icono" data-icono="link" data-size="16"></span>
-          <h2>Enlaces por territorio</h2>
-        </div>
-        <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
-          Envía a cada IBP el enlace de su territorio para que decida qué tiendas siguen en su lista.
-        </p>
-        <div class="rutas-grid" id="listaEnlaces"></div>
-      </div>
-
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <div class="seccion-header" style="margin:0;">
-            <span class="icono" data-icono="chart" data-size="16"></span>
-            <h2>Vista general de territorios</h2>
-          </div>
-          <button class="btn btn-secondary btn-small" id="btnCsvDepuracion">⬇️ Descargar CSV</button>
-        </div>
-        <p style="font-size:12px; color:var(--gray); margin-top:4px;">
-          En vivo — lo que marque cada IBP aparece aquí sin que nadie tenga que subir nada.
-        </p>
-        <div class="pill-select" id="filtroDepuTabs" style="margin-top:10px;">
-          <a class="pill active" data-filtro="todas">Todas</a>
-          <a class="pill" data-filtro="sinRevisar">Sin revisar</a>
-          <a class="pill" data-filtro="activa">Activas</a>
-          <a class="pill" data-filtro="inactiva">Inactivas</a>
-        </div>
-      </div>
-
-      <div id="listaDepuracion"></div>
+      </details>
     </div>
 
     <div class="pending-note">
@@ -491,9 +507,110 @@
 
     function aplicarFiltroJerarquia() {
       renderFiltrosJerarquia();
-      pintarEnlaces();
+      renderVistaTerritorios();
+    }
+
+    // Todo lo que depende del filtro/nivel actual, sin volver a pedir datos.
+    function renderVistaTerritorios() {
+      renderMigas();
       renderResumenTerritorios();
+      renderDrill();
       renderTablaDepuracion();
+      pintarEnlaces();
+    }
+
+    const ETIQUETA_NIVEL = { dos: "DOS", zsl: "ZSL", msl: "MSL", ruta: "Ruta" };
+    let busquedaTienda = "";
+
+    // Primer nivel sin elegir que de verdad tenga opciones (si solo hay un
+    // DOS y un ZSL, se brincan y se empieza por MSL). null = ya se eligió ruta.
+    function nivelParaExplorar() {
+      for (let i = 0; i < NIVELES_JERARQUIA.length; i++) {
+        const n = NIVELES_JERARQUIA[i];
+        if (filtroJerarquia[n]) continue;
+        const valores = new Set(todasTerritorios.filter((t) => pasaJerarquia(t, i)).map((t) => t[n]).filter(Boolean));
+        if (valores.size > 1 || n === "ruta") return n;
+      }
+      return null;
+    }
+
+    function irANivel(nivel, valor) {
+      filtroJerarquia[nivel] = valor;
+      NIVELES_JERARQUIA.slice(NIVELES_JERARQUIA.indexOf(nivel) + 1).forEach((n) => (filtroJerarquia[n] = ""));
+      aplicarFiltroJerarquia();
+      document.getElementById("migasTerritorio").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function renderMigas() {
+      const partes = [`<a data-nivel-migas="dos" data-valor="">Todos</a>`];
+      NIVELES_JERARQUIA.forEach((n, i) => {
+        if (!filtroJerarquia[n]) return;
+        const siguiente = NIVELES_JERARQUIA[i + 1];
+        const texto = n === "ruta" ? `${filtroJerarquia.ruta} · ${(todasTerritorios.find((t) => t.ruta === filtroJerarquia.ruta) || {}).propietario || ""}` : filtroJerarquia[n];
+        partes.push(
+          siguiente
+            ? `<a data-nivel-migas="${siguiente}" data-valor="">${ETIQUETA_NIVEL[n]}: ${texto}</a>`
+            : `<strong>${ETIQUETA_NIVEL[n]}: ${texto}</strong>`
+        );
+      });
+      document.getElementById("migasTerritorio").innerHTML = partes.join(`<span class="migas-sep">›</span>`);
+    }
+
+    function resumenGrupo(lista) {
+      const total = lista.length;
+      const activas = lista.filter((t) => t.estatus === "activa").length;
+      const inactivas = lista.filter((t) => t.estatus === "inactiva").length;
+      const sinActividad = lista.filter((t) => t.semanasDesdeUltimaActividad >= 4).length;
+      return { total, activas, inactivas, sinRevisar: total - activas - inactivas, sinActividad, pctRevisadas: total ? Math.round(((activas + inactivas) / total) * 100) : 0 };
+    }
+
+    function renderDrill() {
+      const cont = document.getElementById("drillTerritorios");
+      const titulo = document.getElementById("tituloDrill");
+      if (busquedaTienda) {
+        titulo.textContent = "Resultados de búsqueda";
+        cont.innerHTML = "";
+        return;
+      }
+      const nivel = nivelParaExplorar();
+      if (!nivel) {
+        titulo.textContent = "Buscar en esta ruta";
+        cont.innerHTML = "";
+        return;
+      }
+      titulo.textContent = nivel === "ruta" ? `Rutas (${filtroJerarquia.msl || "todas"})` : `Elige ${ETIQUETA_NIVEL[nivel]}`;
+      const grupos = new Map();
+      territoriosFiltrados().forEach((t) => {
+        const clave = t[nivel] || "—";
+        if (!grupos.has(clave)) grupos.set(clave, []);
+        grupos.get(clave).push(t);
+      });
+      const tarjetas = [...grupos.entries()]
+        .map(([clave, lista]) => ({ clave, lista, r: resumenGrupo(lista) }))
+        .sort((a, b) => (nivel === "ruta" ? a.clave.localeCompare(b.clave) : b.r.total - a.r.total));
+      cont.innerHTML = `<div class="drill-grid">${tarjetas
+        .map(({ clave, lista, r }) => {
+          const nombre = nivel === "ruta" ? `<span class="ruta-num">${clave}</span> ${lista[0].propietario || ""}` : clave;
+          const extra =
+            nivel === "ruta"
+              ? `${lista[0].msl ? "MSL " + lista[0].msl : ""}`
+              : `${new Set(lista.map((t) => t.ruta)).size} rutas`;
+          return `
+            <button type="button" class="drill-card" data-nivel="${nivel}" data-valor="${clave.replace(/"/g, "&quot;")}">
+              <div class="drill-nombre">${nombre}</div>
+              <div class="drill-extra">${extra}</div>
+              <div class="drill-total"><strong>${r.total}</strong> tiendas</div>
+              <div class="drill-chips">
+                <span class="chip tono-verde">${r.activas} activas</span>
+                <span class="chip tono-amarillo">${r.inactivas} inactivas</span>
+                <span class="chip">${r.sinRevisar} sin revisar</span>
+                ${r.sinActividad ? `<span class="chip tono-rojo">${r.sinActividad} sin actividad</span>` : ""}
+              </div>
+              <div class="stat-meter" title="${r.pctRevisadas}% revisadas"><span style="width:${r.pctRevisadas}%"></span></div>
+              <div class="drill-extra">${r.pctRevisadas}% revisadas</div>
+            </button>`;
+        })
+        .join("")}</div>`;
     }
     let perfilAdmin = null; // sesión actual — para firmar los mensajes que se envían a una ruta
 
@@ -522,6 +639,10 @@
       const cont = document.getElementById("listaEnlaces");
       const base = location.href.replace(/admin\.html.*$/, "mi-territorio.html");
       const correoPorRuta = correoPorRutaCache;
+      if (!filtroJerarquia.msl && !filtroJerarquia.ruta) {
+        cont.innerHTML = `<div class="empty-state">Elige un MSL o una ruta para ver sus enlaces.</div>`;
+        return;
+      }
       const rutas = rutasEnlaces.filter((r) => pasaJerarquia(r));
       if (!rutas.length) {
         cont.innerHTML = `<div class="empty-state">Sin rutas en este filtro.</div>`;
@@ -616,8 +737,7 @@
       document.getElementById("listaDepuracion").innerHTML = `<div class="empty-state">Cargando…</div>`;
       todasTerritorios = await BimboDepuracion.getTodasConEstado();
       renderFiltrosJerarquia();
-      renderResumenTerritorios();
-      renderTablaDepuracion();
+      renderVistaTerritorios();
     }
 
     function renderResumenTerritorios() {
@@ -755,8 +875,7 @@
       const t = todasTerritorios.find((x) => x.id === modalTiendaId);
       if (t) document.getElementById("modalBody").innerHTML = renderModalTienda(t);
       cargarHistorialModal(modalTiendaId);
-      renderTablaDepuracion();
-      renderResumenTerritorios();
+      renderVistaTerritorios();
     }
 
     // Después de re-pintar el modal, hace scroll + foco al campo que falta
@@ -938,20 +1057,47 @@
       `;
     }
 
+    const MAX_RESULTADOS_BUSQUEDA = 150;
+
     function renderTablaDepuracion() {
-      const visibles = territoriosFiltrados().filter((t) => {
+      const cont = document.getElementById("listaDepuracion");
+      const card = document.getElementById("cardTiendas");
+      // La tabla solo se pinta con una ruta elegida o con una búsqueda —
+      // con 1800 tiendas de golpe la página se vuelve lenta e ilegible.
+      if (!filtroJerarquia.ruta && !busquedaTienda) {
+        card.style.display = "none";
+        cont.innerHTML = "";
+        return;
+      }
+      card.style.display = "";
+      let base;
+      if (busquedaTienda) {
+        const q = busquedaTienda.toLowerCase();
+        base = territoriosFiltrados().filter((t) =>
+          [t.id, t.nombre, t.ciudad, t.direccion, t.ruta, t.propietario].some((v) => String(v || "").toLowerCase().includes(q))
+        );
+        document.getElementById("tituloTiendas").textContent = `Búsqueda: "${busquedaTienda}"`;
+      } else {
+        base = territoriosFiltrados();
+        document.getElementById("tituloTiendas").textContent = `Tiendas de la ruta ${filtroJerarquia.ruta}`;
+      }
+      let visibles = base.filter((t) => {
         if (filtroDepu === "todas") return true;
         if (filtroDepu === "sinRevisar") return !t.estatus;
+        if (filtroDepu === "sinActividad") return t.semanasDesdeUltimaActividad >= 4;
         return t.estatus === filtroDepu;
       });
-
-      const cont = document.getElementById("listaDepuracion");
+      let aviso = "";
+      if (busquedaTienda && visibles.length > MAX_RESULTADOS_BUSQUEDA) {
+        aviso = `<div class="empty-state">Mostrando ${MAX_RESULTADOS_BUSQUEDA} de ${visibles.length} — escribe algo más específico.</div>`;
+        visibles = visibles.slice(0, MAX_RESULTADOS_BUSQUEDA);
+      }
       if (!visibles.length) {
         cont.innerHTML = `<div class="empty-state">Sin tiendas en este filtro.</div>`;
         return;
       }
 
-      cont.innerHTML = `
+      cont.innerHTML = aviso + `
         <div class="card">
           <div class="tabla-scroll">
             <table class="data-table">
@@ -1226,6 +1372,29 @@
     });
 
     document.getElementById("btnCsvDepuracion").addEventListener("click", descargarCsvDepuracion);
+
+    document.getElementById("drillTerritorios").addEventListener("click", (e) => {
+      const el = e.target.closest(".drill-card");
+      if (el) irANivel(el.dataset.nivel, el.dataset.valor);
+    });
+
+    document.getElementById("migasTerritorio").addEventListener("click", (e) => {
+      const el = e.target.closest("a[data-nivel-migas]");
+      if (!el) return;
+      busquedaTienda = "";
+      document.getElementById("buscarTienda").value = "";
+      irANivel(el.dataset.nivelMigas, "");
+    });
+
+    let temporizadorBusqueda = null;
+    document.getElementById("buscarTienda").addEventListener("input", (e) => {
+      clearTimeout(temporizadorBusqueda);
+      temporizadorBusqueda = setTimeout(() => {
+        busquedaTienda = e.target.value.trim();
+        renderDrill();
+        renderTablaDepuracion();
+      }, 250);
+    });
 
     document.getElementById("filtrosJerarquia").addEventListener("change", (e) => {
       const nivel = e.target.dataset.nivel;
