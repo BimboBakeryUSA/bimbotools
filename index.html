@@ -30,7 +30,21 @@
   </main>
 
   <script src="js/data.js"></script>
+  <script src="js/ui.js"></script>
   <script>
+    function roleCard(href, avatar, tono, titulo, sub) {
+      return `
+        <a class="role-card" href="${href}">
+          <span class="avatar tono-${tono}">${avatar}</span>
+          <div class="nombre">
+            <h2>${titulo}</h2>
+            <p>${sub}</p>
+          </div>
+          <span class="chevron">${BimboUI.icono("chevron", 18)}</span>
+        </a>
+      `;
+    }
+
     async function render() {
       await BimboData.init();
       const grid = document.getElementById("roleGrid");
@@ -46,18 +60,11 @@
               : `admin.html`;
           const rolLabel =
             u.rol === "IBP" ? "IBP · Ruta de campo" : u.rol === "MSL" ? "Manager MSL · Dashboard" : "Administrador";
-          return `
-            <a class="role-card" href="${href}">
-              <h2>${u.nombre}</h2>
-              <p>${rolLabel}</p>
-            </a>
-          `;
+          const tono = u.rol === "IBP" ? "accent" : u.rol === "MSL" ? "verde" : "gris";
+          return roleCard(href, BimboUI.iniciales(u.nombre), tono, u.nombre, rolLabel);
         })
         .join("") +
-        `<a class="role-card" href="admin.html">
-           <h2>Administrador</h2>
-           <p>Cargar clientes y % de frescura</p>
-         </a>`;
+        roleCard("admin.html", BimboUI.icono("shield", 20), "gris", "Administrador", "Cargar clientes y % de frescura");
     }
     render();
 

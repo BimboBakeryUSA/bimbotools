@@ -13,7 +13,7 @@
   <header class="topbar">
     <a class="back" href="index.html" id="linkVolver">&larr;</a>
     <h1 id="titulo">Mi Ruta</h1>
-    <a class="back" href="#" id="btnNotif">🔔 <span id="notifCount"></span></a>
+    <a class="icon-btn" href="#" id="btnNotif" aria-label="Notificaciones"><span id="iconoCampana"></span><span class="contador" id="notifCount"></span></a>
   </header>
 
   <main>
@@ -22,33 +22,45 @@
     <div class="pill-select" id="diasTabs"></div>
 
     <div class="card">
-      <strong id="rutaNombre">—</strong>
-      <p style="font-size:12px; color:var(--gray); margin:4px 0 0;" id="diaInfo"></p>
-      <div class="kpi-row">
-        <div class="kpi"><div class="num" id="kpiTotal">0</div><div class="label">clientes hoy</div></div>
-        <div class="kpi"><div class="num" id="kpiVisitados">0</div><div class="label">visitados</div></div>
-        <div class="kpi"><div class="num" id="kpiPendientes">0</div><div class="label">pendientes</div></div>
+      <div class="ibp-head">
+        <span class="avatar cuadrado" id="rutaIcono"></span>
+        <div class="nombre">
+          <strong id="rutaNombre">—</strong>
+          <span id="diaCorto"></span>
+        </div>
+        <span class="chip tono-gris" id="chipAvance">0%</span>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
-      <p style="font-size:12px; color:var(--gray); margin-top:8px;" id="geoStatus">
-        Ubicación: pidiendo permiso...
-      </p>
+      <p class="card-desc" style="margin-top:10px;" id="diaInfo"></p>
+      <div class="kpi-strip">
+        <div><div class="num" id="kpiTotal">0</div><div class="label">clientes</div></div>
+        <div class="tono-verde"><div class="num" id="kpiVisitados">0</div><div class="label">visitados</div></div>
+        <div id="kpiPendCell"><div class="num" id="kpiPendientes">0</div><div class="label">pendientes</div></div>
+      </div>
+      <div class="stat-meter tono-gris" id="progressMeter" style="margin-top:12px;"><span id="progressFill" style="width:0%"></span></div>
+      <div class="meta-line"><span id="geoIcono"></span><span id="geoStatus">Ubicación: pidiendo permiso...</span></div>
     </div>
 
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <strong id="paradasTitulo">Paradas de hoy</strong>
-        <button class="btn btn-secondary btn-small" id="btnAgregar">+ Agregar cliente</button>
+      <div class="card-head">
+        <div>
+          <h2 class="card-title" id="paradasTitulo">Paradas de hoy</h2>
+          <p class="card-desc">Ordenadas por cercanía. Se marcan solas al llegar.</p>
+        </div>
+        <button class="btn btn-secondary btn-small" id="btnAgregar"></button>
       </div>
       <div id="listaParadas"></div>
     </div>
 
     <div class="card" id="panelAgregar" style="display:none;">
-      <strong>Agregar cliente a la ruta de hoy</strong>
-      <p style="font-size:12px; color:var(--gray);">
-        Si el cliente ya estaba pautado para otro día esta semana, se mueve
-        automático a hoy y se te notifica.
-      </p>
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">Agregar cliente a la ruta de hoy</h2>
+          <p class="card-desc">
+            Si el cliente ya estaba pautado para otro día esta semana, se mueve
+            automático a hoy y se te notifica.
+          </p>
+        </div>
+      </div>
       <div id="listaAgregar"></div>
     </div>
 
@@ -60,12 +72,19 @@
 
   <script src="js/data.js"></script>
   <script src="js/geo.js"></script>
+  <script src="js/ui.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const ibpId = params.get("u") || "ibp-1";
     const viendoComoMSL = params.get("rol") === "MSL";
     const quienEdita = viendoComoMSL ? "MSL" : "IBP";
     const volverA = viendoComoMSL ? `msl.html?u=${params.get("msl") || "msl-1"}` : "index.html";
+
+    const { icono, tonoPct, etiquetaSemaforo } = BimboUI;
+    document.getElementById("iconoCampana").innerHTML = icono("bell", 20);
+    document.getElementById("rutaIcono").innerHTML = icono("route", 20);
+    document.getElementById("geoIcono").innerHTML = icono("pin", 14);
+    document.getElementById("btnAgregar").innerHTML = icono("plus", 14) + "Agregar cliente";
 
     let diaSeleccionado = null; // se fija a "hoy" real en el primer render
 
@@ -108,7 +127,15 @@
       document.getElementById("kpiTotal").textContent = total;
       document.getElementById("kpiVisitados").textContent = visitados;
       document.getElementById("kpiPendientes").textContent = total - visitados;
-      document.getElementById("progressFill").style.width = total ? `${(visitados / total) * 100}%` : "0%";
+      const pctAvance = total ? Math.round((visitados / total) * 100) : 0;
+      const tonoAvance = tonoPct(pctAvance, total);
+      document.getElementById("progressFill").style.width = `${pctAvance}%`;
+      document.getElementById("progressMeter").className = `stat-meter tono-${tonoAvance}`;
+      const chip = document.getElementById("chipAvance");
+      chip.className = `chip tono-${tonoAvance}`;
+      chip.textContent = total && visitados === total ? "Ruta completa" : `${pctAvance}% avance`;
+      document.getElementById("kpiPendCell").className = total - visitados ? "tono-amarillo" : "";
+      document.getElementById("diaCorto").textContent = esHoyReal ? `${nombreDia} · hoy` : `${nombreDia} · vista previa`;
 
       const lista = document.getElementById("listaParadas");
       if (!paradas.length) {
@@ -119,19 +146,21 @@
             const sem = BimboData.semaforoFrescura(p.cliente.frescura);
             const frescuraPct = p.cliente.frescura != null ? Math.round(p.cliente.frescura * 100) + "%" : "—";
             const acciones = !esHoyReal
-              ? `<span class="badge">Vista previa — no editable</span>`
+              ? `<span class="chip tono-gris">Vista previa — no editable</span>`
               : p.visitada
               ? `<button class="btn btn-secondary btn-small" onclick="desmarcar('${p.cliente.id}')">Deshacer</button>`
-              : `<button class="btn btn-primary btn-small" onclick="marcar('${p.cliente.id}')">Marcar visitado</button>
+              : `<button class="btn btn-primary btn-small" onclick="marcar('${p.cliente.id}')">${icono("check", 14)}Marcar visitado</button>
                  <button class="btn btn-secondary btn-small" onclick="quitar('${p.cliente.id}')">Quitar de hoy</button>`;
             return `
               <div class="stop ${p.visitada ? "visitada" : ""}" data-id="${p.cliente.id}">
-                <div class="stop-order">${p.visitada ? "✓" : p.orden}</div>
+                <div class="stop-order">${p.visitada ? icono("check", 14) : p.orden}</div>
                 <div class="stop-body">
-                  <strong><span class="semaforo ${sem}"></span>${p.cliente.nombre}</strong>
+                  <strong>${p.cliente.nombre}</strong>
                   <span class="dir">${p.cliente.direccion}</span>
-                  <span class="badge">Frescura ${frescuraPct}</span>
-                  ${p.visitada ? `<span class="badge">Visitado por ${p.metodoVisita}</span>` : ""}
+                  <div class="chip-row">
+                    <span class="chip tono-${sem}" title="${etiquetaSemaforo(sem)}">Frescura ${frescuraPct}</span>
+                    ${p.visitada ? `<span class="chip tono-verde">Visitado · ${p.metodoVisita}</span>` : ""}
+                  </div>
                   <div class="stop-actions">${acciones}</div>
                 </div>
               </div>
@@ -140,7 +169,7 @@
           .join("");
       }
 
-      document.getElementById("btnAgregar").style.display = esHoyReal ? "inline-block" : "none";
+      document.getElementById("btnAgregar").style.display = esHoyReal ? "" : "none";
       if (!esHoyReal) document.getElementById("panelAgregar").style.display = "none";
 
       renderNotificaciones();
@@ -150,17 +179,17 @@
     function renderNotificaciones() {
       const notifs = BimboData.getNotificaciones(ibpId);
       const noLeidas = notifs.filter((n) => !n.leida).length;
-      document.getElementById("notifCount").textContent = noLeidas ? `(${noLeidas})` : "";
+      document.getElementById("notifCount").textContent = noLeidas || "";
       const panel = document.getElementById("notifPanel");
       panel.innerHTML =
-        `<strong>Notificaciones</strong>` +
+        `<div class="card-head"><h2 class="card-title">${icono("bell", 16)}Notificaciones</h2></div>` +
         (notifs.length
           ? notifs
               .map(
-                (n) => `<div class="notif">${n.mensaje}<span class="cuando">${new Date(n.cuando).toLocaleString()}</span></div>`
+                (n) => `<div class="timeline-item"><span class="dot">${icono("bell", 14)}</span><div>${n.mensaje}<span class="cuando">${new Date(n.cuando).toLocaleString()}</span></div></div>`
               )
               .join("")
-          : `<p style="font-size:13px; color:var(--gray);">Sin notificaciones.</p>`);
+          : `<p class="card-desc">Sin notificaciones.</p>`);
     }
 
     function renderPanelAgregar(ruta) {
@@ -178,7 +207,7 @@
               <strong>${c.nombre}</strong>
               <span class="dir">${c.direccion}</span>
               <div class="stop-actions">
-                <button class="btn btn-primary btn-small" onclick="agregar('${c.id}')">Agregar a hoy</button>
+                <button class="btn btn-primary btn-small" onclick="agregar('${c.id}')">${icono("plus", 14)}Agregar a hoy</button>
               </div>
             </div>
           </div>`

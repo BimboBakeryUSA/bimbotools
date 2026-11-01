@@ -737,3 +737,173 @@ label.field {
   color: var(--gray);
   margin-top: 10px;
 }
+
+/* ---- Encabezado de tarjeta (título + descripción + acción) ---- */
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.card-head .card-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-head .card-title svg { color: var(--accent); }
+
+.card-desc {
+  font-size: 12px;
+  color: var(--gray);
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.card-head + .stop,
+.card-head + div > .stop:first-child { margin-top: 6px; }
+
+.meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray);
+  margin-top: 10px;
+}
+
+.meta-line svg { flex-shrink: 0; color: var(--gris); }
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ---- Botón de icono en la barra superior (notificaciones) ---- */
+
+.icon-btn {
+  position: relative;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  text-decoration: none;
+}
+
+.icon-btn:hover { background: rgba(255, 255, 255, 0.15); }
+
+.icon-btn .contador {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: white;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn .contador:empty { display: none; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn svg { flex-shrink: 0; }
+
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-secondary { border: 1px solid var(--border); }
+.btn-secondary:hover { background: #e8e8e8; }
+
+/* ---- Selector de rol (inicio) ---- */
+
+.role-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-left: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.role-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.role-card .nombre { flex: 1; min-width: 0; }
+
+.role-card h2 {
+  color: var(--dark);
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+
+.role-card .chevron {
+  color: var(--gris);
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+
+.role-card:hover .chevron {
+  transform: translateX(3px);
+  color: var(--accent);
+}
+
+.avatar.tono-verde, .avatar.tono-amarillo, .avatar.tono-gris, .avatar.tono-accent {
+  background: color-mix(in srgb, var(--tono) 12%, white);
+  color: var(--tono);
+}
+
+.avatar.cuadrado { border-radius: 11px; }
+
+/* ---- Historial / notificaciones como timeline ---- */
+
+.timeline-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.timeline-item:last-child { border-bottom: none; }
+
+.timeline-item .dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 10%, white);
+  color: var(--accent);
+}
+
+.timeline-item .cuando {
+  display: block;
+  color: var(--gray);
+  font-size: 11px;
+  margin-top: 3px;
+}
