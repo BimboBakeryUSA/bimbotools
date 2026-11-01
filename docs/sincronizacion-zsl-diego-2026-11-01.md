@@ -75,3 +75,18 @@ Las otras 81 apagadas nunca se habían revisado.
 
 - El botón "Actualizar catálogo" de `admin.html` hace `upsert` sobre `tiendas`. Si un reporte futuro trae una tienda apagada, Postgres rechaza el upsert por RLS (la fila existe pero no es visible). Solución: una función RPC de sincronización que reactive (`vigente=true`) lo que venga en el reporte.
 - El historial del admin no tiene etiqueta para los campos nuevos `ibp_id` y `vigente` (se ven en blanco).
+
+## Corrección de MSL por Doug (2026-11-01)
+
+El archivo traía MSL desactualizados. Se reasignaron las rutas según Doug:
+
+| MSL | Rutas |
+|---|---|
+| Agnello Anthony | 0460 0524 2161 2163 3780 3790 3792 3793 3794 3795 4747 |
+| Ricardo Doig | 0496 4412 4414 4416 4417 4437 4447 4448 4449 4452 4453 |
+| Douglas Morales Reyes | 0150 0457 0523 2192 3734 3778 3783 3797 4339 5527 5532 |
+| Carmen Camargo | 0495 2132 2145 2906 3782 4396 5528 5529 5536 5540 5542 |
+| Armando Leonides | 0060 0063 0064 0065 0067 0073 0077 0079 4952 5007 6281 6282 |
+
+Sin MSL confirmado: 0453 (Pr Nolasco, 4 tiendas), 5537 (Francisco Munoz, 17), 5543 (Saravia Gomez, 19).
+"Open Guzman" ya no tiene rutas confirmadas.
