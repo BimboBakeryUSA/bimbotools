@@ -340,39 +340,213 @@ table.data-table th {
   font-weight: 700;
 }
 
-/* ---- Dashboard summary (resumen general arriba del MSL) ---- */
+/* ---- Dashboard cards (estilo shadcn/ui: título + icono, valor, detalle, medidor) ---- */
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
   margin-bottom: 18px;
 }
 
-.summary-card {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 14px rgba(0, 0, 0, 0.04);
-  border-top: 4px solid var(--accent);
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
-.summary-card .icon {
-  font-size: 20px;
+.stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
-.summary-card .num {
-  font-size: 26px;
+.stat-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray);
+}
+
+.stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--tono, var(--accent)) 12%, white);
+  color: var(--tono, var(--accent));
+}
+
+.stat-icon svg { width: 17px; height: 17px; }
+
+.stat-value {
+  font-size: 30px;
   font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
   color: var(--dark);
-  margin-top: 6px;
-  line-height: 1;
 }
 
-.summary-card .label {
+.stat-sub {
   font-size: 12px;
   color: var(--gray);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stat-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gray-light);
+  overflow: hidden;
   margin-top: 4px;
+}
+
+.stat-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tono, var(--accent));
+  transition: width 0.4s ease;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tono, var(--gris)) 30%, white);
+  background: color-mix(in srgb, var(--tono, var(--gris)) 10%, white);
+  color: color-mix(in srgb, var(--tono, var(--gris)) 80%, black);
+  white-space: nowrap;
+}
+
+.chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tono, var(--gris));
+}
+
+.tono-verde { --tono: var(--verde); }
+.tono-amarillo { --tono: var(--amarillo); }
+.tono-rojo { --tono: var(--rojo); }
+.tono-gris { --tono: var(--gris); }
+.tono-accent { --tono: var(--accent); }
+
+@media (max-width: 480px) {
+  .stat-card { padding: 14px; }
+  .stat-value { font-size: 24px; }
+  .stat-icon { width: 28px; height: 28px; }
+}
+
+/* ---- Tarjeta por IBP ---- */
+
+.ibp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.ibp-grid > .card { margin-bottom: 0; }
+
+a.ibp-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 14px;
+}
+
+a.ibp-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+
+.ibp-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 12%, white);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ibp-head .nombre {
+  flex: 1;
+  min-width: 0;
+}
+
+.ibp-head .nombre strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.ibp-head .nombre span {
+  font-size: 12px;
+  color: var(--gray);
+}
+
+.ibp-head .chevron {
+  color: var(--gris);
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+
+a.ibp-card:hover .chevron {
+  transform: translateX(3px);
+  color: var(--accent);
+}
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.kpi-strip > div {
+  padding: 10px 12px;
+  border-left: 1px solid var(--border);
+}
+
+.kpi-strip > div:first-child { border-left: none; }
+
+.kpi-strip .num {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--tono, var(--dark));
+}
+
+.kpi-strip .label {
+  font-size: 11px;
+  color: var(--gray);
 }
 
 /* ---- Gráfico de barras semanal (Lun..Sáb) ---- */
