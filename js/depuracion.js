@@ -655,8 +655,89 @@ async function getTodasConEstado() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Planificador de rutas (rutas.html) — tablas rutas_geo / rutas_plan /
+// rutas_config (ver scripts/rutas_schema.sql). Lectura para admin/corporativo
+// y el IBP de esa ruta; escritura solo admin/corporativo (RLS).
+// ---------------------------------------------------------------------------
+
+// Todas las tiendas (solo datos de dirección) — para el archivo del Census y
+// para validar los ids al importar sus coordenadas.
+async function getTiendasBasicas() {
+  return _traerTodo(
+    () => _client.from("tiendas").select("id, ibp_id, nombre, direccion, ciudad, estado_us, zip").order("id"),
+    "tiendas (básicas)"
+  );
+}
+
+async function getGeo(tiendaIds) {
+  const porTienda = new Map();
+  for (let i = 0; i < tiendaIds.length; i += 200) {
+    const bloque = tiendaIds.slice(i, i + 200);
+    const filas = _checar(
+      await _client.from("rutas_geo").select("tienda_id, lat, lng, fuente").in("tienda_id", bloque),
+      "rutas_geo"
+    );
+    filas.forEach((f) => porTienda.set(f.tienda_id, f));
+  }
+  return porTienda;
+}
+
+// filas: [{ tienda_id, lat, lng, fuente }]
+async function guardarGeo(filas) {
+  for (let i = 0; i < filas.length; i += 500) {
+    const bloque = filas.slice(i, i + 500).map((f) => ({ ...f, actualizado_en: new Date().toISOString() }));
+    _checar(await _client.from("rutas_geo").upsert(bloque, { onConflict: "tienda_id" }), "rutas_geo (guardar)");
+  }
+}
+
+async function getPlanRuta(ibpId) {
+  const { data, error } = await _client
+    .from("rutas_plan")
+    .select("ibp_id, inicio, frecuencias, slots, fijadas, actualizado_en, actualizado_por")
+    .eq("ibp_id", ibpId)
+    .maybeSingle();
+  if (error) throw new Error(`rutas_plan: ${error.message}`);
+  return data;
+}
+
+// plan: { inicio, frecuencias, slots, fijadas }
+async function guardarPlanRuta(ibpId, plan, autor) {
+  const fila = {
+    ibp_id: ibpId,
+    inicio: plan.inicio || null,
+    frecuencias: plan.frecuencias || {},
+    slots: plan.slots || {},
+    fijadas: plan.fijadas || [],
+    actualizado_en: new Date().toISOString(),
+    actualizado_por: autor || null,
+  };
+  _checar(await _client.from("rutas_plan").upsert(fila, { onConflict: "ibp_id" }), "rutas_plan (guardar)");
+  return fila.actualizado_en;
+}
+
+async function getConfigRutas(clave) {
+  const { data, error } = await _client.from("rutas_config").select("valor").eq("clave", clave).maybeSingle();
+  if (error) throw new Error(`rutas_config: ${error.message}`);
+  return data ? data.valor : null;
+}
+
+async function guardarConfigRutas(clave, valor) {
+  _checar(
+    await _client.from("rutas_config").upsert({ clave, valor, actualizado_en: new Date().toISOString() }, { onConflict: "clave" }),
+    "rutas_config (guardar)"
+  );
+}
+
 window.BimboDepuracion = {
   init,
+  getTiendasBasicas,
+  getGeo,
+  guardarGeo,
+  getPlanRuta,
+  guardarPlanRuta,
+  getConfigRutas,
+  guardarConfigRutas,
   getDiasSemana,
   getRangoSemanas,
   getRutas,

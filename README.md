@@ -324,3 +324,25 @@ nota al principio de `scripts/edge_functions/enviar-push.ts`.
   se migra a Supabase — sigue en `localStorage`.
 - Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de
   decisiones pendientes y el roadmap de próximas herramientas.
+
+## Planificador de rutas (`rutas.html`)
+
+Arma la semana A y B de cada IBP sin IA: todo es cálculo en el navegador
+(`js/ruteo.js`).
+
+1. **Frecuencia por regla** (pestaña Reglas, globales): Wawa 2x, 7-Eleven
+   semanal (2x si vende más de $900), Stop & Go quincenal; el resto 2x si
+   vende más de $900 y quincenal si vende menos de $100. Venta = promedio de
+   las 12 semanas de `ventas_semanales`. Inactivas o “por pedido” en Mi
+   Territorio quedan fuera.
+2. **Asignación de días** por búsqueda local: minimiza millas + desbalance
+   entre días. 2x = lunes/jueves o martes/viernes en A y B; semanal = mismo
+   día en A y B; quincenal = un día en A o en B.
+3. **Orden del día**: vecino más cercano + 2-opt desde el punto de salida.
+4. Ajuste manual arrastrando (las tiendas movidas quedan fijadas) y
+   exportación KML por semana + CSV.
+
+Coordenadas en `rutas_geo` (Census batch, OpenStreetMap o manual). Plan en
+`rutas_plan`, reglas en `rutas_config`. Las tablas se crean con
+`scripts/rutas_schema.sql` (solo agrega tablas; no toca las de Mi Territorio).
+Solo admin/corporativo editan; un IBP con sesión solo ve el plan de su ruta.
