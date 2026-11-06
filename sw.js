@@ -11,18 +11,21 @@
 // cacheado de antes). `cache: "reload"` obliga a ignorar esa caché HTTP y sí
 // ir a la red de verdad en cada visita.
 
-const CACHE_NAME = "bimbo-tools-v11";
+const CACHE_NAME = "bimbo-tools-v12";
 const ARCHIVOS_SHELL = [
   "index.html",
   "ibp.html",
   "msl.html",
   "admin.html",
   "mi-territorio.html",
+  "rutas.html",
   "css/styles.css",
   "js/data.js",
   "js/geo.js",
   "js/depuracion.js",
   "js/ui.js",
+  "js/ruteo.js",
+  "js/rutas-app.js",
   "data/seed.json",
   "manifest.json",
 ];

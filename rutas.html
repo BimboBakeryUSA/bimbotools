@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Planificador de rutas — Bimbo Tools</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#c0392b" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="js/ui.js"></script>
+  <style>
+    /* Colores por día — lunes..sábado */
+    :root { --d1:#c0392b; --d2:#1f6fb2; --d3:#2e8a4e; --d4:#c77a00; --d5:#7a4bb0; --d6:#00838f; }
+    main.rt { max-width: 1280px; }
+    .rt-barra { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+    .rt-barra label { display:grid; gap:4px; font-size:12px; color:var(--gray); }
+    .rt-barra select, .rt-barra input[type=text], .rt-barra input[type=number] { font:inherit; font-size:14px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:white; color:var(--dark); min-width:0; }
+    .rt-barra input[type=number] { width:80px; }
+    .rt-check { display:flex !important; align-items:center; gap:6px; font-size:13px !important; color:var(--dark) !important; padding-bottom:8px; }
+    .rt-stats { display:flex; flex-wrap:wrap; gap:8px 26px; font-variant-numeric:tabular-nums; }
+    .rt-stats div { display:grid; }
+    .rt-stats b { font-size:22px; }
+    .rt-stats span { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--gray); }
+    .rt-guardado { font-size:12px; color:var(--gray); }
+    .rt-guardado.sucio { color:var(--amarillo); font-weight:600; }
+    .rt-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 12px; }
+    .rt-tabs button, .rt-semana button { font:600 14px inherit; font-family:inherit; padding:8px 14px; border:1px solid var(--border); background:white; color:var(--dark); border-radius:8px; cursor:pointer; }
+    .rt-tabs button[aria-selected=true], .rt-semana button[aria-selected=true] { background:var(--dark); color:white; border-color:var(--dark); }
+    .rt-semana { display:inline-flex; gap:4px; }
+    .rt-acciones { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .rt-mapa { height:380px; border-radius:10px; border:1px solid var(--border); z-index:0; }
+    .rt-leyenda { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; margin-top:8px; }
+    .rt-leyenda button { border:0; background:none; font:inherit; cursor:pointer; padding:2px 0; color:var(--dark); }
+    .rt-leyenda button[aria-pressed=false] { opacity:.35; }
+    .rt-leyenda i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+    .rt-dias { display:grid; grid-template-columns:repeat(var(--n,5), minmax(0,1fr)); gap:10px; margin-top:12px; }
+    @media (max-width:1100px) { .rt-dias { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+    @media (max-width:720px) { .rt-dias { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+    @media (max-width:480px) { .rt-dias { grid-template-columns:1fr; } }
+    .rt-dia { background:white; border:1px solid var(--border); border-top:4px solid var(--c); border-radius:8px; padding:8px; min-width:0; min-height:120px; }
+    .rt-dia.sobre { outline:2px dashed var(--c); outline-offset:2px; }
+    .rt-dia h3 { margin:0 0 6px; font-size:15px; display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
+    .rt-dia h3 small { font-size:11px; color:var(--gray); font-weight:500; white-space:nowrap; }
+    .rt-dia.sinasignar { --c: var(--gris); }
+    .rt-parada { display:grid; grid-template-columns:20px minmax(0,1fr) auto; gap:6px; padding:6px 4px; border-top:1px solid var(--border); cursor:grab; align-items:start; }
+    .rt-parada:active { cursor:grabbing; }
+    .rt-parada.arrastrando { opacity:.4; }
+    .rt-parada .n { font-size:11px; color:var(--gray); padding-top:2px; font-variant-numeric:tabular-nums; }
+    .rt-parada .s { font-weight:600; font-size:13px; overflow-wrap:anywhere; line-height:1.25; }
+    .rt-parada .a { font-size:11px; color:var(--gray); overflow-wrap:anywhere; }
+    .rt-parada .flechas { display:grid; gap:2px; }
+    .rt-parada .flechas button { border:1px solid var(--border); background:white; border-radius:4px; width:22px; height:18px; font-size:10px; line-height:1; cursor:pointer; color:var(--dark); padding:0; }
+    .rt-chip { display:inline-block; font-size:10px; font-weight:600; padding:1px 6px; border-radius:9px; border:1px solid var(--border); margin:3px 3px 0 0; color:var(--dark); background:white; }
+    .rt-chip.x2 { border-color:var(--accent); color:var(--accent); }
+    .rt-chip.q { border-style:dashed; }
+    .rt-chip.fija { background:var(--gray-light); }
+    .rt-chip.warn { background:var(--amarillo); border-color:var(--amarillo); color:white; }
+    .rt-mover { font-size:11px; margin-top:4px; max-width:100%; border:1px solid var(--border); border-radius:4px; padding:2px; background:white; color:var(--dark); }
+    .rt-tabla { width:100%; border-collapse:collapse; font-size:13px; }
+    .rt-tabla th, .rt-tabla td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+    .rt-tabla th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--gray); position:sticky; top:0; background:white; }
+    .rt-tabla td.num { text-align:right; font-variant-numeric:tabular-nums; }
+    .rt-tabla select, .rt-tabla input { font:inherit; font-size:12px; padding:3px 4px; border:1px solid var(--border); border-radius:4px; max-width:100%; }
+    .rt-scroll { overflow-x:auto; max-height:70vh; overflow-y:auto; }
+    .rt-ok { color:var(--verde); font-weight:600; }
+    .rt-no { color:var(--rojo); font-weight:600; }
+    .rt-nota { font-size:13px; color:var(--gray); max-width:80ch; }
+    .rt-progreso { height:8px; background:var(--gray-light); border-radius:4px; overflow:hidden; margin:8px 0; }
+    .rt-progreso div { height:100%; background:var(--accent); width:0; transition:width .2s; }
+    .rt-toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); background:var(--dark); color:white; padding:10px 16px; border-radius:8px; font-size:14px; z-index:1000; max-width:90vw; }
+    .rt-num-icono { width:22px; height:22px; border-radius:50%; color:white; font:700 11px/22px system-ui,sans-serif; text-align:center; border:2px solid white; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+    .rt-inicio-icono { width:16px; height:16px; background:var(--dark); border:3px solid white; transform:rotate(45deg); box-shadow:0 1px 3px rgba(0,0,0,.4); }
+    .rt-regla-fila { display:grid; grid-template-columns:1fr 1.4fr .9fr .8fr auto; gap:6px; align-items:center; margin-bottom:6px; }
+    .rt-regla-fila input, .rt-regla-fila select { font:inherit; font-size:13px; padding:6px; border:1px solid var(--border); border-radius:6px; min-width:0; }
+    @media (max-width:640px) { .rt-regla-fila { grid-template-columns:1fr 1fr; } }
+    [hidden] { display:none !important; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" aria-label="Volver"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <div class="topbar-title"><h1>Planificador de rutas</h1><span class="topbar-sub">Semana A y B por IBP</span></div>
+    <span class="topbar-spacer"></span>
+  </header>
+
+  <div id="pantallaLogin" class="card" hidden style="max-width:420px; margin:24px auto;">
+    <strong>Iniciar sesión</strong>
+    <p style="font-size:12px; color:var(--gray);">Con tu cuenta de admin de Bimbo Tools.</p>
+    <p id="loginError" style="color:var(--rojo); font-size:13px;"></p>
+    <label class="field">Correo <input type="email" id="loginEmail" autocomplete="username" /></label>
+    <label class="field">Contraseña <input type="password" id="loginPassword" autocomplete="current-password" /></label>
+    <button class="btn btn-primary" style="margin-top:10px;" id="btnLogin">Entrar</button>
+  </div>
+
+  <main class="rt" id="app" hidden>
+    <div class="card">
+      <div class="rt-barra">
+        <label>MSL <select id="selMsl"></select></label>
+        <label style="flex:1; min-width:220px;">Ruta (IBP) <select id="selRuta"></select></label>
+        <button class="btn btn-primary" id="btnCargar">Cargar ruta</button>
+        <span class="rt-guardado" id="estadoGuardado"></span>
+      </div>
+    </div>
+
+    <div id="vistaRuta" hidden>
+      <div class="card">
+        <div class="rt-stats" id="stats"></div>
+      </div>
+
+      <div class="rt-tabs" role="tablist">
+        <button role="tab" data-tab="plan" aria-selected="true">Plan A/B</button>
+        <button role="tab" data-tab="tiendas" aria-selected="false">Tiendas y frecuencias</button>
+        <button role="tab" data-tab="ubicaciones" aria-selected="false">Ubicaciones</button>
+        <button role="tab" data-tab="reglas" aria-selected="false">Reglas</button>
+      </div>
+
+      <!-- PLAN -->
+      <section id="tabPlan">
+        <div class="card">
+          <div class="rt-barra">
+            <div class="rt-semana" role="group" aria-label="Semana">
+              <button data-semana="A" aria-selected="true">Semana A</button>
+              <button data-semana="B" aria-selected="false">Semana B</button>
+            </div>
+            <label class="rt-check"><input type="checkbox" id="chkSabado" /> Incluir sábado</label>
+            <label>Máx. paradas/día <input type="number" id="numMax" min="1" max="60" placeholder="—" /></label>
+            <label style="flex:1; min-width:220px;">Punto de salida (lat, lng) <input type="text" id="txtInicio" placeholder="38.8462, -77.3064  — o vacío" /></label>
+          </div>
+          <div class="rt-acciones" style="margin-top:12px;">
+            <button class="btn btn-primary" id="btnCalcular">Calcular plan</button>
+            <button class="btn btn-secondary" id="btnReordenar">Reordenar días</button>
+            <button class="btn btn-secondary" id="btnSoltar">Soltar fijadas</button>
+            <button class="btn btn-primary" id="btnGuardar">Guardar</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-secondary btn-small" id="btnKmlA">KML semana A</button>
+            <button class="btn btn-secondary btn-small" id="btnKmlB">KML semana B</button>
+            <button class="btn btn-secondary btn-small" id="btnCsv">CSV</button>
+          </div>
+          <p class="rt-nota" style="margin:10px 0 0;">Arrastra una tienda a otro día para moverla (en el celular usa “Mover a”). Las tiendas que mueves a mano quedan <b>fijadas</b> y el cálculo las respeta. Una tienda 2x semana se mueve con su pareja de días; una semanal se mueve en A y B a la vez.</p>
+        </div>
+        <div class="card">
+          <div id="mapa" class="rt-mapa"></div>
+          <div class="rt-leyenda" id="leyenda"></div>
+        </div>
+        <div class="rt-dias" id="dias"></div>
+      </section>
+
+      <!-- TIENDAS -->
+      <section id="tabTiendas" hidden>
+        <div class="card">
+          <p class="rt-nota" style="margin-top:0;">La frecuencia sale de las reglas. Cámbiala aquí solo para excepciones; “Fuera de ruta” la saca del plan. Las tiendas inactivas o “por pedido” en Mi Territorio quedan fuera por defecto.</p>
+          <div class="rt-scroll"><table class="rt-tabla" id="tablaTiendas"></table></div>
+        </div>
+      </section>
+
+      <!-- UBICACIONES -->
+      <section id="tabUbicaciones" hidden>
+        <div class="card">
+          <strong>Coordenadas</strong>
+          <p class="rt-nota" id="ubiResumen"></p>
+          <ol class="rt-nota" style="padding-left:18px;">
+            <li><b>Census (recomendado, exacto y gratis):</b> descarga el archivo, súbelo en <a href="https://geocoding.geo.census.gov/geocoder/locations/addressbatch?form" target="_blank" rel="noopener">geocoding.geo.census.gov → Address Batch</a> (benchmark “Public_AR_Current”) y luego importa aquí el resultado.</li>
+            <li><b>OpenStreetMap:</b> busca una por una las que falten (más o menos 1 por segundo). Revisa en el mapa que caigan donde deben.</li>
+            <li><b>Manual:</b> en Google Maps, clic derecho sobre la tienda → copia las coordenadas y pégalas en la tabla.</li>
+          </ol>
+          <div class="rt-acciones">
+            <button class="btn btn-secondary btn-small" id="btnCensusRuta">Archivo Census (esta ruta, sin ubicación)</button>
+            <button class="btn btn-secondary btn-small" id="btnCensusTodas">Archivo Census (todas las rutas, sin ubicación)</button>
+            <label class="btn btn-primary btn-small" style="cursor:pointer;">Importar resultado Census <input type="file" id="fileCensus" accept=".csv,.txt" hidden /></label>
+            <button class="btn btn-secondary btn-small" id="btnOsm">Buscar en OpenStreetMap las que faltan</button>
+          </div>
+          <div class="rt-progreso" id="progreso" hidden><div></div></div>
+          <p class="rt-nota" id="ubiMensaje"></p>
+          <div class="rt-scroll"><table class="rt-tabla" id="tablaUbicaciones"></table></div>
+        </div>
+      </section>
+
+      <!-- REGLAS -->
+      <section id="tabReglas" hidden>
+        <div class="card">
+          <strong>Reglas de frecuencia</strong>
+          <p class="rt-nota">Se revisan en orden: primero las cadenas (el patrón busca en la cuenta y el nombre de la tienda), después la venta semanal promedio de las últimas 12 semanas. Aplican a todas las rutas.</p>
+          <div class="rt-regla-fila" style="font-size:11px; color:var(--gray); text-transform:uppercase;"><span>Cadena</span><span>Patrón</span><span>Frecuencia</span><span>2x si venta &gt;</span><span></span></div>
+          <div id="reglasCadenas"></div>
+          <button class="btn btn-secondary btn-small" id="btnAgregarRegla">Agregar cadena</button>
+          <div class="rt-barra" style="margin-top:14px;">
+            <label>Resto: 2x semana si venta &gt; <input type="number" id="numAlta" min="0" placeholder="—" /></label>
+            <label>Quincenal si venta &lt; <input type="number" id="numBaja" min="0" placeholder="—" /></label>
+          </div>
+          <div class="rt-acciones" style="margin-top:14px;">
+            <button class="btn btn-primary" id="btnGuardarReglas">Guardar reglas</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="js/depuracion.js"></script>
+  <script src="js/ruteo.js"></script>
+  <script src="js/rutas-app.js"></script>
+</body>
+</html>
