@@ -10,8 +10,8 @@
 --                 salida y frecuencias cambiadas a mano
 --   rutas_config  reglas globales de frecuencia (se editan en la página)
 --
--- Acceso: admin/corporativo leen y escriben todo; un "route" (IBP) solo LEE
--- el plan y las coordenadas de su propia ruta. Sin sesión, RLS bloquea todo.
+-- Acceso: solo admin, DOS, ZSL y MSL (lectura y escritura). Los IBPs y
+-- cualquier otro rol no ven nada. Sin sesión, RLS bloquea todo.
 -- ============================================================================
 
 create table if not exists public.rutas_geo (
@@ -53,36 +53,23 @@ alter table public.rutas_geo enable row level security;
 alter table public.rutas_plan enable row level security;
 alter table public.rutas_config enable row level security;
 
--- Lectura
-create policy "rutas_geo_select" on public.rutas_geo for select
-using (
-  public.current_user_role() = any (array['admin','corporativo']::public.user_role[])
-  or exists (
-    select 1 from public.tiendas t
-    where t.id = rutas_geo.tienda_id and t.ibp_id = public.current_user_route_code()
-  )
-);
+-- Roles con acceso al planificador (se compara como texto para no depender
+-- de que el enum user_role tenga todos estos valores).
+create or replace function public.rutas_tiene_acceso()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce(lower(public.current_user_role()::text) = any (array['admin','dos','zsl','msl']), false)
+$$;
 
-create policy "rutas_plan_select" on public.rutas_plan for select
-using (
-  public.current_user_role() = any (array['admin','corporativo']::public.user_role[])
-  or ibp_id = public.current_user_route_code()
-);
+create policy "rutas_geo_acceso" on public.rutas_geo for all
+using (public.rutas_tiene_acceso()) with check (public.rutas_tiene_acceso());
 
-create policy "rutas_config_select" on public.rutas_config for select
-using (public.current_user_role() is not null);
+create policy "rutas_plan_acceso" on public.rutas_plan for all
+using (public.rutas_tiene_acceso()) with check (public.rutas_tiene_acceso());
 
--- Escritura: solo admin/corporativo
-create policy "rutas_geo_write" on public.rutas_geo for all
-using (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]))
-with check (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]));
-
-create policy "rutas_plan_write" on public.rutas_plan for all
-using (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]))
-with check (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]));
-
-create policy "rutas_config_write" on public.rutas_config for all
-using (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]))
-with check (public.current_user_role() = any (array['admin','corporativo']::public.user_role[]));
+create policy "rutas_config_acceso" on public.rutas_config for all
+using (public.rutas_tiene_acceso()) with check (public.rutas_tiene_acceso());
 
 grant select, insert, update, delete on public.rutas_geo, public.rutas_plan, public.rutas_config to authenticated;

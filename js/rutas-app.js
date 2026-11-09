@@ -139,7 +139,12 @@
   async function arrancar() {
     S.perfil = await D.getPerfilActual();
     if (!S.perfil) return mostrarLogin("Tu cuenta no tiene perfil en Bimbo Tools.");
-    S.soloLectura = !["admin", "corporativo"].includes(S.perfil.role);
+    // Solo admin y la jerarquía de managers (DOS, ZSL, MSL). Nadie más.
+    if (!["admin", "dos", "zsl", "msl"].includes(String(S.perfil.role || "").toLowerCase())) {
+      await D.cerrarSesion().catch(() => {});
+      return mostrarLogin("Esta página es solo para admin, DOS, ZSL y MSL.");
+    }
+    S.soloLectura = false;
     $("pantallaLogin").hidden = true;
     $("app").hidden = false;
     document.body.classList.toggle("solo-lectura", S.soloLectura);
