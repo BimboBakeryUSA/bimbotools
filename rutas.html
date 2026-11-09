@@ -160,17 +160,20 @@
         <div class="card">
           <strong>Coordenadas</strong>
           <p class="rt-nota" id="ubiResumen"></p>
-          <ol class="rt-nota" style="padding-left:18px;">
-            <li><b>Census (recomendado, exacto y gratis):</b> descarga el archivo, súbelo en <a href="https://geocoding.geo.census.gov/geocoder/locations/addressbatch?form" target="_blank" rel="noopener">geocoding.geo.census.gov → Address Batch</a> (benchmark “Public_AR_Current”) y luego importa aquí el resultado.</li>
-            <li><b>OpenStreetMap:</b> busca una por una las que falten (más o menos 1 por segundo). Revisa en el mapa que caigan donde deben.</li>
-            <li><b>Manual:</b> en Google Maps, clic derecho sobre la tienda → copia las coordenadas y pégalas en la tabla.</li>
-          </ol>
+          <p class="rt-nota">Al cargar una ruta, las tiendas sin ubicación se buscan solas en el Census y, si no aparecen, en OpenStreetMap. Se guardan en Supabase, así que se hace una sola vez. Las que no se encuentren se ponen a mano: en Google Maps, clic derecho sobre la tienda → copia las coordenadas y pégalas en la tabla.</p>
+          <div class="rt-acciones">
+            <button class="btn btn-primary btn-small" id="btnUbicarTodas">Ubicar todas las rutas</button>
+          </div>
+          <details class="rt-nota" style="margin-top:10px;">
+            <summary>Respaldo: archivo del Census u OpenStreetMap manual</summary>
+            <p>Si la búsqueda automática falla, descarga el archivo, súbelo en <a href="https://geocoding.geo.census.gov/geocoder/locations/addressbatch?form" target="_blank" rel="noopener">geocoding.geo.census.gov → Address Batch</a> (benchmark “Public_AR_Current”) e importa aquí el resultado.</p>
           <div class="rt-acciones">
             <button class="btn btn-secondary btn-small" id="btnCensusRuta">Archivo Census (esta ruta, sin ubicación)</button>
             <button class="btn btn-secondary btn-small" id="btnCensusTodas">Archivo Census (todas las rutas, sin ubicación)</button>
             <label class="btn btn-primary btn-small" style="cursor:pointer;">Importar resultado Census <input type="file" id="fileCensus" accept=".csv,.txt" hidden /></label>
             <button class="btn btn-secondary btn-small" id="btnOsm">Buscar en OpenStreetMap las que faltan</button>
           </div>
+          </details>
           <div class="rt-progreso" id="progreso" hidden><div></div></div>
           <p class="rt-nota" id="ubiMensaje"></p>
           <div class="rt-scroll"><table class="rt-tabla" id="tablaUbicaciones"></table></div>

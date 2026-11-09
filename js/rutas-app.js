@@ -266,8 +266,11 @@
         : "Esta ruta todavía no tiene plan guardado.";
       $("vistaRuta").hidden = false;
       renderTodo();
-      if (!plan && !S.soloLectura && S.tiendas.some((t) => S.geo.has(t.id))) {
-        toast("Ruta sin plan: presiona “Calcular plan”.");
+      const faltan = S.tiendas.filter((t) => !S.geo.has(t.id));
+      if (faltan.length && !S.soloLectura && !ubicando) {
+        await ubicarRutaActual(faltan, !plan);
+      } else if (!plan && !S.soloLectura && S.tiendas.some((t) => S.geo.has(t.id))) {
+        calcular();
       }
     } catch (e) {
       console.error(e);
@@ -855,6 +858,164 @@
   }
 
   const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+  // --------------------------------------------------------------------------
+  // Ubicación automática: Census (JSONP, una dirección a la vez — el Census no
+  // acepta CORS, así que es la vía que su documentación indica para páginas
+  // web) y OpenStreetMap como respaldo para las que el Census no encuentre.
+  // --------------------------------------------------------------------------
+
+  let jsonpN = 0;
+  function censusJsonp(t) {
+    return new Promise((ok) => {
+      const cb = `__census${Date.now()}_${jsonpN++}`;
+      const params = new URLSearchParams({
+        street: limpiarCalle(t.direccion),
+        city: t.ciudad || "",
+        state: t.estado_us || "",
+        zip: t.zip || "",
+        benchmark: "Public_AR_Current",
+        format: "jsonp",
+        callback: cb,
+      });
+      const s = document.createElement("script");
+      let listo = false;
+      const fin = (valor) => {
+        if (listo) return;
+        listo = true;
+        clearTimeout(timer);
+        delete window[cb];
+        s.remove();
+        ok(valor);
+      };
+      const timer = setTimeout(() => fin(null), 20000);
+      window[cb] = (data) => {
+        const m = data && data.result && data.result.addressMatches && data.result.addressMatches[0];
+        fin(m && m.coordinates ? { lat: Number(m.coordinates.y), lng: Number(m.coordinates.x) } : null);
+      };
+      s.onerror = () => fin(null);
+      s.src = `https://geocoding.geo.census.gov/geocoder/locations/address?${params}`;
+      document.head.appendChild(s);
+    });
+  }
+
+  let ubicando = null; // { cancelado: bool }
+
+  /**
+   * Busca coordenadas para `tiendas`: Census (4 a la vez) y luego
+   * OpenStreetMap (1 por segundo) para las que falten. Guarda en Supabase.
+   * progreso(hechas, total, encontradas, fase)
+   * Devuelve { encontradas, noEncontradas: [tiendas], cancelado }.
+   */
+  async function geocodificar(tiendas, progreso) {
+    if (ubicando) ubicando.cancelado = true;
+    const yo = { cancelado: false };
+    ubicando = yo;
+    const pendientes = [];
+    const encontradas = [];
+    let hechas = 0, porGuardar = [];
+
+    const guardar = async () => {
+      if (!porGuardar.length) return;
+      const lote = porGuardar;
+      porGuardar = [];
+      try { await D.guardarGeo(lote); } catch (e) { console.error(e); }
+    };
+    const anotar = (t, p, fuente) => {
+      const fila = { tienda_id: t.id, lat: p.lat, lng: p.lng, fuente };
+      porGuardar.push(fila);
+      encontradas.push(fila);
+      if (S.porId.has(t.id)) S.geo.set(t.id, fila);
+    };
+
+    // Census, 4 en paralelo
+    const cola = tiendas.slice();
+    const trabajador = async () => {
+      while (cola.length && !yo.cancelado) {
+        const t = cola.shift();
+        const p = await censusJsonp(t);
+        if (p && isFinite(p.lat) && isFinite(p.lng)) anotar(t, p, "census");
+        else pendientes.push(t);
+        hechas++;
+        progreso(hechas, tiendas.length, encontradas.length, "Census");
+        if (porGuardar.length >= 25) await guardar();
+      }
+    };
+    await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
+    await guardar();
+
+    // OpenStreetMap para las que faltan (Nominatim pide máx. 1 por segundo)
+    const noEncontradas = [];
+    for (let i = 0; i < pendientes.length && !yo.cancelado; i++) {
+      const t = pendientes[i];
+      let p = null;
+      try { p = await buscarOsm(t); } catch (e) { p = null; }
+      if (p && isFinite(p.lat) && isFinite(p.lng)) anotar(t, p, "osm");
+      else noEncontradas.push(t);
+      progreso(i + 1, pendientes.length, encontradas.length, "OpenStreetMap");
+      if (porGuardar.length >= 10) await guardar();
+      await esperar(1100);
+    }
+    await guardar();
+    if (ubicando === yo) ubicando = null;
+    return { encontradas: encontradas.length, noEncontradas, cancelado: yo.cancelado };
+  }
+
+  async function ubicarRutaActual(faltan, calcularAlTerminar) {
+    const ruta = S.ruta;
+    const est = $("estadoGuardado");
+    const res = await geocodificar(faltan, (h, n, enc, fase) => {
+      if (S.ruta !== ruta) return;
+      est.textContent = `Ubicando tiendas (${fase}): ${h} de ${n}…`;
+    });
+    if (res.cancelado || S.ruta !== ruta) return;
+    S.ajustarMapa = true;
+    const msg = res.noEncontradas.length
+      ? `${res.encontradas} tiendas ubicadas. ${res.noEncontradas.length} sin ubicación: ponlas a mano en la pestaña Ubicaciones.`
+      : `${res.encontradas} tiendas ubicadas.`;
+    est.textContent = msg;
+    if (calcularAlTerminar && S.tiendas.some((t) => S.geo.has(t.id))) {
+      calcular();
+      toast(`${msg} Plan calculado: revísalo y presiona Guardar.`);
+    } else {
+      // Las tiendas recién ubicadas que ya estaban en el plan: recalcular el orden.
+      S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), S.plan.inicio);
+      renderTodo();
+      toast(msg);
+    }
+  }
+
+  $("btnUbicarTodas").onclick = async () => {
+    if (ubicando) return toast("Ya hay una búsqueda de ubicaciones en curso.");
+    $("btnUbicarTodas").disabled = true;
+    $("progreso").hidden = false;
+    $("ubiMensaje").textContent = "Revisando qué tiendas no tienen ubicación…";
+    try {
+      const todas = S.tiendasTodas || (S.tiendasTodas = await D.getTiendasBasicas());
+      const geo = await D.getGeo(todas.map((t) => t.id));
+      const faltan = todas.filter((t) => !geo.has(t.id));
+      if (!faltan.length) {
+        $("ubiMensaje").textContent = "Todas las tiendas de todas las rutas ya tienen ubicación.";
+        return;
+      }
+      const res = await geocodificar(faltan, (h, n, enc, fase) => {
+        $("progreso").firstElementChild.style.width = `${(h / n) * 100}%`;
+        $("ubiMensaje").textContent = `${fase}: ${h} de ${n} · ${enc} ubicadas. Deja la página abierta.`;
+      });
+      S.ajustarMapa = true;
+      renderTodo();
+      $("ubiMensaje").textContent = res.cancelado
+        ? "Búsqueda interrumpida. Lo ya encontrado quedó guardado; presiona de nuevo para seguir."
+        : `Listo: ${res.encontradas} de ${faltan.length} tiendas ubicadas.` +
+          (res.noEncontradas.length ? ` Sin ubicación (${res.noEncontradas.length}): ${res.noEncontradas.slice(0, 30).map((t) => t.nombre).join(", ")}${res.noEncontradas.length > 30 ? "…" : ""}. Ponlas a mano.` : "");
+    } catch (e) {
+      console.error(e);
+      $("ubiMensaje").textContent = `No se pudo completar: ${e.message}`;
+    } finally {
+      $("btnUbicarTodas").disabled = false;
+      $("progreso").hidden = true;
+    }
+  };
 
   $("btnOsm").onclick = async () => {
     if (osmCorriendo) { osmCorriendo = false; return; }
