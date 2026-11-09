@@ -10,8 +10,8 @@
 --                 salida y frecuencias cambiadas a mano
 --   rutas_config  reglas globales de frecuencia (se editan en la página)
 --
--- Acceso: solo admin, DOS, ZSL y MSL (lectura y escritura). Los IBPs y
--- cualquier otro rol no ven nada. Sin sesión, RLS bloquea todo.
+-- Acceso: solo admin y corporativo (managers: DOS, ZSL, MSL). Los IBPs
+-- (route) y cualquier otro rol no ven nada. Sin sesión, RLS bloquea todo.
 -- ============================================================================
 
 create table if not exists public.rutas_geo (
@@ -60,7 +60,7 @@ returns boolean
 language sql
 stable
 as $$
-  select coalesce(lower(public.current_user_role()::text) = any (array['admin','dos','zsl','msl']), false)
+  select coalesce(lower(public.current_user_role()::text) = any (array['admin','corporativo','dos','zsl','msl']), false)
 $$;
 
 create policy "rutas_geo_acceso" on public.rutas_geo for all

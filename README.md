@@ -344,4 +344,4 @@ Arma la semana A y B de cada IBP sin IA: todo es cálculo en el navegador
 Coordenadas en `rutas_geo` (Census batch, OpenStreetMap o manual). Plan en
 `rutas_plan`, reglas en `rutas_config`. Las tablas se crean con
 `scripts/rutas_schema.sql` (solo agrega tablas; no toca las de Mi Territorio).
-Solo admin, DOS, ZSL y MSL pueden abrirlo; no aparece en el inicio.
+Solo admin y corporativo (managers) pueden abrirlo; no aparece en el inicio.
