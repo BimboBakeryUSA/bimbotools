@@ -27,7 +27,7 @@
   // Sin reglas cargadas, todas las tiendas quedan semanales.
   const REGLAS_DEFECTO = { cadenas: [], ventaMuyAlta: null, ventaAlta: null, ventaBaja: null };
 
-  const ETIQUETA_FREQ = { "3x": "3x semana", "2x": "2x semana", "1x": "Semanal", q: "Quincenal", fuera: "Fuera de ruta" };
+  const ETIQUETA_FREQ = { "5x": "5x semana", "4x": "4x semana", "3x": "3x semana", "2x": "2x semana", "1x": "Semanal", q: "Quincenal", fuera: "Fuera de ruta" };
 
   // --------------------------------------------------------------------------
   // Frecuencia por regla
@@ -88,16 +88,23 @@
     };
   }
 
+  // Visitas por semana de las frecuencias "2x".."5x" (0 para las demás).
+  function veces(freq) {
+    const m = /^([2-7])x$/.exec(freq || "");
+    return m ? Number(m[1]) : 0;
+  }
+
   // dias: días que trabaja la ruta, ej. [1,2,3,4,5] o [1,3,5]
   // todos = false: solo los patrones bien espaciados (los que usa el cálculo).
   // todos = true: cualquier combinación de días (para mover a mano: L+M+J,
   // L+M+S...); primero van los bien espaciados.
   function patrones(freq, dias, todos) {
     const lista = [...new Set(dias)].sort((a, b) => a - b);
-    if (todos && (freq === "2x" || freq === "3x")) {
+    const n = veces(freq);
+    if (todos && n) {
       const buenos = patrones(freq, dias, false);
       const claves = new Set(buenos.map((p) => p.clave));
-      return buenos.concat(combinaciones(lista, freq === "2x" ? 2 : 3).map(patronMultiple).filter((p) => !claves.has(p.clave)));
+      return buenos.concat(combinaciones(lista, n).map(patronMultiple).filter((p) => !claves.has(p.clave)));
     }
     if (freq === "2x") {
       const pares = combinaciones(lista, 2);
@@ -110,13 +117,18 @@
       const usar = tres.length ? tres : pares.filter((c) => minimo(c) >= mejor);
       return usar.map(patronMultiple);
     }
-    if (freq === "3x") {
-      // Tres visitas lo más parejas posible (lunes+miércoles+viernes...).
-      const trios = combinaciones(lista, 3);
-      if (!trios.length) return [];
+    if (n >= 3) {
+      // 3x, 4x, 5x: visitas lo más parejas posible (3x = lunes+miércoles+
+      // viernes...): el hueco más corto lo más largo posible y, entre esas,
+      // el hueco más largo lo más corto posible.
+      const combos = combinaciones(lista, n);
+      if (!combos.length) return [];
       const minimo = (c) => Math.min(...huecos(c));
-      const mejor = Math.max(...trios.map(minimo));
-      return trios.filter((c) => minimo(c) === mejor).map(patronMultiple);
+      const maximo = (c) => Math.max(...huecos(c));
+      const mejorMin = Math.max(...combos.map(minimo));
+      const conMin = combos.filter((c) => minimo(c) === mejorMin);
+      const mejorMax = Math.min(...conMin.map(maximo));
+      return conMin.filter((c) => maximo(c) === mejorMax).map(patronMultiple);
     }
     if (freq === "1x") {
       return lista.map((d) => ({ clave: `${d}`, etiqueta: DIAS[d], slots: [`A${d}`, `B${d}`] }));
@@ -246,7 +258,7 @@
   }
 
   /**
-   * tiendas: [{ id, lat, lng, freq }]  (freq: "3x" | "2x" | "1x" | "q" | "fuera")
+   * tiendas: [{ id, lat, lng, freq }]  (freq: "5x" | "4x" | "3x" | "2x" | "1x" | "q" | "fuera")
    * opts: {
    *   dias: [1,2,3,4,5], inicio: {lat,lng} | null | (slot) => {lat,lng} | null,
    *   fijadas: { id: ["A1","B1"] }   // patrón que no se toca
@@ -365,6 +377,7 @@
     millasDeSlots,
     validar,
     salidaDe,
+    veces,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.BimboRuteo = api;

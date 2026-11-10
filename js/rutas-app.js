@@ -649,7 +649,7 @@
   }
 
   function chipFreq(f) {
-    const c = f === "2x" || f === "3x" ? "x2" : f === "q" ? "q" : "";
+    const c = R.veces(f) ? "x2" : f === "q" ? "q" : "";
     return `<span class="rt-chip ${c}">${R.ETIQUETA_FREQ[f]}</span>`;
   }
 
@@ -829,7 +829,7 @@
   });
 
   // Patrón nuevo al arrastrar una visita de `origen` a `destino` (slots
-  // "A1"...). En 2x/3x solo cambia el día arrastrado y los otros se quedan
+  // "A1"...). En 2x..5x solo cambia el día arrastrado y los otros se quedan
   // (L+J arrastrando el jueves al martes = L+M), igual en semana A y B.
   function patronMovido(t, origen, destino) {
     const etiqueta = R.ETIQUETA_FREQ[t.freq].toLowerCase();
@@ -839,7 +839,7 @@
       return null;
     }
     const dDest = Number(destino[1]);
-    if ((t.freq === "2x" || t.freq === "3x") && origen) {
+    if (R.veces(t.freq) && origen) {
       const actual = R.patronActual(t.id, t.freq, S.dias, S.plan.slots);
       if (actual) {
         const dias = actual.clave.split("+").map(Number);
@@ -940,7 +940,7 @@
   function renderTabla() {
     const filas = S.tiendas
       .map((t) => {
-        const opciones = ["3x", "2x", "1x", "q", "fuera"]
+        const opciones = ["5x", "4x", "3x", "2x", "1x", "q", "fuera"]
           .map((f) => `<option value="${f}" ${t.freq === f ? "selected" : ""}>${R.ETIQUETA_FREQ[f]}${f === t.freqRegla ? " (regla)" : ""}</option>`)
           .join("");
         const ibp = [t.estatus || "sin revisar", t.frecuencia || "", (t.dias_visita || []).join("/")].filter(Boolean).join(" · ");
@@ -1315,7 +1315,7 @@
   // --------------------------------------------------------------------------
 
   function renderReglas() {
-    const opciones = (f) => ["3x", "2x", "1x", "q"].map((x) => `<option value="${x}" ${x === f ? "selected" : ""}>${R.ETIQUETA_FREQ[x]}</option>`).join("");
+    const opciones = (f) => ["5x", "4x", "3x", "2x", "1x", "q"].map((x) => `<option value="${x}" ${x === f ? "selected" : ""}>${R.ETIQUETA_FREQ[x]}</option>`).join("");
     const dis = S.soloLectura ? "disabled" : "";
     $("reglasCadenas").innerHTML = S.reglas.cadenas
       .map((c, i) => `<div class="rt-regla-fila" data-i="${i}">

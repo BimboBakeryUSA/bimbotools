@@ -341,7 +341,7 @@ Arma la semana A y B de cada IBP sin IA: todo es cálculo en el navegador
    warehouse. Los warehouses usados quedan guardados para elegirlos en otras
    rutas.
 3. **Asignación de días** por búsqueda local: minimiza millas + desbalance
-   entre días. 3x = tres días de carga bien espaciados (ej. lunes/miércoles/
+   entre días. 3x, 4x y 5x = días bien espaciados (ej. 3x = lunes/miércoles/
    viernes); 2x = dos días separados por 3 (lunes/jueves, martes/viernes) o,
    si la carga no lo permite, con al menos un día de por medio; semanal =
    mismo día en A y B; quincenal = un día en A o en B.
