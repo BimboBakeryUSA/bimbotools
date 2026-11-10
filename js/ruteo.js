@@ -29,6 +29,29 @@
 
   const ETIQUETA_FREQ = { "5x": "5x semana", "4x": "4x semana", "3x": "3x semana", "2x": "2x semana", "1x": "Semanal", q: "Quincenal", fuera: "Fuera de ruta" };
 
+  // Idioma de las etiquetas (días, frecuencias, patrones). DIAS y
+  // ETIQUETA_FREQ se cambian en su lugar para que quien los usa vea el nuevo.
+  const TEXTOS = {
+    es: {
+      dias: ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+      freq: { "5x": "5x semana", "4x": "4x semana", "3x": "3x semana", "2x": "2x semana", "1x": "Semanal", q: "Quincenal", fuera: "Fuera de ruta" },
+      y: "y",
+      semana: "Semana",
+    },
+    en: {
+      dias: ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      freq: { "5x": "5x week", "4x": "4x week", "3x": "3x week", "2x": "2x week", "1x": "Weekly", q: "Biweekly", fuera: "Off route" },
+      y: "and",
+      semana: "Week",
+    },
+  };
+  let txt = TEXTOS.es;
+  function setIdioma(idioma) {
+    txt = TEXTOS[idioma] || TEXTOS.es;
+    DIAS.splice(0, DIAS.length, ...txt.dias);
+    Object.assign(ETIQUETA_FREQ, txt.freq);
+  }
+
   // --------------------------------------------------------------------------
   // Frecuencia por regla
   // --------------------------------------------------------------------------
@@ -83,7 +106,7 @@
     const nombres = combo.map((d) => DIAS[d]);
     return {
       clave: combo.join("+"),
-      etiqueta: nombres.length > 2 ? `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}` : nombres.join(" y "),
+      etiqueta: nombres.length > 2 ? `${nombres.slice(0, -1).join(", ")} ${txt.y} ${nombres[nombres.length - 1]}` : nombres.join(` ${txt.y} `),
       slots: ["A", "B"].flatMap((w) => combo.map((d) => `${w}${d}`)),
     };
   }
@@ -135,7 +158,7 @@
     }
     if (freq === "q") {
       const out = [];
-      ["A", "B"].forEach((w) => lista.forEach((d) => out.push({ clave: `${w}${d}`, etiqueta: `Semana ${w} · ${DIAS[d]}`, slots: [`${w}${d}`] })));
+      ["A", "B"].forEach((w) => lista.forEach((d) => out.push({ clave: `${w}${d}`, etiqueta: `${txt.semana} ${w} · ${DIAS[d]}`, slots: [`${w}${d}`] })));
       return out;
     }
     return [];
@@ -378,6 +401,7 @@
     validar,
     salidaDe,
     veces,
+    setIdioma,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.BimboRuteo = api;

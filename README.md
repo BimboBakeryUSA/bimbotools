@@ -346,7 +346,11 @@ Arma la semana A y B de cada IBP sin IA: todo es cálculo en el navegador
    si la carga no lo permite, con al menos un día de por medio; semanal =
    mismo día en A y B; quincenal = un día en A o en B.
 4. **Orden del día**: vecino más cercano + 2-opt desde el warehouse.
-5. Ajuste manual arrastrando (las tiendas movidas quedan fijadas) y
+5. **Idioma e impresión**: botón ES/EN arriba a la derecha (se recuerda en
+   el navegador; textos en `js/rutas-i18n.js`). “Imprimir para el IBP” arma
+   una hoja con la semana A y B, un bloque por día con el orden de paradas
+   y el warehouse arriba en sus días, en el idioma elegido.
+6. Ajuste manual arrastrando (las tiendas movidas quedan fijadas) y
    exportación KML por semana + CSV.
 
 Coordenadas en `rutas_geo` (Census batch, OpenStreetMap o manual). Plan en

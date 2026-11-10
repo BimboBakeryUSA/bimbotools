@@ -7,12 +7,17 @@
 (function () {
   const D = window.BimboDepuracion;
   const R = window.BimboRuteo;
+  const I = window.RutasIdioma;
+  const T = (es, vars) => I.T(es, vars);
+  const LS_IDIOMA = "rutasIdioma";
   const $ = (id) => document.getElementById(id);
   const LS_RUTA = "rutasUltimaRuta";
   const COLORES = ["", "#c0392b", "#1f6fb2", "#2e8a4e", "#c77a00", "#7a4bb0", "#00838f", "#6d4c41"];
   const TODOS_DIAS = [1, 2, 3, 4, 5, 6, 7];
   const DIAS_DEFECTO = [1, 2, 3, 4, 5];
-  const CORTO = ["", "L", "M", "Mi", "J", "V", "S", "D"];
+  const CORTO_ES = ["", "L", "M", "Mi", "J", "V", "S", "D"];
+  const CORTO_EN = ["", "M", "T", "W", "Th", "F", "Sa", "Su"];
+  let CORTO = CORTO_ES;
 
   const S = {
     perfil: null,
@@ -140,7 +145,34 @@
   // Sesión
   // --------------------------------------------------------------------------
 
+  // Regla con el texto que arma BimboRuteo ("Venta > 400", "Resto (semanal)"...).
+  function traducirRegla(r) {
+    const m = /^Venta ([<>]) (.+)$/.exec(r || "");
+    return m ? T(`Venta ${m[1]} {n}`, { n: m[2] }) : T(r || "");
+  }
+
+  function aplicarIdioma(idioma) {
+    I.setIdioma(idioma);
+    CORTO = I.idioma === "en" ? CORTO_EN : CORTO_ES;
+    $("btnIdioma").textContent = I.idioma === "en" ? "ES" : "EN";
+    $("btnIdioma").setAttribute("aria-label", I.idioma === "en" ? "Español" : "English");
+    $("btnIdioma").title = I.idioma === "en" ? "Cambiar a español" : "Switch to English";
+    try { localStorage.setItem(LS_IDIOMA, I.idioma); } catch (e) {}
+    if (S.plan) {
+      renderBarraPlan();
+      renderTodo();
+      if (!$("tabReglas").hidden) renderReglas();
+      if (S.sucio) marcarSucio();
+    }
+  }
+
+  $("btnIdioma").onclick = () => aplicarIdioma(I.idioma === "en" ? "es" : "en");
+
   async function iniciar() {
+    I.iniciar();
+    let guardado = "es";
+    try { guardado = localStorage.getItem(LS_IDIOMA) || "es"; } catch (e) {}
+    aplicarIdioma(guardado);
     await D.init();
     const sesion = await D.getSesionValida();
     if (!sesion) return mostrarLogin();
@@ -224,7 +256,7 @@
   $("selMsl").onchange = llenarRutas;
 
   $("btnCargar").onclick = async () => {
-    if (S.sucio && !window.confirm("Hay cambios sin guardar en esta ruta. ¿Cargar otra de todos modos?")) return;
+    if (S.sucio && !window.confirm(T("Hay cambios sin guardar en esta ruta. ¿Cargar otra de todos modos?"))) return;
     await cargarRuta($("selRuta").value);
   };
 
@@ -303,7 +335,7 @@
       S.ajustarMapa = true;
       marcarSucio(false);
       $("estadoGuardado").textContent = plan
-        ? `Plan guardado ${new Date(plan.actualizado_en).toLocaleString("es-US")}${plan.actualizado_por ? " por " + plan.actualizado_por : ""}`
+        ? T("Plan guardado {fecha}{por}", { fecha: new Date(plan.actualizado_en).toLocaleString(I.locale), por: plan.actualizado_por ? T(" por {a}", { a: plan.actualizado_por }) : "" })
         : "Esta ruta todavía no tiene plan guardado.";
       $("vistaRuta").hidden = false;
       renderBarraPlan();
@@ -316,7 +348,7 @@
       }
     } catch (e) {
       console.error(e);
-      $("estadoGuardado").textContent = `No se pudo cargar la ruta: ${e.message}`;
+      $("estadoGuardado").textContent = T("No se pudo cargar la ruta: {e}", { e: e.message });
     }
   }
 
@@ -407,9 +439,9 @@
     asegurarSlots();
     marcarSucio();
     renderTodo();
-    const msgSin = res.sinUbicar.length ? ` ${res.sinUbicar.length} tiendas sin ubicación quedaron sin asignar.` : "";
-    const msgDias = res.sinDias.length ? ` ${res.sinDias.length} tiendas no caben en los días de carga (${nombreDias(S.dias)}) con su frecuencia.` : "";
-    toast(`Plan calculado.${msgSin}${msgDias}`);
+    const msgSin = res.sinUbicar.length ? T(" {n} tiendas sin ubicación quedaron sin asignar.", { n: res.sinUbicar.length }) : "";
+    const msgDias = res.sinDias.length ? T(" {n} tiendas no caben en los días de trabajo ({dias}) con su frecuencia.", { n: res.sinDias.length, dias: nombreDias(S.dias) }) : "";
+    toast(T("Plan calculado.") + msgSin + msgDias);
   }
 
   $("btnCalcular").onclick = calcular;
@@ -436,12 +468,12 @@
         S.perfil.nombre || S.perfil.email
       );
       marcarSucio(false);
-      $("estadoGuardado").textContent = `Guardado ${new Date(cuando).toLocaleString("es-US")}`;
+      $("estadoGuardado").textContent = T("Guardado {fecha}", { fecha: new Date(cuando).toLocaleString(I.locale) });
       const n = sinAsignar().length;
-      toast(n ? `Guardado. Ojo: ${n} tiendas siguen sin asignar.` : "Plan guardado.");
+      toast(n ? T("Guardado. Ojo: {n} tiendas siguen sin asignar.", { n }) : "Plan guardado.");
     } catch (e) {
       console.error(e);
-      toast(errorTablasFaltantes(e) ? "No se guardó: faltan las tablas del planificador en Supabase." : `No se guardó: ${e.message}`);
+      toast(errorTablasFaltantes(e) ? "No se guardó: faltan las tablas del planificador en Supabase." : T("No se guardó: {e}", { e: e.message }));
     }
   };
 
@@ -467,7 +499,7 @@
     });
     marcarSucio();
     const sinDias = S.tiendas.filter((t) => t.freq !== "fuera" && !R.patrones(t.freq, S.dias).length);
-    if (sinDias.length) toast(`${sinDias.length} tiendas no caben en ${nombreDias(S.dias)} con su frecuencia (ej. 3x semana necesita 3 días de trabajo).`);
+    if (sinDias.length) toast(T("{n} tiendas no caben en {dias} con su frecuencia (ej. 3x semana necesita 3 días de trabajo).", { n: sinDias.length, dias: nombreDias(S.dias) }));
     return true;
   }
 
@@ -585,7 +617,7 @@
     marcarSucio();
     renderBarraPlan();
     renderTodo();
-    toast(`${w.nombre} agregado. Arrástralo a los días que el IBP va a cargar (o usa sus botones de días). Luego Guardar.`);
+    toast(T("{w} agregado. Arrástralo a los días que el IBP va a cargar (o usa sus botones de días). Luego Guardar.", { w: w.nombre }));
     // Queda registrado para elegirlo en otras rutas sin volver a escribirlo.
     S.warehouses = S.warehouses.filter((x) => x.id !== w.id).concat(w);
     try { await D.guardarConfigRutas("warehouses", S.warehouses); } catch (err) { console.error(err); }
@@ -663,7 +695,7 @@
       <div>
         <div class="s">${esc(t.nombre)}</div>
         <div class="a">${esc(t.direccion)}, ${esc(t.ciudad)}</div>
-        ${chipFreq(t.freq)}<span class="rt-chip">$${Math.round(t.ventaSem)}/sem</span>${S.plan.fijadas.has(t.id) ? '<span class="rt-chip fija">Fijada</span>' : ""}${S.geo.has(t.id) ? "" : '<span class="rt-chip warn">Sin ubicación</span>'}
+        ${chipFreq(t.freq)}<span class="rt-chip">$${Math.round(t.ventaSem)}${T("/sem")}</span>${S.plan.fijadas.has(t.id) ? '<span class="rt-chip fija">Fijada</span>' : ""}${S.geo.has(t.id) ? "" : '<span class="rt-chip warn">Sin ubicación</span>'}
         ${editable ? `<select class="rt-mover" data-id="${esc(t.id)}" aria-label="Mover ${esc(t.nombre)}"><option value="">Mover a…</option>${opciones}<option value="__quitar">Quitar del plan</option></select>` : ""}
       </div>
       ${editable && slot ? `<div class="flechas"><button data-sube="${esc(t.id)}" aria-label="Subir">▲</button><button data-baja="${esc(t.id)}" aria-label="Bajar">▼</button></div>` : "<span></span>"}
@@ -701,9 +733,9 @@
       const k = `${S.semana}${d}`;
       const ids = S.plan.slots[k] || [];
       const tarjetaWh = w && S.plan.whDias.includes(d)
-        ? `<div class="rt-parada wh" draggable="${ed}" data-wh="1" data-slot="${k}"><span class="n">W</span><div><div class="s">${esc(w.nombre)}</div><div class="a">Carga · salida del día</div></div>${ed ? `<div class="flechas"><button data-wh-quitar-dia="${d}" aria-label="Quitar el warehouse de ${R.DIAS[d]}" title="Quitar de este día">✕</button></div>` : "<span></span>"}</div>`
+        ? `<div class="rt-parada wh" draggable="${ed}" data-wh="1" data-slot="${k}"><span class="n">W</span><div><div class="s">${esc(w.nombre)}</div><div class="a">Carga · salida del día</div></div>${ed ? `<div class="flechas"><button data-wh-quitar-dia="${d}" aria-label="${esc(T("Quitar el warehouse de {dia}", { dia: R.DIAS[d] }))}" title="${esc(T("Quitar de este día"))}">✕</button></div>` : "<span></span>"}</div>`
         : "";
-      html += `<section class="rt-dia" style="--c:${COLORES[d]}" data-slot="${k}"><h3>${R.DIAS[d]}<small>${ids.length} paradas · ~${Math.round(mi[k] || 0)} mi</small></h3>${tarjetaWh}${ids
+      html += `<section class="rt-dia" style="--c:${COLORES[d]}" data-slot="${k}"><h3>${R.DIAS[d]}<small>${T("{n} paradas · ~{mi} mi", { n: ids.length, mi: Math.round(mi[k] || 0) })}</small></h3>${tarjetaWh}${ids
         .map((id, i) => S.porId.get(id) ? htmlParada(S.porId.get(id), i + 1, k) : "")
         .join("")}</section>`;
     });
@@ -754,7 +786,7 @@
       ponerDiasWarehouse(S.plan.whDias.includes(d) ? S.plan.whDias.filter((x) => x !== d) : S.plan.whDias.concat(d));
     } else if (b.dataset.whQuitarDia) {
       ponerDiasWarehouse(S.plan.whDias.filter((x) => x !== Number(b.dataset.whQuitarDia)));
-    } else if (window.confirm(`¿Quitar ${S.plan.warehouse.nombre} de esta ruta?`)) {
+    } else if (window.confirm(T("¿Quitar {w} de esta ruta?", { w: S.plan.warehouse.nombre }))) {
       quitarWarehouse();
     }
   });
@@ -835,7 +867,7 @@
     const etiqueta = R.ETIQUETA_FREQ[t.freq].toLowerCase();
     const todos = R.patrones(t.freq, S.dias, true);
     if (!todos.length) {
-      toast(`Con los días de trabajo ${nombreDias(S.dias)} no cabe una tienda ${etiqueta}.`);
+      toast(T("Con los días de trabajo {dias} no cabe una tienda {freq}.", { dias: nombreDias(S.dias), freq: etiqueta }));
       return null;
     }
     const dDest = Number(destino[1]);
@@ -845,7 +877,7 @@
         const dias = actual.clave.split("+").map(Number);
         const dOrig = Number(origen[1]);
         if (dias.includes(dDest)) {
-          toast(`${t.nombre} ya va el ${R.DIAS[dDest].toLowerCase()}.`);
+          toast(T("{tienda} ya va el {dia}.", { tienda: t.nombre, dia: I.idioma === "en" ? R.DIAS[dDest] : R.DIAS[dDest].toLowerCase() }));
           return null;
         }
         const nuevos = dias.map((d) => (d === dOrig ? dDest : d)).sort((a, b) => a - b);
@@ -882,7 +914,7 @@
         const t = S.porId.get(id);
         const icono = L.divIcon({ className: "", html: `<div class="rt-num-icono" style="background:${COLORES[d]}">${i + 1}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
         L.marker([pos[id].lat, pos[id].lng], { icon: icono, title: t.nombre })
-          .bindPopup(`<b>${esc(t.nombre)}</b><br>${esc(t.direccion)}, ${esc(t.ciudad)}<br>${R.DIAS[d]} · parada ${i + 1}<br>${R.ETIQUETA_FREQ[t.freq]} · $${Math.round(t.ventaSem)}/sem`)
+          .bindPopup(`<b>${esc(t.nombre)}</b><br>${esc(t.direccion)}, ${esc(t.ciudad)}<br>${R.DIAS[d]} · ${T("Parada {n}", { n: i + 1 })}<br>${R.ETIQUETA_FREQ[t.freq]} · $${Math.round(t.ventaSem)}${T("/sem")}`)
           .addTo(S.capa);
         limites.push([pos[id].lat, pos[id].lng]);
       });
@@ -897,7 +929,7 @@
     const w = S.plan.warehouse;
     if (w && esPunto(w)) {
       L.marker([+w.lat, +w.lng], { icon: L.divIcon({ className: "", html: '<div class="rt-inicio-icono"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), title: w.nombre })
-        .bindPopup(`<b>${esc(w.nombre)}</b><br>Warehouse · carga ${S.plan.whDias.length ? esc(nombreDias(S.plan.whDias)) : "— sin días asignados"}`)
+        .bindPopup(`<b>${esc(w.nombre)}</b><br>${T("Warehouse · carga {dias}", { dias: S.plan.whDias.length ? esc(nombreDias(S.plan.whDias)) : T("— sin días asignados") })}`)
         .addTo(S.capa);
       limites.push([+w.lat, +w.lng]);
     }
@@ -941,14 +973,14 @@
     const filas = S.tiendas
       .map((t) => {
         const opciones = ["5x", "4x", "3x", "2x", "1x", "q", "fuera"]
-          .map((f) => `<option value="${f}" ${t.freq === f ? "selected" : ""}>${R.ETIQUETA_FREQ[f]}${f === t.freqRegla ? " (regla)" : ""}</option>`)
+          .map((f) => `<option value="${f}" ${t.freq === f ? "selected" : ""}>${R.ETIQUETA_FREQ[f]}${f === t.freqRegla ? T(" (regla)") : ""}</option>`)
           .join("");
-        const ibp = [t.estatus || "sin revisar", t.frecuencia || "", (t.dias_visita || []).join("/")].filter(Boolean).join(" · ");
+        const ibp = [T(t.estatus || "sin revisar"), t.frecuencia || "", (t.dias_visita || []).join("/")].filter(Boolean).join(" · ");
         return `<tr>
           <td><b>${esc(t.nombre)}</b><br><span class="rt-nota">${esc(t.id)} · ${esc(t.direccion)}, ${esc(t.ciudad)}</span></td>
           <td>${esc(t.tipo_cuenta)}</td>
           <td class="num">$${Math.round(t.ventaSem)}</td>
-          <td>${esc(t.regla)}</td>
+          <td>${esc(traducirRegla(t.regla))}</td>
           <td>${S.soloLectura ? R.ETIQUETA_FREQ[t.freq] : `<select data-freq="${esc(t.id)}">${opciones}</select>`}</td>
           <td>${esc(diasDeTienda(t.id)) || '<span class="rt-nota">—</span>'}</td>
           <td class="rt-nota">${esc(ibp)}</td>
@@ -972,7 +1004,7 @@
     if (t.freq !== "fuera") ponerMejor(t.id);
     marcarSucio();
     renderTodo();
-    toast(`${t.nombre}: ${R.ETIQUETA_FREQ[t.freq]}.`);
+    toast(T("{tienda}: {freq}.", { tienda: t.nombre, freq: R.ETIQUETA_FREQ[t.freq] }));
   });
 
   // --------------------------------------------------------------------------
@@ -984,7 +1016,7 @@
     const con = S.tiendas.filter((t) => S.geo.has(t.id)).length;
     const porFuente = {};
     S.geo.forEach((g) => (porFuente[g.fuente] = (porFuente[g.fuente] || 0) + 1));
-    $("ubiResumen").textContent = `${con} de ${total} tiendas de esta ruta tienen ubicación` +
+    $("ubiResumen").textContent = T("{con} de {total} tiendas de esta ruta tienen ubicación", { con, total }) +
       (con ? ` (${Object.entries(porFuente).map(([f, n]) => `${n} ${f === "census" ? "Census" : f === "osm" ? "OpenStreetMap" : "manual"}`).join(", ")}).` : ".");
     const filas = S.tiendas
       .slice()
@@ -1016,7 +1048,7 @@
       renderTodo();
       toast("Ubicación guardada.");
     } catch (err) {
-      toast(`No se guardó la ubicación: ${err.message}`);
+      toast(T("No se guardó la ubicación: {e}", { e: err.message }));
     }
   });
 
@@ -1039,9 +1071,9 @@
       const faltan = todas.filter((t) => !geo.has(t.id));
       if (!faltan.length) return ($("ubiMensaje").textContent = "Todas las tiendas ya tienen ubicación.");
       descargar(`census_todas_${faltan.length}.csv`, archivoCensus(faltan), "text/csv");
-      $("ubiMensaje").textContent = `Archivo con ${faltan.length} tiendas sin ubicación (el Census acepta hasta 10,000 por archivo).`;
+      $("ubiMensaje").textContent = T("Archivo con {n} tiendas sin ubicación (el Census acepta hasta 10,000 por archivo).", { n: faltan.length });
     } catch (e) {
-      $("ubiMensaje").textContent = `No se pudo preparar el archivo: ${e.message}`;
+      $("ubiMensaje").textContent = T("No se pudo preparar el archivo: {e}", { e: e.message });
     }
   };
 
@@ -1078,13 +1110,13 @@
       renderTodo();
       const manuales = validos.length - aGuardar.length;
       $("ubiMensaje").textContent =
-        `Guardadas ${aGuardar.length} ubicaciones del Census.` +
-        (sinMatch ? ` ${sinMatch} direcciones no tuvieron coincidencia (búscalas en OpenStreetMap o ponlas a mano).` : "") +
-        (manuales ? ` ${manuales} no se tocaron porque ya tenían ubicación manual.` : "") +
-        (encontrados.length - validos.length ? ` ${encontrados.length - validos.length} códigos no existen en Bimbo Tools.` : "");
+        T("Guardadas {n} ubicaciones del Census.", { n: aGuardar.length }) +
+        (sinMatch ? T(" {n} direcciones no tuvieron coincidencia (búscalas en OpenStreetMap o ponlas a mano).", { n: sinMatch }) : "") +
+        (manuales ? T(" {n} no se tocaron porque ya tenían ubicación manual.", { n: manuales }) : "") +
+        (encontrados.length - validos.length ? T(" {n} códigos no existen en Bimbo Tools.", { n: encontrados.length - validos.length }) : "");
     } catch (err) {
       console.error(err);
-      $("ubiMensaje").textContent = `No se pudo importar: ${err.message}`;
+      $("ubiMensaje").textContent = T("No se pudo importar: {e}", { e: err.message });
     }
   };
 
@@ -1224,17 +1256,17 @@
     const est = $("estadoGuardado");
     const res = await geocodificar(faltan, (h, n, enc, fase) => {
       if (S.ruta !== ruta) return;
-      est.textContent = `Ubicando tiendas (${fase}): ${h} de ${n}…`;
+      est.textContent = T("Ubicando tiendas ({fase}): {h} de {n}…", { fase, h, n });
     });
     if (res.cancelado || S.ruta !== ruta) return;
     S.ajustarMapa = true;
     const msg = res.noEncontradas.length
-      ? `${res.encontradas} tiendas ubicadas. ${res.noEncontradas.length} sin ubicación: ponlas a mano en la pestaña Ubicaciones.`
-      : `${res.encontradas} tiendas ubicadas.`;
+      ? T("{n} tiendas ubicadas. {m} sin ubicación: ponlas a mano en la pestaña Ubicaciones.", { n: res.encontradas, m: res.noEncontradas.length })
+      : T("{n} tiendas ubicadas.", { n: res.encontradas });
     est.textContent = msg;
     if (calcularAlTerminar && S.tiendas.some((t) => S.geo.has(t.id))) {
       calcular();
-      toast(`${msg} Plan calculado: revísalo y presiona Guardar.`);
+      toast(T("{msg} Plan calculado: revísalo y presiona Guardar.", { msg }));
     } else {
       // Las tiendas recién ubicadas que ya estaban en el plan: recalcular el orden.
       S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
@@ -1258,17 +1290,17 @@
       }
       const res = await geocodificar(faltan, (h, n, enc, fase) => {
         $("progreso").firstElementChild.style.width = `${(h / n) * 100}%`;
-        $("ubiMensaje").textContent = `${fase}: ${h} de ${n} · ${enc} ubicadas. Deja la página abierta.`;
+        $("ubiMensaje").textContent = T("{fase}: {h} de {n} · {enc} ubicadas. Deja la página abierta.", { fase, h, n, enc });
       });
       S.ajustarMapa = true;
       renderTodo();
       $("ubiMensaje").textContent = res.cancelado
-        ? "Búsqueda interrumpida. Lo ya encontrado quedó guardado; presiona de nuevo para seguir."
-        : `Listo: ${res.encontradas} de ${faltan.length} tiendas ubicadas.` +
-          (res.noEncontradas.length ? ` Sin ubicación (${res.noEncontradas.length}): ${res.noEncontradas.slice(0, 30).map((t) => t.nombre).join(", ")}${res.noEncontradas.length > 30 ? "…" : ""}. Ponlas a mano.` : "");
+        ? T("Búsqueda interrumpida. Lo ya encontrado quedó guardado; presiona de nuevo para seguir.")
+        : T("Listo: {n} de {total} tiendas ubicadas.", { n: res.encontradas, total: faltan.length }) +
+          (res.noEncontradas.length ? T(" Sin ubicación ({n}): {lista}. Ponlas a mano.", { n: res.noEncontradas.length, lista: res.noEncontradas.slice(0, 30).map((t) => t.nombre).join(", ") + (res.noEncontradas.length > 30 ? "…" : "") }) : "");
     } catch (e) {
       console.error(e);
-      $("ubiMensaje").textContent = `No se pudo completar: ${e.message}`;
+      $("ubiMensaje").textContent = T("No se pudo completar: {e}", { e: e.message });
     } finally {
       $("btnUbicarTodas").disabled = false;
       $("progreso").hidden = true;
@@ -1280,7 +1312,7 @@
     const faltan = S.tiendas.filter((t) => !S.geo.has(t.id));
     if (!faltan.length) return toast("Todas las tiendas de esta ruta ya tienen ubicación.");
     osmCorriendo = true;
-    $("btnOsm").textContent = "Detener búsqueda";
+    $("btnOsm").textContent = T("Detener búsqueda");
     $("progreso").hidden = false;
     let hechas = 0, encontradas = 0;
     const noEncontradas = [];
@@ -1298,16 +1330,16 @@
       }
       hechas++;
       $("progreso").firstElementChild.style.width = `${(hechas / faltan.length) * 100}%`;
-      $("ubiMensaje").textContent = `Buscando ${hechas} de ${faltan.length}… (${encontradas} encontradas)`;
+      $("ubiMensaje").textContent = T("Buscando {h} de {n}… ({enc} encontradas)", { h: hechas, n: faltan.length, enc: encontradas });
       await esperar(1100);
     }
     osmCorriendo = false;
-    $("btnOsm").textContent = "Buscar en OpenStreetMap las que faltan";
+    $("btnOsm").textContent = T("Buscar en OpenStreetMap las que faltan");
     $("progreso").hidden = true;
     S.ajustarMapa = true;
     renderTodo();
-    $("ubiMensaje").textContent = `OpenStreetMap encontró ${encontradas} de ${hechas}.` +
-      (noEncontradas.length ? ` Sin resultado: ${noEncontradas.join(", ")}. Ponlas a mano desde Google Maps.` : "");
+    $("ubiMensaje").textContent = T("OpenStreetMap encontró {enc} de {h}.", { enc: encontradas, h: hechas }) +
+      (noEncontradas.length ? T(" Sin resultado: {lista}. Ponlas a mano desde Google Maps.", { lista: noEncontradas.join(", ") }) : "");
   };
 
   // --------------------------------------------------------------------------
@@ -1341,7 +1373,7 @@
       return { nombre: v("nombre"), patron: v("patron"), freq: v("freq"), dosVecesSobre: dos === "" ? null : Number(dos), tresVecesSobre: tres === "" ? null : Number(tres) };
     }).filter((c) => c.nombre && c.patron);
     for (const c of cadenas) {
-      try { new RegExp(c.patron, "i"); } catch (e) { throw new Error(`El patrón de ${c.nombre} no es válido.`); }
+      try { new RegExp(c.patron, "i"); } catch (e) { throw new Error(T("El patrón de {c} no es válido.", { c: c.nombre })); }
     }
     const num = (id) => ($(id).value.trim() === "" ? null : Number($(id).value));
     return { cadenas, ventaMuyAlta: num("numMuyAlta"), ventaAlta: num("numAlta"), ventaBaja: num("numBaja") };
@@ -1368,7 +1400,7 @@
     try {
       await D.guardarConfigRutas("reglas", nuevas);
     } catch (e) {
-      return toast(errorTablasFaltantes(e) ? "No se guardaron: faltan las tablas del planificador en Supabase." : `No se guardaron: ${e.message}`);
+      return toast(errorTablasFaltantes(e) ? "No se guardaron: faltan las tablas del planificador en Supabase." : T("No se guardaron: {e}", { e: e.message }));
     }
     // Recalcula la frecuencia por regla de la ruta cargada.
     let cambiaron = 0;
@@ -1388,7 +1420,7 @@
     if (cambiaron) marcarSucio();
     renderTodo();
     renderReglas();
-    toast(cambiaron ? `Reglas guardadas. ${cambiaron} tiendas cambiaron de frecuencia: revisa el plan o recalcúlalo.` : "Reglas guardadas.");
+    toast(cambiaron ? T("Reglas guardadas. {n} tiendas cambiaron de frecuencia: revisa el plan o recalcúlalo.", { n: cambiaron }) : "Reglas guardadas.");
   };
 
   // --------------------------------------------------------------------------
@@ -1429,6 +1461,65 @@
   $("btnKmlA").onclick = () => descargar(`Ruta_${S.ruta}_SemanaA.kml`, kmlSemana("A"), "application/vnd.google-earth.kml+xml");
   $("btnKmlB").onclick = () => descargar(`Ruta_${S.ruta}_SemanaB.kml`, kmlSemana("B"), "application/vnd.google-earth.kml+xml");
 
+  // --------------------------------------------------------------------------
+  // Hoja para el IBP (imprimir): semana A y B, un bloque por día con el orden
+  // de paradas; el warehouse arriba en sus días. Sale en el idioma de la página.
+  // --------------------------------------------------------------------------
+
+  function htmlHoja() {
+    const info = S.rutas.find((r) => r.ruta === S.ruta) || {};
+    const w = S.plan.warehouse;
+    const mi = R.millasDeSlots(S.plan.slots, posiciones(), salidaDe);
+    const dirTienda = (t) => [t.direccion, t.ciudad, `${t.estado_us || ""} ${t.zip || ""}`.trim()].filter(Boolean).join(", ");
+    let html = `<h1>${esc(T("Ruta {ruta}", { ruta: S.ruta }))}${info.propietario ? ` · ${esc(info.propietario)}` : ""}</h1>
+      <p class="sub">${esc(T("Plan de visitas · Semana A y B"))} · ${esc(T("Días de trabajo: {dias}", { dias: nombreDias(S.dias) }))}</p>`;
+    if (w) {
+      html += `<p class="sub">${esc(T("Warehouse: {w}", { w: w.nombre }))}${dirTienda(w) ? ` — ${esc(dirTienda(w))}` : ""} · ${esc(T("Carga: {dias}", { dias: S.plan.whDias.length ? nombreDias(S.plan.whDias) : "—" }))}</p>`;
+    }
+    html += `<p class="sub">${esc(T("Impreso {fecha}", { fecha: new Date().toLocaleDateString(I.locale) }))}</p>`;
+    ["A", "B"].forEach((sem) => {
+      html += `<section class="semana"><h2>${esc(T(`Semana ${sem}`))}</h2>`;
+      S.dias.forEach((d) => {
+        const k = `${sem}${d}`;
+        const ids = (S.plan.slots[k] || []).filter((id) => S.porId.has(id));
+        const conWh = w && S.plan.whDias.includes(d);
+        html += `<div class="dia"><h3><span>${esc(R.DIAS[d])}</span><small>${esc(T("{n} paradas · ~{mi} mi", { n: ids.length, mi: Math.round(mi[k] || 0) }))}</small></h3>`;
+        if (!ids.length && !conWh) {
+          html += `<p class="vacio">${esc(T("Sin visitas"))}</p></div>`;
+          return;
+        }
+        html += `<table><thead><tr><th>#</th><th>${esc(T("Tienda"))}</th><th>${esc(T("Código"))}</th><th>${esc(T("Dirección"))}</th><th>${esc(T("Frecuencia"))}</th><th>${esc(T("Hecho"))}</th></tr></thead><tbody>`;
+        if (conWh) {
+          html += `<tr class="wh"><td class="n">W</td><td>${esc(w.nombre)}</td><td></td><td>${esc(dirTienda(w))}</td><td>${esc(T("Carga"))}</td><td class="ok"></td></tr>`;
+        }
+        ids.forEach((id, i) => {
+          const t = S.porId.get(id);
+          html += `<tr><td class="n">${i + 1}</td><td>${esc(t.nombre)}</td><td>${esc(t.id)}</td><td>${esc(dirTienda(t))}</td><td>${esc(R.ETIQUETA_FREQ[t.freq])}</td><td class="ok"></td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+      });
+      html += `</section>`;
+    });
+    return html;
+  }
+
+  $("btnImprimir").onclick = () => {
+    if (!S.plan) return;
+    const avisos = [];
+    if (S.sucio) avisos.push(T("Ojo: hay cambios sin guardar; se imprime lo que ves en pantalla."));
+    const sin = sinAsignar().length;
+    if (sin) avisos.push(T("{n} tiendas sin asignar no salen en la hoja.", { n: sin }));
+    if (avisos.length) toast(avisos.join(" "));
+    const hoja = $("hoja");
+    hoja.innerHTML = htmlHoja();
+    const titulo = document.title;
+    document.title = `${T("Ruta {ruta}", { ruta: S.ruta })} · ${T("Plan de visitas · Semana A y B")}`;
+    setTimeout(() => {
+      window.print();
+      document.title = titulo;
+    }, 50);
+  };
+
   $("btnCsv").onclick = () => {
     const pos = posiciones();
     const filas = [["Semana", "Dia", "Orden", "Tienda", "Codigo", "Cuenta", "Direccion", "Frecuencia", "Venta_sem", "Lat", "Lng"]];
@@ -1447,6 +1538,6 @@
 
   iniciar().catch((e) => {
     console.error(e);
-    mostrarLogin(`No se pudo conectar: ${e.message}`);
+    mostrarLogin(T("No se pudo conectar: {e}", { e: e.message }));
   });
 })();

@@ -90,13 +90,39 @@
     .rt-regla-fila input, .rt-regla-fila select { font:inherit; font-size:13px; padding:6px; border:1px solid var(--border); border-radius:6px; min-width:0; }
     @media (max-width:640px) { .rt-regla-fila { grid-template-columns:1fr 1fr; } }
     [hidden] { display:none !important; }
+    .rt-idioma { margin-left:auto; font:700 13px inherit; font-family:inherit; color:white; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.55); border-radius:8px; padding:6px 10px; cursor:pointer; min-width:44px; }
+    .rt-idioma:hover { background:rgba(255,255,255,.28); }
+
+    /* Hoja impresa para el IBP */
+    .rt-hoja { font:12px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; color:#000; background:#fff; }
+    .rt-hoja h1 { font-size:20px; margin:0 0 2px; }
+    .rt-hoja .sub { font-size:12px; color:#333; margin:0 0 2px; }
+    .rt-hoja h2 { font-size:16px; margin:14px 0 6px; padding-bottom:3px; border-bottom:2px solid #000; }
+    .rt-hoja .semana + .semana { break-before:page; }
+    .rt-hoja .dia { break-inside:avoid; margin:0 0 12px; }
+    .rt-hoja h3 { font-size:13px; margin:0 0 4px; display:flex; justify-content:space-between; gap:8px; }
+    .rt-hoja h3 small { font-weight:400; color:#333; }
+    .rt-hoja table { width:100%; border-collapse:collapse; }
+    .rt-hoja th, .rt-hoja td { border:1px solid #999; padding:3px 5px; text-align:left; vertical-align:top; }
+    .rt-hoja th { background:#eee; font-size:10px; text-transform:uppercase; letter-spacing:.03em; }
+    .rt-hoja td.n { width:22px; text-align:center; font-weight:700; }
+    .rt-hoja td.ok { width:38px; }
+    .rt-hoja tr.wh td { background:#f2f2f2; font-weight:600; }
+    .rt-hoja .vacio { color:#555; font-style:italic; margin:0; }
+    @media print {
+      @page { margin:12mm; }
+      body { background:#fff !important; }
+      body > *:not(#hoja) { display:none !important; }
+      #hoja { display:block !important; }
+      .rt-hoja th, .rt-hoja tr.wh td { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    }
   </style>
 </head>
 <body>
   <header class="topbar">
     <a class="back" href="admin.html" aria-label="Volver al Administrador"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
     <div class="topbar-title"><h1>Planificador de rutas</h1><span class="topbar-sub">Semana A y B por IBP</span></div>
-    <span class="topbar-spacer"></span>
+    <button type="button" class="rt-idioma" id="btnIdioma" aria-label="English">EN</button>
   </header>
 
   <div id="pantallaLogin" class="card" hidden style="max-width:420px; margin:24px auto;">
@@ -152,6 +178,7 @@
             <button class="btn btn-secondary btn-small" id="btnKmlA">KML semana A</button>
             <button class="btn btn-secondary btn-small" id="btnKmlB">KML semana B</button>
             <button class="btn btn-secondary btn-small" id="btnCsv">CSV</button>
+            <button class="btn btn-primary btn-small" id="btnImprimir">Imprimir para el IBP</button>
           </div>
           <form class="rt-wh-form" id="formWarehouse" hidden>
             <label class="ancho" id="lblWhGuardado">Usar uno ya registrado <select id="selWhGuardado"></select></label>
@@ -167,7 +194,7 @@
               <span class="rt-nota" id="whMensaje"></span>
             </div>
           </form>
-          <p class="rt-nota" style="margin:10px 0 0;">Arrastra una tienda a otro día para moverla (en el celular usa “Mover a”). Las tiendas que mueves a mano quedan <b>fijadas</b> y el cálculo las respeta. El cálculo pone las tiendas 2x y 3x en días bien espaciados, pero tú decides: arrastra cualquier visita a otro día (ej. L+M+J o L+M+S) y las demás se quedan donde están. Lo que mueves cuenta para las semanas A y B. El <b>warehouse</b> se pone como una parada más: arrástralo a cada día que el IBP va a cargar (o usa sus botones de días); esos días la ruta sale de ahí.</p>
+          <p class="rt-nota" data-t="notaPlan" style="margin:10px 0 0;">Arrastra una tienda a otro día para moverla (en el celular usa “Mover a”). Las tiendas que mueves a mano quedan <b>fijadas</b> y el cálculo las respeta. El cálculo pone las tiendas 2x y 3x en días bien espaciados, pero tú decides: arrastra cualquier visita a otro día (ej. L+M+J o L+M+S) y las demás se quedan donde están. Lo que mueves cuenta para las semanas A y B. El <b>warehouse</b> se pone como una parada más: arrástralo a cada día que el IBP va a cargar (o usa sus botones de días); esos días la ruta sale de ahí.</p>
         </div>
         <div class="card">
           <div id="mapa" class="rt-mapa"></div>
@@ -179,7 +206,7 @@
       <!-- TIENDAS -->
       <section id="tabTiendas" hidden>
         <div class="card">
-          <p class="rt-nota" style="margin-top:0;">La frecuencia sale de las reglas. Cámbiala aquí solo para excepciones; “Fuera de ruta” la saca del plan. Las tiendas inactivas o “por pedido” en Mi Territorio quedan fuera por defecto.</p>
+          <p class="rt-nota" data-t="notaTiendas" style="margin-top:0;">La frecuencia sale de las reglas. Cámbiala aquí solo para excepciones; “Fuera de ruta” la saca del plan. Las tiendas inactivas o “por pedido” en Mi Territorio quedan fuera por defecto.</p>
           <div class="rt-scroll"><table class="rt-tabla" id="tablaTiendas"></table></div>
         </div>
       </section>
@@ -189,13 +216,13 @@
         <div class="card">
           <strong>Coordenadas</strong>
           <p class="rt-nota" id="ubiResumen"></p>
-          <p class="rt-nota">Al cargar una ruta, las tiendas sin ubicación se buscan solas en el Census y, si no aparecen, en OpenStreetMap. Se guardan en Supabase, así que se hace una sola vez. Las que no se encuentren se ponen a mano: en Google Maps, clic derecho sobre la tienda → copia las coordenadas y pégalas en la tabla.</p>
+          <p class="rt-nota" data-t="notaUbicaciones">Al cargar una ruta, las tiendas sin ubicación se buscan solas en el Census y, si no aparecen, en OpenStreetMap. Se guardan en Supabase, así que se hace una sola vez. Las que no se encuentren se ponen a mano: en Google Maps, clic derecho sobre la tienda → copia las coordenadas y pégalas en la tabla.</p>
           <div class="rt-acciones">
             <button class="btn btn-primary btn-small" id="btnUbicarTodas">Ubicar todas las rutas</button>
           </div>
           <details class="rt-nota" style="margin-top:10px;">
             <summary>Respaldo: archivo del Census u OpenStreetMap manual</summary>
-            <p>Si la búsqueda automática falla, descarga el archivo, súbelo en <a href="https://geocoding.geo.census.gov/geocoder/locations/addressbatch?form" target="_blank" rel="noopener">geocoding.geo.census.gov → Address Batch</a> (benchmark “Public_AR_Current”) e importa aquí el resultado.</p>
+            <p data-t="notaCensus">Si la búsqueda automática falla, descarga el archivo, súbelo en <a href="https://geocoding.geo.census.gov/geocoder/locations/addressbatch?form" target="_blank" rel="noopener">geocoding.geo.census.gov → Address Batch</a> (benchmark “Public_AR_Current”) e importa aquí el resultado.</p>
           <div class="rt-acciones">
             <button class="btn btn-secondary btn-small" id="btnCensusRuta">Archivo Census (esta ruta, sin ubicación)</button>
             <button class="btn btn-secondary btn-small" id="btnCensusTodas">Archivo Census (todas las rutas, sin ubicación)</button>
@@ -213,7 +240,7 @@
       <section id="tabReglas" hidden>
         <div class="card">
           <strong>Reglas de frecuencia</strong>
-          <p class="rt-nota">Se revisan en orden: primero las cadenas (el patrón busca en la cuenta y el nombre de la tienda), después la venta semanal promedio de las últimas 12 semanas. Aplican a todas las rutas.</p>
+          <p class="rt-nota" data-t="notaReglas">Se revisan en orden: primero las cadenas (el patrón busca en la cuenta y el nombre de la tienda), después la venta semanal promedio de las últimas 12 semanas. Aplican a todas las rutas.</p>
           <div class="rt-regla-fila" style="font-size:11px; color:var(--gray); text-transform:uppercase;"><span>Cadena</span><span>Patrón</span><span>Frecuencia</span><span>2x si venta &gt;</span><span>3x si venta &gt;</span><span></span></div>
           <div id="reglasCadenas"></div>
           <button class="btn btn-secondary btn-small" id="btnAgregarRegla">Agregar cadena</button>
@@ -230,10 +257,14 @@
     </div>
   </main>
 
+  <!-- Hoja para imprimir y darle al IBP (solo se ve al imprimir) -->
+  <div id="hoja" class="rt-hoja" hidden></div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="js/depuracion.js"></script>
   <script src="js/ruteo.js"></script>
+  <script src="js/rutas-i18n.js"></script>
   <script src="js/rutas-app.js"></script>
 </body>
 </html>
