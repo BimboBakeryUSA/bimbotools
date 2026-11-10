@@ -8,7 +8,9 @@
 --   rutas_geo     coordenadas de cada tienda (Census, OpenStreetMap o manual)
 --   rutas_plan    plan de visitas A/B por ruta (IBP): días, orden, punto de
 --                 salida y frecuencias cambiadas a mano
---   rutas_config  reglas globales de frecuencia (se editan en la página)
+--   rutas_config  reglas globales de frecuencia ("reglas") y catálogo de
+--                 warehouses con sus días de carga ("warehouses"); se editan
+--                 en la página
 --
 -- Acceso: solo admin y corporativo (managers: DOS, ZSL, MSL). Los IBPs
 -- (route) y cualquier otro rol no ven nada. Sin sesión, RLS bloquea todo.
@@ -26,12 +28,14 @@ comment on table public.rutas_geo is 'Planificador de rutas: coordenadas por tie
 
 create table if not exists public.rutas_plan (
   ibp_id text primary key references public.ibps(id) on delete cascade,
-  -- {"direccion": "...", "lat": 38.9, "lng": -77.4} o null
+  -- punto de salida + configuración de la ruta:
+  -- {"lat": 38.9, "lng": -77.4, "warehouse": "<id en rutas_config.warehouses>",
+  --  "dias": [1, 3, 5]}   (dias = días de carga, 1 = lunes ... 7 = domingo)
   inicio jsonb,
-  -- frecuencias cambiadas a mano: {"<id tienda>": "2x" | "1x" | "q" | "fuera"}
+  -- frecuencias cambiadas a mano: {"<id tienda>": "3x" | "2x" | "1x" | "q" | "fuera"}
   frecuencias jsonb not null default '{}'::jsonb,
   -- días con su orden: {"A1": ["<id tienda>", ...], "A2": [...], ..., "B5": [...]}
-  -- A/B = semana, 1..6 = lunes..sábado
+  -- A/B = semana, 1..7 = lunes..domingo
   slots jsonb not null default '{}'::jsonb,
   -- tiendas que se movieron a mano (el recálculo completo las respeta)
   fijadas text[] not null default '{}',

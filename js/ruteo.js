@@ -4,8 +4,10 @@
 // ----------------------------------------------------------------------------
 // 1. Frecuencia de cada tienda según las reglas (cadena + venta semanal).
 // 2. Asignación de días: cada tienda recibe un "patrón" de visitas válido para
-//    su frecuencia (2x = lunes+jueves o martes+viernes en ambas semanas;
-//    semanal = el mismo día en A y B; quincenal = un día en A o en B). Se
+//    su frecuencia, dentro de los días de carga de la ruta (3x = tres días
+//    bien espaciados, ej. lunes+miércoles+viernes; 2x = dos días separados
+//    por 3, ej. lunes+jueves; semanal = el mismo día en A y B; quincenal =
+//    un día en A o en B), igual en ambas semanas. Se
 //    elige el patrón por búsqueda local: se mueve una tienda a otro patrón
 //    mientras baje el costo total = millas de todos los días + penalidad por
 //    días desbalanceados + penalidad fuerte si un día pasa del máximo.
@@ -13,18 +15,18 @@
 //    viajero), saliendo del punto de inicio del IBP si existe.
 //
 // Distancia: línea recta (haversine) x 1.3 como aproximación de manejo.
-// Slots: "A1".."A6" / "B1".."B6" (semana + día, 1 = lunes ... 6 = sábado).
+// Slots: "A1".."A7" / "B1".."B7" (semana + día, 1 = lunes ... 7 = domingo).
 // ============================================================================
 
 (function (raiz) {
-  const DIAS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const DIAS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
   const FACTOR_MANEJO = 1.3;
 
   // Las reglas reales viven en Supabase (rutas_config, clave "reglas").
   // Sin reglas cargadas, todas las tiendas quedan semanales.
-  const REGLAS_DEFECTO = { cadenas: [], ventaAlta: null, ventaBaja: null };
+  const REGLAS_DEFECTO = { cadenas: [], ventaMuyAlta: null, ventaAlta: null, ventaBaja: null };
 
-  const ETIQUETA_FREQ = { "2x": "2x semana", "1x": "Semanal", q: "Quincenal", fuera: "Fuera de ruta" };
+  const ETIQUETA_FREQ = { "3x": "3x semana", "2x": "2x semana", "1x": "Semanal", q: "Quincenal", fuera: "Fuera de ruta" };
 
   // --------------------------------------------------------------------------
   // Frecuencia por regla
@@ -42,11 +44,15 @@
         continue;
       }
       if (!re.test(texto)) continue;
+      if (c.tresVecesSobre != null && venta > c.tresVecesSobre) {
+        return { freq: "3x", regla: `${c.nombre} > ${c.tresVecesSobre}` };
+      }
       if (c.dosVecesSobre != null && venta > c.dosVecesSobre) {
         return { freq: "2x", regla: `${c.nombre} > ${c.dosVecesSobre}` };
       }
       return { freq: c.freq, regla: c.nombre };
     }
+    if (r.ventaMuyAlta != null && venta > r.ventaMuyAlta) return { freq: "3x", regla: `Venta > ${r.ventaMuyAlta}` };
     if (r.ventaAlta != null && venta > r.ventaAlta) return { freq: "2x", regla: `Venta > ${r.ventaAlta}` };
     if (r.ventaBaja != null && venta < r.ventaBaja) return { freq: "q", regla: `Venta < ${r.ventaBaja}` };
     return { freq: "1x", regla: "Resto (semanal)" };
@@ -56,26 +62,59 @@
   // Patrones de visita válidos
   // --------------------------------------------------------------------------
 
-  // dias: días hábiles habilitados, ej. [1,2,3,4,5]
+  // Huecos (en días) entre visitas consecutivas, contando la vuelta de la
+  // semana. Ej. [1,3,5] -> [2,2,3].
+  function huecos(combo) {
+    return combo.map((d, i) => (i < combo.length - 1 ? combo[i + 1] - d : combo[0] + 7 - d));
+  }
+
+  function combinaciones(dias, n) {
+    const out = [];
+    const rec = (desde, actual) => {
+      if (actual.length === n) return out.push(actual.slice());
+      for (let i = desde; i < dias.length; i++) { actual.push(dias[i]); rec(i + 1, actual); actual.pop(); }
+    };
+    rec(0, []);
+    return out;
+  }
+
+  function patronMultiple(combo) {
+    const nombres = combo.map((d) => DIAS[d]);
+    return {
+      clave: combo.join("+"),
+      etiqueta: nombres.length > 2 ? `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}` : nombres.join(" y "),
+      slots: ["A", "B"].flatMap((w) => combo.map((d) => `${w}${d}`)),
+    };
+  }
+
+  // dias: días de carga de la ruta, ej. [1,2,3,4,5] o [1,3,5]
   function patrones(freq, dias) {
-    const hay = new Set(dias);
+    const lista = [...new Set(dias)].sort((a, b) => a - b);
     if (freq === "2x") {
-      const pares = [[1, 4], [2, 5], [3, 6], [1, 3], [3, 5]].filter(([a, b]) => hay.has(a) && hay.has(b));
-      // Preferimos espaciado de 3 días; los de 2 días solo si no hay otro.
+      const pares = combinaciones(lista, 2);
+      // Preferimos 3 días entre visitas (lunes+jueves, martes+viernes...);
+      // si los días de carga no lo permiten, cualquier par con al menos un
+      // día de por medio (ej. con carga L/M/V: L+M, M+V o L+V).
       const tres = pares.filter(([a, b]) => b - a === 3);
-      const usar = tres.length ? tres : pares;
-      return usar.map(([a, b]) => ({
-        clave: `${a}+${b}`,
-        etiqueta: `${DIAS[a]} y ${DIAS[b]}`,
-        slots: [`A${a}`, `A${b}`, `B${a}`, `B${b}`],
-      }));
+      const minimo = (c) => Math.min(...huecos(c));
+      const mejor = Math.min(2, Math.max(...pares.map(minimo)));
+      const usar = tres.length ? tres : pares.filter((c) => minimo(c) >= mejor);
+      return usar.map(patronMultiple);
+    }
+    if (freq === "3x") {
+      // Tres visitas lo más parejas posible (lunes+miércoles+viernes...).
+      const trios = combinaciones(lista, 3);
+      if (!trios.length) return [];
+      const minimo = (c) => Math.min(...huecos(c));
+      const mejor = Math.max(...trios.map(minimo));
+      return trios.filter((c) => minimo(c) === mejor).map(patronMultiple);
     }
     if (freq === "1x") {
-      return dias.map((d) => ({ clave: `${d}`, etiqueta: DIAS[d], slots: [`A${d}`, `B${d}`] }));
+      return lista.map((d) => ({ clave: `${d}`, etiqueta: DIAS[d], slots: [`A${d}`, `B${d}`] }));
     }
     if (freq === "q") {
       const out = [];
-      ["A", "B"].forEach((w) => dias.forEach((d) => out.push({ clave: `${w}${d}`, etiqueta: `Semana ${w} · ${DIAS[d]}`, slots: [`${w}${d}`] })));
+      ["A", "B"].forEach((w) => lista.forEach((d) => out.push({ clave: `${w}${d}`, etiqueta: `Semana ${w} · ${DIAS[d]}`, slots: [`${w}${d}`] })));
       return out;
     }
     return [];
@@ -191,19 +230,22 @@
   }
 
   /**
-   * tiendas: [{ id, lat, lng, freq }]  (freq: "2x" | "1x" | "q" | "fuera")
+   * tiendas: [{ id, lat, lng, freq }]  (freq: "3x" | "2x" | "1x" | "q" | "fuera")
    * opts: {
    *   dias: [1,2,3,4,5], inicio: {lat,lng} | null,
    *   fijadas: { id: ["A1","B1"] }   // patrón que no se toca
    *   pesoBalance (default 3), maxPorDia (default null), intentos (default 8)
    * }
-   * Devuelve { slots: {A1:[ids ordenados],...}, sinUbicar: [ids], millas: {A1: n,...} }
+   * Devuelve { slots: {A1:[ids ordenados],...}, sinUbicar: [ids], sinDias: [ids], millas: {A1: n,...} }
+   * sinDias: tiendas cuya frecuencia no cabe en los días de carga (ej. 3x
+   * con solo dos días de carga); quedan sin asignar.
    */
   function calcularPlan(tiendas, opts) {
     const o = Object.assign({ dias: [1, 2, 3, 4, 5], inicio: null, fijadas: {}, pesoBalance: 3, maxPorDia: null, intentos: 8 }, opts || {});
     const pos = {};
     tiendas.forEach((t) => { if (t.lat != null && t.lng != null && isFinite(t.lat) && isFinite(t.lng)) pos[t.id] = { lat: +t.lat, lng: +t.lng }; });
-    const activos = tiendas.filter((t) => t.freq !== "fuera" && pos[t.id]);
+    const sinDias = tiendas.filter((t) => t.freq !== "fuera" && pos[t.id] && !patrones(t.freq, o.dias).length).map((t) => t.id);
+    const activos = tiendas.filter((t) => t.freq !== "fuera" && pos[t.id] && patrones(t.freq, o.dias).length);
     const sinUbicar = tiendas.filter((t) => t.freq !== "fuera" && !pos[t.id]).map((t) => t.id);
     const todosSlots = [];
     ["A", "B"].forEach((w) => o.dias.forEach((d) => todosSlots.push(`${w}${d}`)));
@@ -263,7 +305,7 @@
       slots[k] = ordenarDia(slots[k], pos, o.inicio);
       millasPorSlot[k] = largo(slots[k], pos, o.inicio);
     });
-    return { slots, sinUbicar, millas: millasPorSlot };
+    return { slots, sinUbicar, sinDias, millas: millasPorSlot };
   }
 
   // Reordena solo los días indicados (después de mover tiendas a mano).

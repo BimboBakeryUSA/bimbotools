@@ -334,14 +334,21 @@ Arma la semana A y B de cada IBP sin IA: todo es cálculo en el navegador
    (12 semanas de `ventas_semanales`). Se definen en la pestaña Reglas y se
    guardan en Supabase; el código no trae valores. Inactivas o “por pedido”
    en Mi Territorio quedan fuera.
-2. **Asignación de días** por búsqueda local: minimiza millas + desbalance
-   entre días. 2x = lunes/jueves o martes/viernes en A y B; semanal = mismo
-   día en A y B; quincenal = un día en A o en B.
-3. **Orden del día**: vecino más cercano + 2-opt desde el punto de salida.
-4. Ajuste manual arrastrando (las tiendas movidas quedan fijadas) y
+2. **Warehouse y días de carga**: cada ruta elige su warehouse (punto de
+   salida) y sus días de carga; las visitas solo caen en esos días. Los
+   warehouses (ubicación + días de carga normales) se dan de alta en la
+   pestaña Reglas; al elegir uno, la ruta toma sus días y se pueden ajustar.
+3. **Asignación de días** por búsqueda local: minimiza millas + desbalance
+   entre días. 3x = tres días de carga bien espaciados (ej. lunes/miércoles/
+   viernes); 2x = dos días separados por 3 (lunes/jueves, martes/viernes) o,
+   si la carga no lo permite, con al menos un día de por medio; semanal =
+   mismo día en A y B; quincenal = un día en A o en B.
+4. **Orden del día**: vecino más cercano + 2-opt desde el warehouse.
+5. Ajuste manual arrastrando (las tiendas movidas quedan fijadas) y
    exportación KML por semana + CSV.
 
 Coordenadas en `rutas_geo` (Census batch, OpenStreetMap o manual). Plan en
-`rutas_plan`, reglas en `rutas_config`. Las tablas se crean con
+`rutas_plan` (warehouse y días de carga dentro de `inicio`), reglas y
+warehouses en `rutas_config`. Las tablas se crean con
 `scripts/rutas_schema.sql` (solo agrega tablas; no toca las de Mi Territorio).
 Solo admin y corporativo (managers) pueden abrirlo; no aparece en el inicio.

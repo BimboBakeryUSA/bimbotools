@@ -11,13 +11,14 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <script src="js/ui.js"></script>
   <style>
-    /* Colores por día — lunes..sábado */
-    :root { --d1:#c0392b; --d2:#1f6fb2; --d3:#2e8a4e; --d4:#c77a00; --d5:#7a4bb0; --d6:#00838f; }
+    /* Colores por día — lunes..domingo */
+    :root { --d1:#c0392b; --d2:#1f6fb2; --d3:#2e8a4e; --d4:#c77a00; --d5:#7a4bb0; --d6:#00838f; --d7:#6d4c41; }
     main.rt { max-width: 1280px; }
     .rt-barra { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
     .rt-barra label { display:grid; gap:4px; font-size:12px; color:var(--gray); }
     .rt-barra select, .rt-barra input[type=text], .rt-barra input[type=number] { font:inherit; font-size:14px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:white; color:var(--dark); min-width:0; }
     .rt-barra input[type=number] { width:80px; }
+    .rt-barra input:disabled, .rt-barra select:disabled { background:var(--gray-light); color:var(--gray); }
     .rt-check { display:flex !important; align-items:center; gap:6px; font-size:13px !important; color:var(--dark) !important; padding-bottom:8px; }
     .rt-stats { display:flex; flex-wrap:wrap; gap:8px 26px; font-variant-numeric:tabular-nums; }
     .rt-stats div { display:grid; }
@@ -72,7 +73,15 @@
     .rt-toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); background:var(--dark); color:white; padding:10px 16px; border-radius:8px; font-size:14px; z-index:1000; max-width:90vw; }
     .rt-num-icono { width:22px; height:22px; border-radius:50%; color:white; font:700 11px/22px system-ui,sans-serif; text-align:center; border:2px solid white; box-shadow:0 1px 3px rgba(0,0,0,.4); }
     .rt-inicio-icono { width:16px; height:16px; background:var(--dark); border:3px solid white; transform:rotate(45deg); box-shadow:0 1px 3px rgba(0,0,0,.4); }
-    .rt-regla-fila { display:grid; grid-template-columns:1fr 1.4fr .9fr .8fr auto; gap:6px; align-items:center; margin-bottom:6px; }
+    .rt-regla-fila { display:grid; grid-template-columns:1fr 1.4fr .9fr .8fr .8fr auto; gap:6px; align-items:center; margin-bottom:6px; }
+    .rt-diaschk { display:inline-flex; flex-wrap:wrap; gap:4px; }
+    .rt-diaschk button { font:600 12px inherit; font-family:inherit; min-width:34px; padding:7px 6px; border:1px solid var(--border); background:white; color:var(--gray); border-radius:6px; cursor:pointer; }
+    .rt-diaschk button[aria-pressed=true] { background:var(--dark); border-color:var(--dark); color:white; }
+    .rt-diaschk button:disabled { cursor:default; opacity:.6; }
+    .rt-grupo { display:grid; gap:4px; font-size:12px; color:var(--gray); }
+    .rt-wh-fila { display:grid; grid-template-columns:1fr 1.1fr auto auto; gap:6px; align-items:center; margin-bottom:8px; }
+    .rt-wh-fila input { font:inherit; font-size:13px; padding:6px; border:1px solid var(--border); border-radius:6px; min-width:0; }
+    @media (max-width:760px) { .rt-wh-fila { grid-template-columns:1fr 1fr; } }
     .rt-regla-fila input, .rt-regla-fila select { font:inherit; font-size:13px; padding:6px; border:1px solid var(--border); border-radius:6px; min-width:0; }
     @media (max-width:640px) { .rt-regla-fila { grid-template-columns:1fr 1fr; } }
     [hidden] { display:none !important; }
@@ -124,7 +133,8 @@
               <button data-semana="A" aria-selected="true">Semana A</button>
               <button data-semana="B" aria-selected="false">Semana B</button>
             </div>
-            <label class="rt-check"><input type="checkbox" id="chkSabado" /> Incluir sábado</label>
+            <label>Warehouse <select id="selWarehouse"></select></label>
+            <div class="rt-grupo"><span>Días de carga</span><div class="rt-diaschk" id="diasCarga" role="group" aria-label="Días de carga"></div></div>
             <label>Máx. paradas/día <input type="number" id="numMax" min="1" max="60" placeholder="—" /></label>
             <label style="flex:1; min-width:220px;">Punto de salida (lat, lng) <input type="text" id="txtInicio" placeholder="38.8462, -77.3064  — o vacío" /></label>
           </div>
@@ -138,7 +148,7 @@
             <button class="btn btn-secondary btn-small" id="btnKmlB">KML semana B</button>
             <button class="btn btn-secondary btn-small" id="btnCsv">CSV</button>
           </div>
-          <p class="rt-nota" style="margin:10px 0 0;">Arrastra una tienda a otro día para moverla (en el celular usa “Mover a”). Las tiendas que mueves a mano quedan <b>fijadas</b> y el cálculo las respeta. Una tienda 2x semana se mueve con su pareja de días; una semanal se mueve en A y B a la vez.</p>
+          <p class="rt-nota" style="margin:10px 0 0;">Arrastra una tienda a otro día para moverla (en el celular usa “Mover a”). Las tiendas que mueves a mano quedan <b>fijadas</b> y el cálculo las respeta. Una tienda 2x o 3x semana se mueve con sus otros días; una semanal se mueve en A y B a la vez. Las visitas solo caen en los <b>días de carga</b> de la ruta; el warehouse es el punto de salida de cada día.</p>
         </div>
         <div class="card">
           <div id="mapa" class="rt-mapa"></div>
@@ -185,15 +195,26 @@
         <div class="card">
           <strong>Reglas de frecuencia</strong>
           <p class="rt-nota">Se revisan en orden: primero las cadenas (el patrón busca en la cuenta y el nombre de la tienda), después la venta semanal promedio de las últimas 12 semanas. Aplican a todas las rutas.</p>
-          <div class="rt-regla-fila" style="font-size:11px; color:var(--gray); text-transform:uppercase;"><span>Cadena</span><span>Patrón</span><span>Frecuencia</span><span>2x si venta &gt;</span><span></span></div>
+          <div class="rt-regla-fila" style="font-size:11px; color:var(--gray); text-transform:uppercase;"><span>Cadena</span><span>Patrón</span><span>Frecuencia</span><span>2x si venta &gt;</span><span>3x si venta &gt;</span><span></span></div>
           <div id="reglasCadenas"></div>
           <button class="btn btn-secondary btn-small" id="btnAgregarRegla">Agregar cadena</button>
           <div class="rt-barra" style="margin-top:14px;">
-            <label>Resto: 2x semana si venta &gt; <input type="number" id="numAlta" min="0" placeholder="—" /></label>
+            <label>Resto: 3x semana si venta &gt; <input type="number" id="numMuyAlta" min="0" placeholder="—" /></label>
+            <label>2x semana si venta &gt; <input type="number" id="numAlta" min="0" placeholder="—" /></label>
             <label>Quincenal si venta &lt; <input type="number" id="numBaja" min="0" placeholder="—" /></label>
           </div>
           <div class="rt-acciones" style="margin-top:14px;">
             <button class="btn btn-primary" id="btnGuardarReglas">Guardar reglas</button>
+          </div>
+        </div>
+        <div class="card">
+          <strong>Warehouses</strong>
+          <p class="rt-nota">Cada ruta sale de su warehouse y carga en sus propios días. Aquí van la ubicación de cada warehouse (en Google Maps, clic derecho → copia las coordenadas) y sus días de carga normales. En la pestaña Plan cada ruta elige su warehouse y puede ajustar sus días de carga. Aplican a todas las rutas.</p>
+          <div class="rt-wh-fila" style="font-size:11px; color:var(--gray); text-transform:uppercase;"><span>Nombre</span><span>Ubicación (lat, lng)</span><span>Días de carga</span><span></span></div>
+          <div id="listaWarehouses"></div>
+          <button class="btn btn-secondary btn-small" id="btnAgregarWarehouse">Agregar warehouse</button>
+          <div class="rt-acciones" style="margin-top:14px;">
+            <button class="btn btn-primary" id="btnGuardarWarehouses">Guardar warehouses</button>
           </div>
         </div>
       </section>
