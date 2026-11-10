@@ -8,9 +8,9 @@
 --   rutas_geo     coordenadas de cada tienda (Census, OpenStreetMap o manual)
 --   rutas_plan    plan de visitas A/B por ruta (IBP): días, orden, punto de
 --                 salida y frecuencias cambiadas a mano
---   rutas_config  reglas globales de frecuencia ("reglas") y catálogo de
---                 warehouses con sus días de carga ("warehouses"); se editan
---                 en la página
+--   rutas_config  reglas globales de frecuencia ("reglas") y warehouses ya
+--                 usados en alguna ruta ("warehouses", para elegirlos sin
+--                 volver a escribir la dirección)
 --
 -- Acceso: solo admin y corporativo (managers: DOS, ZSL, MSL). Los IBPs
 -- (route) y cualquier otro rol no ven nada. Sin sesión, RLS bloquea todo.
@@ -28,9 +28,11 @@ comment on table public.rutas_geo is 'Planificador de rutas: coordenadas por tie
 
 create table if not exists public.rutas_plan (
   ibp_id text primary key references public.ibps(id) on delete cascade,
-  -- punto de salida + configuración de la ruta:
-  -- {"lat": 38.9, "lng": -77.4, "warehouse": "<id en rutas_config.warehouses>",
-  --  "dias": [1, 3, 5]}   (dias = días de carga, 1 = lunes ... 7 = domingo)
+  -- configuración de la ruta (1 = lunes ... 7 = domingo):
+  -- {"lat": 38.9, "lng": -77.4,          salida los días sin warehouse (opcional)
+  --  "warehouse": {"id", "nombre", "direccion", "ciudad", "estado_us", "zip", "lat", "lng"},
+  --  "warehouseDias": [1, 4],            días que el IBP carga en el warehouse
+  --  "dias": [1, 2, 3, 4, 5]}            días que trabaja la ruta
   inicio jsonb,
   -- frecuencias cambiadas a mano: {"<id tienda>": "3x" | "2x" | "1x" | "q" | "fuera"}
   frecuencias jsonb not null default '{}'::jsonb,

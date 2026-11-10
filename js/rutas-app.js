@@ -23,8 +23,10 @@
     tiendas: [],
     porId: new Map(),
     geo: new Map(),
-    plan: null, // { inicio, warehouse, frecuencias, slots, fijadas:Set }
-    warehouses: [], // [{ id, nombre, lat, lng, dias:[1..7] }] — rutas_config "warehouses"
+    plan: null, // { inicio, warehouse, whDias, frecuencias, slots, fijadas:Set }
+    // Warehouses ya registrados (rutas_config "warehouses"), para no volver a
+    // escribir la dirección en cada ruta: [{ id, nombre, direccion, ciudad, estado_us, zip, lat, lng }]
+    warehouses: [],
     dias: [1, 2, 3, 4, 5],
     semana: "A",
     ocultos: new Set(),
@@ -115,8 +117,12 @@
     return dias.map((d) => R.DIAS[d].slice(0, 3)).join("/");
   }
 
-  function warehouseActual() {
-    return S.plan && S.plan.warehouse ? S.warehouses.find((w) => w.id === S.plan.warehouse) || null : null;
+  // Punto de salida de un día (slot "A1"...): el warehouse si ese día el IBP
+  // carga ahí; si no, el punto de salida manual (o ninguno).
+  function salidaDe(k) {
+    const w = S.plan && S.plan.warehouse;
+    if (w && esPunto(w) && S.plan.whDias.includes(Number(k[1]))) return { lat: +w.lat, lng: +w.lng };
+    return (S.plan && S.plan.inicio) || null;
   }
 
   function marcarSucio(v = true) {
@@ -186,7 +192,7 @@
     if (S.soloLectura) {
       S.rutas = [{ ruta: S.perfil.route_code, propietario: "", msl: "", total: 0 }];
       ["btnCalcular", "btnReordenar", "btnSoltar", "btnGuardar", "btnGuardarReglas", "btnAgregarRegla",
-        "btnCensusTodas", "btnOsm", "btnAgregarWarehouse", "btnGuardarWarehouses"].forEach((id) => ($(id).hidden = true));
+        "btnCensusTodas", "btnOsm", "btnWarehouse"].forEach((id) => ($(id).hidden = true));
     } else {
       S.rutas = await D.getRutas();
     }
@@ -266,27 +272,30 @@
       S.porId = new Map(S.tiendas.map((t) => [t.id, t]));
 
       const p = plan || {};
-      // rutas_plan.inicio guarda { lat, lng, warehouse, dias } (ver scripts/rutas_schema.sql).
+      // rutas_plan.inicio guarda { lat, lng, warehouse:{...}, warehouseDias, dias }
+      // (ver scripts/rutas_schema.sql).
       const ini = p.inicio || {};
-      const wh = ini.warehouse ? S.warehouses.find((w) => w.id === ini.warehouse) : null;
+      let wh = ini.warehouse && typeof ini.warehouse === "object" ? ini.warehouse : null;
+      if (typeof ini.warehouse === "string") wh = S.warehouses.find((w) => w.id === ini.warehouse) || null;
       S.plan = {
-        inicio: wh && esPunto(wh) ? { lat: +wh.lat, lng: +wh.lng } : esPunto(ini) ? { lat: +ini.lat, lng: +ini.lng } : null,
-        warehouse: wh ? wh.id : "",
+        inicio: esPunto(ini) ? { lat: +ini.lat, lng: +ini.lng } : null,
+        warehouse: wh,
+        whDias: [],
         frecuencias: p.frecuencias || {},
         slots: {},
         fijadas: new Set((p.fijadas || []).filter((x) => S.porId.has(x))),
       };
       S.tiendas.forEach((t) => (t.freq = S.plan.frecuencias[t.id] || t.freqRegla));
       const slotsGuardados = p.slots || {};
-      // Días de carga: los guardados en la ruta; si no hay, los del warehouse;
-      // si tampoco, lunes a viernes (más los días que ya traiga el plan viejo).
+      // Días que trabaja la ruta: los guardados; si no hay, lunes a viernes
+      // (más los días que ya traiga el plan viejo).
       let dias = limpiarDias(ini.dias);
-      if (!dias.length && wh) dias = limpiarDias(wh.dias);
       if (!dias.length) {
         const usados = Object.keys(slotsGuardados).filter((k) => (slotsGuardados[k] || []).length).map((k) => Number(k[1]));
         dias = limpiarDias(DIAS_DEFECTO.concat(usados));
       }
       S.dias = dias;
+      if (wh) S.plan.whDias = limpiarDias(ini.warehouseDias).filter((d) => dias.includes(d));
       asegurarSlots();
       Object.keys(slotsGuardados).forEach((k) => {
         if (S.plan.slots[k]) S.plan.slots[k] = slotsGuardados[k].filter((x) => S.porId.has(x));
@@ -342,7 +351,7 @@
   function aplicarPatron(id, patron, fijar) {
     const tocados = quitarDePlan(id);
     patron.slots.forEach((k) => { S.plan.slots[k].push(id); tocados.push(k); });
-    S.plan.slots = R.reordenarSlots(S.plan.slots, [...new Set(tocados)], posiciones(), S.plan.inicio);
+    S.plan.slots = R.reordenarSlots(S.plan.slots, [...new Set(tocados)], posiciones(), salidaDe);
     if (fijar) S.plan.fijadas.add(id);
     marcarSucio();
   }
@@ -364,7 +373,7 @@
       let c = 0;
       p.slots.forEach((k) => {
         const otros = S.plan.slots[k].filter((x) => x !== id && pos[x]).map((x) => pos[x]);
-        if (S.plan.inicio) otros.push(S.plan.inicio);
+        if (salidaDe(k)) otros.push(salidaDe(k));
         c += otros.length ? Math.min(...otros.map((q) => R.millas(pos[id], q))) * 2 : 10;
         c += 3 * Math.max(0, S.plan.slots[k].length + 1 - meta);
       });
@@ -392,7 +401,7 @@
     const max = Number($("numMax").value) || null;
     const res = R.calcularPlan(
       S.tiendas.map((t) => ({ id: t.id, freq: t.freq, lat: S.geo.has(t.id) ? S.geo.get(t.id).lat : null, lng: S.geo.has(t.id) ? S.geo.get(t.id).lng : null })),
-      { dias: S.dias, inicio: S.plan.inicio, fijadas, maxPorDia: max }
+      { dias: S.dias, inicio: salidaDe, fijadas, maxPorDia: max }
     );
     S.plan.slots = res.slots;
     asegurarSlots();
@@ -405,7 +414,7 @@
 
   $("btnCalcular").onclick = calcular;
   $("btnReordenar").onclick = () => {
-    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), S.plan.inicio);
+    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
     marcarSucio();
     renderTodo();
     toast("Orden de cada día recalculado.");
@@ -422,7 +431,7 @@
       const cuando = await D.guardarPlanRuta(
         S.ruta,
         {
-          inicio: { ...(S.plan.inicio || {}), warehouse: S.plan.warehouse || null, dias: S.dias },
+          inicio: { ...(S.plan.inicio || {}), warehouse: S.plan.warehouse || null, warehouseDias: S.plan.whDias, dias: S.dias },
           frecuencias: S.plan.frecuencias, slots: S.plan.slots, fijadas: [...S.plan.fijadas] },
         S.perfil.nombre || S.perfil.email
       );
@@ -436,7 +445,7 @@
     }
   };
 
-  // Cambia los días de carga de la ruta y reubica las tiendas que quedaron
+  // Cambia los días que trabaja la ruta y reubica las tiendas que quedaron
   // fuera (o cuyo patrón ya no es válido con los días nuevos).
   function cambiarDias(nuevos) {
     nuevos = limpiarDias(nuevos);
@@ -444,6 +453,7 @@
     const quitados = S.dias.filter((d) => !nuevos.includes(d));
     const afectadas = new Set(quitados.flatMap((d) => [...(S.plan.slots[`A${d}`] || []), ...(S.plan.slots[`B${d}`] || [])]));
     S.dias = nuevos;
+    S.plan.whDias = S.plan.whDias.filter((d) => nuevos.includes(d));
     quitados.forEach((d) => S.ocultos.delete(d));
     asegurarSlots();
     // Tiendas cuyo patrón ya no es válido con los días nuevos → se reubican.
@@ -457,20 +467,14 @@
     });
     marcarSucio();
     const sinDias = S.tiendas.filter((t) => t.freq !== "fuera" && !R.patrones(t.freq, S.dias).length);
-    if (sinDias.length) toast(`${sinDias.length} tiendas no caben en ${nombreDias(S.dias)} con su frecuencia (ej. 3x semana necesita 3 días de carga).`);
+    if (sinDias.length) toast(`${sinDias.length} tiendas no caben en ${nombreDias(S.dias)} con su frecuencia (ej. 3x semana necesita 3 días de trabajo).`);
     return true;
   }
 
   function renderBarraPlan() {
-    const sel = $("selWarehouse");
-    sel.innerHTML = `<option value="">— Sin warehouse (punto manual) —</option>` +
-      S.warehouses.map((w) => `<option value="${esc(w.id)}">${esc(w.nombre)}${limpiarDias(w.dias).length ? ` · carga ${esc(nombreDias(limpiarDias(w.dias)))}` : ""}</option>`).join("");
-    sel.value = S.plan.warehouse || "";
-    sel.disabled = S.soloLectura;
-    const wh = warehouseActual();
     $("txtInicio").value = S.plan.inicio ? `${S.plan.inicio.lat}, ${S.plan.inicio.lng}` : "";
-    $("txtInicio").disabled = S.soloLectura || !!wh;
-    $("txtInicio").title = wh ? "Sale del warehouse. Elige “Sin warehouse” para poner otro punto." : "";
+    $("txtInicio").disabled = S.soloLectura;
+    $("btnWarehouse").textContent = S.plan.warehouse ? "Cambiar warehouse" : "Agregar warehouse";
     $("diasCarga").innerHTML = TODOS_DIAS.map((d) =>
       `<button type="button" data-dia="${d}" aria-pressed="${S.dias.includes(d)}" title="${R.DIAS[d]}" ${S.soloLectura ? "disabled" : ""}>${CORTO[d]}</button>`
     ).join("");
@@ -481,26 +485,110 @@
     if (!b || S.soloLectura) return;
     const d = Number(b.dataset.dia);
     const nuevos = S.dias.includes(d) ? S.dias.filter((x) => x !== d) : S.dias.concat(d);
-    if (!nuevos.length) return toast("La ruta necesita al menos un día de carga.");
+    if (!nuevos.length) return toast("La ruta necesita al menos un día de trabajo.");
     cambiarDias(nuevos);
     renderBarraPlan();
     renderTodo();
   });
 
-  $("selWarehouse").onchange = () => {
-    S.plan.warehouse = $("selWarehouse").value;
-    const wh = warehouseActual();
-    if (wh) {
-      if (esPunto(wh)) S.plan.inicio = { lat: +wh.lat, lng: +wh.lng };
-      else toast(`${wh.nombre} todavía no tiene ubicación: ponla en la pestaña Reglas → Warehouses.`);
-      const dias = limpiarDias(wh.dias);
-      if (dias.length && cambiarDias(dias)) toast(`Días de carga de ${wh.nombre}: ${nombreDias(dias)}.`);
+  // --------------------------------------------------------------------------
+  // Warehouse: una parada más de la ruta, en los días que el IBP carga ahí.
+  // --------------------------------------------------------------------------
+
+  function ponerDiasWarehouse(dias) {
+    S.plan.whDias = limpiarDias(dias).filter((d) => S.dias.includes(d));
+    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
+    marcarSucio();
+    renderTodo();
+  }
+
+  function quitarWarehouse() {
+    S.plan.warehouse = null;
+    S.plan.whDias = [];
+    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
+    marcarSucio();
+    renderBarraPlan();
+    renderTodo();
+  }
+
+  function abrirFormWarehouse() {
+    const f = $("formWarehouse");
+    const otros = S.warehouses.filter((w) => esPunto(w));
+    $("selWhGuardado").innerHTML = `<option value="">— Uno nuevo (escribe la dirección) —</option>` +
+      otros.map((w) => `<option value="${esc(w.id)}">${esc(w.nombre)} · ${esc(w.direccion)}, ${esc(w.ciudad)}</option>`).join("");
+    $("lblWhGuardado").hidden = !otros.length;
+    const w = S.plan.warehouse;
+    $("selWhGuardado").value = w && otros.some((x) => x.id === w.id) ? w.id : "";
+    $("whNombre").value = w ? w.nombre || "" : "";
+    $("whDireccion").value = w ? w.direccion || "" : "";
+    $("whCiudad").value = w ? w.ciudad || "" : "";
+    $("whEstado").value = w ? w.estado_us || "" : "";
+    $("whZip").value = w ? w.zip || "" : "";
+    $("whCoords").value = "";
+    $("whMensaje").textContent = "";
+    f.hidden = false;
+    $(otros.length ? "selWhGuardado" : "whNombre").focus();
+  }
+
+  $("btnWarehouse").onclick = () => ($("formWarehouse").hidden ? abrirFormWarehouse() : ($("formWarehouse").hidden = true));
+  $("btnWhCancelar").onclick = () => ($("formWarehouse").hidden = true);
+  $("selWhGuardado").onchange = () => {
+    const w = S.warehouses.find((x) => x.id === $("selWhGuardado").value);
+    ["whNombre", "whDireccion", "whCiudad", "whEstado", "whZip"].forEach((id, i) => {
+      $(id).value = w ? w[["nombre", "direccion", "ciudad", "estado_us", "zip"][i]] || "" : "";
+    });
+  };
+
+  async function ubicarDireccion(w) {
+    let p = await censusJsonp(w);
+    if (p && esPunto(p)) return p;
+    try { p = await buscarOsm(w); } catch (e) { p = null; }
+    return p && esPunto(p) ? p : null;
+  }
+
+  $("formWarehouse").onsubmit = async (e) => {
+    e.preventDefault();
+    const guardado = S.warehouses.find((x) => x.id === $("selWhGuardado").value);
+    const w = {
+      id: guardado ? guardado.id : `wh${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      nombre: $("whNombre").value.trim(),
+      direccion: $("whDireccion").value.trim(),
+      ciudad: $("whCiudad").value.trim(),
+      estado_us: $("whEstado").value.trim().toUpperCase(),
+      zip: $("whZip").value.trim(),
+      lat: null,
+      lng: null,
+    };
+    if (!w.nombre) return ($("whMensaje").textContent = "Ponle un nombre al warehouse.");
+    const txt = $("whCoords").value.trim();
+    let punto = txt ? parsearLatLng(txt) : null;
+    if (txt && !punto) return ($("whMensaje").textContent = "Las coordenadas van como “lat, lng”, por ejemplo 38.8462, -77.3064.");
+    const mismaDireccion = guardado && ["direccion", "ciudad", "estado_us", "zip"].every((c) => (guardado[c] || "") === w[c]);
+    if (!punto && mismaDireccion && esPunto(guardado)) punto = { lat: +guardado.lat, lng: +guardado.lng };
+    if (!punto) {
+      if (!w.direccion || !(w.zip || (w.ciudad && w.estado_us))) return ($("whMensaje").textContent = "Escribe dirección y ZIP (o ciudad y estado), o pega las coordenadas.");
+      $("btnWhAgregar").disabled = true;
+      $("whMensaje").textContent = "Buscando la dirección…";
+      punto = await ubicarDireccion(w);
+      $("btnWhAgregar").disabled = false;
+      if (!punto) return ($("whMensaje").textContent = "No encontré esa dirección. Revísala o pega las coordenadas (Google Maps, clic derecho sobre el warehouse).");
     }
-    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), S.plan.inicio);
+    w.lat = punto.lat;
+    w.lng = punto.lng;
+    const cambio = !S.plan.warehouse || S.plan.warehouse.id !== w.id;
+    S.plan.warehouse = w;
+    // Un warehouse nuevo en la ruta empieza sin días: el usuario lo pone en los que el IBP carga.
+    if (cambio) S.plan.whDias = [];
+    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
+    $("formWarehouse").hidden = true;
     S.ajustarMapa = true;
     marcarSucio();
     renderBarraPlan();
     renderTodo();
+    toast(`${w.nombre} agregado. Arrástralo a los días que el IBP va a cargar (o usa sus botones de días). Luego Guardar.`);
+    // Queda registrado para elegirlo en otras rutas sin volver a escribirlo.
+    S.warehouses = S.warehouses.filter((x) => x.id !== w.id).concat(w);
+    try { await D.guardarConfigRutas("warehouses", S.warehouses); } catch (err) { console.error(err); }
   };
 
   $("txtInicio").onchange = () => {
@@ -508,7 +596,7 @@
     const p = txt ? parsearLatLng(txt) : null;
     if (txt && !p) return toast("Escribe el punto de salida como “lat, lng”, por ejemplo 38.8462, -77.3064.");
     S.plan.inicio = p;
-    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), S.plan.inicio);
+    S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
     S.ajustarMapa = true;
     marcarSucio();
     renderTodo();
@@ -546,7 +634,7 @@
     const enPlan = S.tiendas.filter((t) => t.freq !== "fuera");
     const conGeo = enPlan.filter((t) => S.geo.has(t.id)).length;
     const visitas = totalVisitas();
-    const mi = R.millasDeSlots(S.plan.slots, posiciones(), S.plan.inicio);
+    const mi = R.millasDeSlots(S.plan.slots, posiciones(), salidaDe);
     const millasSem = Object.values(mi).reduce((a, b) => a + b, 0) / 2;
     const sin = sinAsignar().length;
     const items = [
@@ -583,18 +671,39 @@
   }
 
   function renderPlan() {
-    const mi = R.millasDeSlots(S.plan.slots, posiciones(), S.plan.inicio);
+    const mi = R.millasDeSlots(S.plan.slots, posiciones(), salidaDe);
     const cont = $("dias");
     const sin = sinAsignar();
-    cont.style.setProperty("--n", S.dias.length + (sin.length ? 1 : 0));
+    const w = S.plan.warehouse;
+    cont.style.setProperty("--n", S.dias.length + (sin.length ? 1 : 0) + (w ? 1 : 0));
     let html = "";
+    const ed = !S.soloLectura;
+    if (w) {
+      const botones = S.dias.map((d) => `<button type="button" data-whdia="${d}" aria-pressed="${S.plan.whDias.includes(d)}" title="${R.DIAS[d]}" ${ed ? "" : "disabled"}>${CORTO[d]}</button>`).join("");
+      html += `<section class="rt-dia warehouse" data-slot="__wh"><h3>Warehouse<small>${S.plan.whDias.length ? esc(nombreDias(S.plan.whDias)) : "sin días"}</small></h3>
+        <div class="rt-parada wh" draggable="${ed}" data-wh="1" data-slot="__wh">
+          <span class="n">W</span>
+          <div>
+            <div class="s">${esc(w.nombre)}</div>
+            <div class="a">${esc([w.direccion, w.ciudad, w.estado_us].filter(Boolean).join(", "))}</div>
+            <div class="rt-nota" style="font-size:11px; margin-top:4px;">Días que el IBP carga aquí:</div>
+            <div class="rt-diaschk">${botones}</div>
+            ${ed ? `<button type="button" class="btn btn-secondary btn-small" data-wh-quitar style="margin-top:6px;">Quitar de la ruta</button>` : ""}
+          </div>
+          <span></span>
+        </div>
+        <p class="rt-nota" style="font-size:11px; margin:6px 0 0;">Arrástralo a cada día que el IBP va a cargar.</p></section>`;
+    }
     if (sin.length) {
       html += `<section class="rt-dia sinasignar" data-slot=""><h3>Sin asignar<small>${sin.length}</small></h3>${sin.map((t) => htmlParada(t, null, null)).join("")}</section>`;
     }
     S.dias.forEach((d) => {
       const k = `${S.semana}${d}`;
       const ids = S.plan.slots[k] || [];
-      html += `<section class="rt-dia" style="--c:${COLORES[d]}" data-slot="${k}"><h3>${R.DIAS[d]}<small>${ids.length} paradas · ~${Math.round(mi[k] || 0)} mi</small></h3>${ids
+      const tarjetaWh = w && S.plan.whDias.includes(d)
+        ? `<div class="rt-parada wh" draggable="${ed}" data-wh="1" data-slot="${k}"><span class="n">W</span><div><div class="s">${esc(w.nombre)}</div><div class="a">Carga · salida del día</div></div>${ed ? `<div class="flechas"><button data-wh-quitar-dia="${d}" aria-label="Quitar el warehouse de ${R.DIAS[d]}" title="Quitar de este día">✕</button></div>` : "<span></span>"}</div>`
+        : "";
+      html += `<section class="rt-dia" style="--c:${COLORES[d]}" data-slot="${k}"><h3>${R.DIAS[d]}<small>${ids.length} paradas · ~${Math.round(mi[k] || 0)} mi</small></h3>${tarjetaWh}${ids
         .map((id, i) => S.porId.get(id) ? htmlParada(S.porId.get(id), i + 1, k) : "")
         .join("")}</section>`;
     });
@@ -635,12 +744,27 @@
     renderStats();
   });
 
+  // Botones del warehouse (días, quitar)
+  $("dias").addEventListener("click", (e) => {
+    if (S.soloLectura) return;
+    const b = e.target.closest("button[data-whdia], button[data-wh-quitar-dia], button[data-wh-quitar]");
+    if (!b) return;
+    if (b.dataset.whdia) {
+      const d = Number(b.dataset.whdia);
+      ponerDiasWarehouse(S.plan.whDias.includes(d) ? S.plan.whDias.filter((x) => x !== d) : S.plan.whDias.concat(d));
+    } else if (b.dataset.whQuitarDia) {
+      ponerDiasWarehouse(S.plan.whDias.filter((x) => x !== Number(b.dataset.whQuitarDia)));
+    } else if (window.confirm(`¿Quitar ${S.plan.warehouse.nombre} de esta ruta?`)) {
+      quitarWarehouse();
+    }
+  });
+
   // Arrastrar y soltar entre días
   let arrastrando = null;
   $("dias").addEventListener("dragstart", (e) => {
     const el = e.target.closest(".rt-parada");
     if (!el || S.soloLectura) return;
-    arrastrando = { id: el.dataset.id, slot: el.dataset.slot };
+    arrastrando = { id: el.dataset.id, slot: el.dataset.slot, wh: el.dataset.wh === "1" };
     el.classList.add("arrastrando");
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", el.dataset.id);
@@ -662,9 +786,24 @@
     if (!col || !arrastrando) return;
     e.preventDefault();
     col.classList.remove("sobre");
-    const { id, slot: origen } = arrastrando;
+    const { id, slot: origen, wh } = arrastrando;
     arrastrando = null;
     const destino = col.dataset.slot;
+    if (wh) {
+      // Warehouse: soltarlo en un día lo agrega a ese día (si venía de otro
+      // día, se mueve); soltarlo fuera de los días lo quita del día de origen.
+      const dOrigen = origen && origen !== "__wh" ? Number(origen[1]) : null;
+      let dias = S.plan.whDias.slice();
+      if (!destino || destino === "__wh") {
+        if (dOrigen) dias = dias.filter((x) => x !== dOrigen);
+      } else {
+        const d = Number(destino[1]);
+        if (dOrigen && dOrigen !== d) dias = dias.filter((x) => x !== dOrigen);
+        if (!dias.includes(d)) dias.push(d);
+      }
+      return ponerDiasWarehouse(dias);
+    }
+    if (destino === "__wh") return toast("Ahí solo va el warehouse. Suelta la tienda en un día.");
     const t = S.porId.get(id);
     if (!destino) {
       quitarDePlan(id);
@@ -711,7 +850,8 @@
       const k = `${S.semana}${d}`;
       const ids = (S.plan.slots[k] || []).filter((id) => pos[id]);
       const puntos = ids.map((id) => [pos[id].lat, pos[id].lng]);
-      if (S.plan.inicio && puntos.length) puntos.unshift([S.plan.inicio.lat, S.plan.inicio.lng]);
+      const sal = salidaDe(k);
+      if (sal && puntos.length) puntos.unshift([sal.lat, sal.lng]);
       if (puntos.length > 1) L.polyline(puntos, { color: COLORES[d], weight: 3, opacity: 0.75 }).addTo(S.capa);
       ids.forEach((id, i) => {
         const t = S.porId.get(id);
@@ -729,9 +869,16 @@
         .addTo(S.capa);
       limites.push([pos[t.id].lat, pos[t.id].lng]);
     });
+    const w = S.plan.warehouse;
+    if (w && esPunto(w)) {
+      L.marker([+w.lat, +w.lng], { icon: L.divIcon({ className: "", html: '<div class="rt-inicio-icono"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), title: w.nombre })
+        .bindPopup(`<b>${esc(w.nombre)}</b><br>Warehouse · carga ${S.plan.whDias.length ? esc(nombreDias(S.plan.whDias)) : "— sin días asignados"}`)
+        .addTo(S.capa);
+      limites.push([+w.lat, +w.lng]);
+    }
     if (S.plan.inicio) {
-      L.marker([S.plan.inicio.lat, S.plan.inicio.lng], { icon: L.divIcon({ className: "", html: '<div class="rt-inicio-icono"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), title: "Salida" })
-        .bindPopup(warehouseActual() ? `<b>${esc(warehouseActual().nombre)}</b><br>Warehouse · salida` : "Punto de salida")
+      L.marker([S.plan.inicio.lat, S.plan.inicio.lng], { icon: L.divIcon({ className: "", html: '<div class="rt-inicio-icono" style="background:var(--gray)"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), title: "Salida" })
+        .bindPopup(w ? "Salida los días sin warehouse" : "Punto de salida")
         .addTo(S.capa);
       limites.push([S.plan.inicio.lat, S.plan.inicio.lng]);
     }
@@ -796,7 +943,7 @@
     else S.plan.frecuencias[t.id] = t.freq;
     const tocados = quitarDePlan(t.id);
     S.plan.fijadas.delete(t.id);
-    S.plan.slots = R.reordenarSlots(S.plan.slots, tocados, posiciones(), S.plan.inicio);
+    S.plan.slots = R.reordenarSlots(S.plan.slots, tocados, posiciones(), salidaDe);
     if (t.freq !== "fuera") ponerMejor(t.id);
     marcarSucio();
     renderTodo();
@@ -839,7 +986,7 @@
     try {
       await D.guardarGeo([{ tienda_id: id, lat: p.lat, lng: p.lng, fuente: "manual" }]);
       S.geo.set(id, { tienda_id: id, lat: p.lat, lng: p.lng, fuente: "manual" });
-      S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots).filter((k) => S.plan.slots[k].includes(id)), posiciones(), S.plan.inicio);
+      S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots).filter((k) => S.plan.slots[k].includes(id)), posiciones(), salidaDe);
       S.ajustarMapa = true;
       renderTodo();
       toast("Ubicación guardada.");
@@ -1065,7 +1212,7 @@
       toast(`${msg} Plan calculado: revísalo y presiona Guardar.`);
     } else {
       // Las tiendas recién ubicadas que ya estaban en el plan: recalcular el orden.
-      S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), S.plan.inicio);
+      S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
       renderTodo();
       toast(msg);
     }
@@ -1159,7 +1306,6 @@
     $("numAlta").value = S.reglas.ventaAlta == null ? "" : S.reglas.ventaAlta;
     $("numBaja").value = S.reglas.ventaBaja == null ? "" : S.reglas.ventaBaja;
     $("numMuyAlta").disabled = $("numAlta").disabled = $("numBaja").disabled = S.soloLectura;
-    renderWarehouses();
   }
 
   function leerReglas() {
@@ -1221,88 +1367,6 @@
   };
 
   // --------------------------------------------------------------------------
-  // Warehouses (rutas_config "warehouses")
-  // --------------------------------------------------------------------------
-
-  function renderWarehouses() {
-    const dis = S.soloLectura ? "disabled" : "";
-    $("listaWarehouses").innerHTML = S.warehouses.length
-      ? S.warehouses.map((w, i) => {
-          const dias = limpiarDias(w.dias);
-          return `<div class="rt-wh-fila" data-wh="${i}">
-            <input data-campo="nombre" value="${esc(w.nombre)}" aria-label="Nombre del warehouse" ${dis} />
-            <input data-campo="ubicacion" value="${esPunto(w) ? `${w.lat}, ${w.lng}` : ""}" placeholder="38.8462, -77.3064" aria-label="Ubicación (lat, lng)" ${dis} />
-            <div class="rt-diaschk" role="group" aria-label="Días de carga">${TODOS_DIAS.map((d) => `<button type="button" data-dia="${d}" aria-pressed="${dias.includes(d)}" title="${R.DIAS[d]}" ${dis}>${CORTO[d]}</button>`).join("")}</div>
-            ${S.soloLectura ? "<span></span>" : `<button class="btn btn-secondary btn-small" data-quitar-wh="${i}">Quitar</button>`}
-          </div>`;
-        }).join("")
-      : '<p class="rt-nota">Todavía no hay warehouses.</p>';
-  }
-
-  // Lee la tabla tal como está (sin validar), para no perder lo escrito.
-  function leerWarehouses(validar) {
-    return [...document.querySelectorAll(".rt-wh-fila[data-wh]")].map((fila) => {
-      const previo = S.warehouses[Number(fila.dataset.wh)] || {};
-      const nombre = fila.querySelector('[data-campo="nombre"]').value.trim();
-      const txt = fila.querySelector('[data-campo="ubicacion"]').value.trim();
-      const punto = txt ? parsearLatLng(txt) : null;
-      if (validar && txt && !punto) throw new Error(`La ubicación de ${nombre || "un warehouse"} debe ser “lat, lng”, por ejemplo 38.8462, -77.3064.`);
-      const dias = [...fila.querySelectorAll("button[data-dia]")].filter((b) => b.getAttribute("aria-pressed") === "true").map((b) => Number(b.dataset.dia));
-      return { id: previo.id, nombre, lat: punto ? punto.lat : null, lng: punto ? punto.lng : null, dias };
-    });
-  }
-
-  $("listaWarehouses").addEventListener("click", (e) => {
-    const dia = e.target.closest("button[data-dia]");
-    if (dia && !S.soloLectura) {
-      dia.setAttribute("aria-pressed", dia.getAttribute("aria-pressed") !== "true");
-      return;
-    }
-    const q = e.target.closest("button[data-quitar-wh]");
-    if (!q) return;
-    S.warehouses = leerWarehouses(false);
-    S.warehouses.splice(Number(q.dataset.quitarWh), 1);
-    renderWarehouses();
-  });
-
-  $("btnAgregarWarehouse").onclick = () => {
-    S.warehouses = leerWarehouses(false);
-    S.warehouses.push({ id: `wh${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, nombre: "", lat: null, lng: null, dias: DIAS_DEFECTO.slice() });
-    renderWarehouses();
-    const filas = document.querySelectorAll('.rt-wh-fila[data-wh] [data-campo="nombre"]');
-    if (filas.length) filas[filas.length - 1].focus();
-  };
-
-  $("btnGuardarWarehouses").onclick = async () => {
-    let lista;
-    try { lista = leerWarehouses(true); } catch (e) { return toast(e.message); }
-    if (lista.some((w) => !w.nombre)) return toast("Cada warehouse necesita un nombre.");
-    if (lista.some((w) => !w.dias.length)) return toast("Cada warehouse necesita al menos un día de carga.");
-    try {
-      await D.guardarConfigRutas("warehouses", lista);
-    } catch (e) {
-      return toast(errorTablasFaltantes(e) ? "No se guardaron: faltan las tablas del planificador en Supabase." : `No se guardaron: ${e.message}`);
-    }
-    S.warehouses = lista;
-    // La ruta cargada sigue a su warehouse si cambió de ubicación o se quitó.
-    if (S.plan) {
-      const wh = warehouseActual();
-      if (S.plan.warehouse && !wh) {
-        S.plan.warehouse = "";
-        marcarSucio();
-      } else if (wh && esPunto(wh) && (!S.plan.inicio || S.plan.inicio.lat !== +wh.lat || S.plan.inicio.lng !== +wh.lng)) {
-        S.plan.inicio = { lat: +wh.lat, lng: +wh.lng };
-        S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), S.plan.inicio);
-        marcarSucio();
-      }
-      renderBarraPlan();
-      renderTodo();
-    }
-    renderWarehouses();
-    toast("Warehouses guardados.");
-  };
-
-  // --------------------------------------------------------------------------
   // Exportar
   // --------------------------------------------------------------------------
 
@@ -1326,10 +1390,13 @@
           return `<Placemark><name>${i + 1}. ${x(t.nombre)}</name><description>${x(`${t.direccion}, ${t.ciudad}, ${t.estado_us} ${t.zip} · ${R.ETIQUETA_FREQ[t.freq]} · Tienda ${t.id}`)}</description><styleUrl>#d${d}</styleUrl><Point><coordinates>${pos[id].lng},${pos[id].lat},0</coordinates></Point></Placemark>`;
         })
         .join("");
-      const coords = (S.plan.inicio ? [`${S.plan.inicio.lng},${S.plan.inicio.lat},0`] : []).concat(ids.map((id) => `${pos[id].lng},${pos[id].lat},0`)).join(" ");
+      const sal = salidaDe(k);
+      const coords = (sal ? [`${sal.lng},${sal.lat},0`] : []).concat(ids.map((id) => `${pos[id].lng},${pos[id].lat},0`)).join(" ");
       carpetas += `<Folder><name>${R.DIAS[d]} (${ids.length})</name>${marcas}<Placemark><name>Recorrido ${R.DIAS[d]}</name><styleUrl>#d${d}</styleUrl><LineString><tessellate>1</tessellate><coordinates>${coords}</coordinates></LineString></Placemark></Folder>`;
     });
-    const salida = S.plan.inicio ? `<Placemark><name>Salida</name><Point><coordinates>${S.plan.inicio.lng},${S.plan.inicio.lat},0</coordinates></Point></Placemark>` : "";
+    const wh = S.plan.warehouse;
+    let salida = wh && esPunto(wh) ? `<Placemark><name>Warehouse · ${x(wh.nombre)}</name><description>${x(`Carga: ${nombreDias(S.plan.whDias) || "—"}`)}</description><Point><coordinates>${wh.lng},${wh.lat},0</coordinates></Point></Placemark>` : "";
+    if (S.plan.inicio) salida += `<Placemark><name>Salida</name><Point><coordinates>${S.plan.inicio.lng},${S.plan.inicio.lat},0</coordinates></Point></Placemark>`;
     return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Ruta ${x(S.ruta)} · Semana ${w}</name>${estilos}${salida}${carpetas}</Document></kml>`;
   }
@@ -1340,7 +1407,11 @@
   $("btnCsv").onclick = () => {
     const pos = posiciones();
     const filas = [["Semana", "Dia", "Orden", "Tienda", "Codigo", "Cuenta", "Direccion", "Frecuencia", "Venta_sem", "Lat", "Lng"]];
+    const wh = S.plan.warehouse;
     ["A", "B"].forEach((w) => S.dias.forEach((d) => {
+      if (wh && S.plan.whDias.includes(d)) {
+        filas.push([w, R.DIAS[d], 0, `Warehouse · ${wh.nombre}`, "", "", [wh.direccion, wh.ciudad, `${wh.estado_us || ""} ${wh.zip || ""}`.trim()].filter(Boolean).join(", "), "Carga", "", wh.lat, wh.lng]);
+      }
       (S.plan.slots[`${w}${d}`] || []).forEach((id, i) => {
         const t = S.porId.get(id);
         filas.push([w, R.DIAS[d], i + 1, t.nombre, t.id, t.tipo_cuenta, `${t.direccion}, ${t.ciudad}, ${t.estado_us} ${t.zip}`, R.ETIQUETA_FREQ[t.freq], Math.round(t.ventaSem), pos[id] ? pos[id].lat : "", pos[id] ? pos[id].lng : ""]);

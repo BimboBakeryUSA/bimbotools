@@ -79,9 +79,14 @@
     .rt-diaschk button[aria-pressed=true] { background:var(--dark); border-color:var(--dark); color:white; }
     .rt-diaschk button:disabled { cursor:default; opacity:.6; }
     .rt-grupo { display:grid; gap:4px; font-size:12px; color:var(--gray); }
-    .rt-wh-fila { display:grid; grid-template-columns:1fr 1.1fr auto auto; gap:6px; align-items:center; margin-bottom:8px; }
-    .rt-wh-fila input { font:inherit; font-size:13px; padding:6px; border:1px solid var(--border); border-radius:6px; min-width:0; }
-    @media (max-width:760px) { .rt-wh-fila { grid-template-columns:1fr 1fr; } }
+    .rt-wh-form { display:grid; grid-template-columns:1fr 1.6fr 1fr .5fr .6fr; gap:8px; align-items:end; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+    .rt-wh-form label { display:grid; gap:4px; font-size:12px; color:var(--gray); }
+    .rt-wh-form input, .rt-wh-form select { font:inherit; font-size:14px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:white; color:var(--dark); min-width:0; }
+    .rt-wh-form .ancho { grid-column:1 / -1; }
+    @media (max-width:760px) { .rt-wh-form { grid-template-columns:1fr 1fr; } }
+    .rt-dia.warehouse { --c: var(--dark); background:var(--gray-light); }
+    .rt-parada.wh { background:var(--gray-light); border-radius:6px; border-top:0; margin-bottom:4px; }
+    .rt-parada.wh .n { font-weight:700; color:var(--dark); }
     .rt-regla-fila input, .rt-regla-fila select { font:inherit; font-size:13px; padding:6px; border:1px solid var(--border); border-radius:6px; min-width:0; }
     @media (max-width:640px) { .rt-regla-fila { grid-template-columns:1fr 1fr; } }
     [hidden] { display:none !important; }
@@ -133,22 +138,36 @@
               <button data-semana="A" aria-selected="true">Semana A</button>
               <button data-semana="B" aria-selected="false">Semana B</button>
             </div>
-            <label>Warehouse <select id="selWarehouse"></select></label>
-            <div class="rt-grupo"><span>Días de carga</span><div class="rt-diaschk" id="diasCarga" role="group" aria-label="Días de carga"></div></div>
+            <div class="rt-grupo"><span>Días que trabaja la ruta</span><div class="rt-diaschk" id="diasCarga" role="group" aria-label="Días que trabaja la ruta"></div></div>
             <label>Máx. paradas/día <input type="number" id="numMax" min="1" max="60" placeholder="—" /></label>
-            <label style="flex:1; min-width:220px;">Punto de salida (lat, lng) <input type="text" id="txtInicio" placeholder="38.8462, -77.3064  — o vacío" /></label>
+            <label style="flex:1; min-width:220px;">Salida los días sin warehouse (lat, lng) <input type="text" id="txtInicio" placeholder="opcional — 38.8462, -77.3064" /></label>
           </div>
           <div class="rt-acciones" style="margin-top:12px;">
             <button class="btn btn-primary" id="btnCalcular">Calcular plan</button>
             <button class="btn btn-secondary" id="btnReordenar">Reordenar días</button>
             <button class="btn btn-secondary" id="btnSoltar">Soltar fijadas</button>
             <button class="btn btn-primary" id="btnGuardar">Guardar</button>
+            <button class="btn btn-secondary" id="btnWarehouse">Agregar warehouse</button>
             <span style="flex:1"></span>
             <button class="btn btn-secondary btn-small" id="btnKmlA">KML semana A</button>
             <button class="btn btn-secondary btn-small" id="btnKmlB">KML semana B</button>
             <button class="btn btn-secondary btn-small" id="btnCsv">CSV</button>
           </div>
-          <p class="rt-nota" style="margin:10px 0 0;">Arrastra una tienda a otro día para moverla (en el celular usa “Mover a”). Las tiendas que mueves a mano quedan <b>fijadas</b> y el cálculo las respeta. Una tienda 2x o 3x semana se mueve con sus otros días; una semanal se mueve en A y B a la vez. Las visitas solo caen en los <b>días de carga</b> de la ruta; el warehouse es el punto de salida de cada día.</p>
+          <form class="rt-wh-form" id="formWarehouse" hidden>
+            <label class="ancho" id="lblWhGuardado">Usar uno ya registrado <select id="selWhGuardado"></select></label>
+            <label>Nombre <input type="text" id="whNombre" placeholder="Warehouse Chantilly" /></label>
+            <label>Dirección <input type="text" id="whDireccion" placeholder="4325 Lafayette Center Dr" /></label>
+            <label>Ciudad <input type="text" id="whCiudad" /></label>
+            <label>Estado <input type="text" id="whEstado" placeholder="VA" maxlength="2" /></label>
+            <label>ZIP <input type="text" id="whZip" inputmode="numeric" /></label>
+            <label class="ancho">Si no lo encuentra por la dirección: coordenadas (lat, lng) <input type="text" id="whCoords" placeholder="opcional — en Google Maps, clic derecho sobre el warehouse" /></label>
+            <div class="rt-acciones ancho">
+              <button class="btn btn-primary" type="submit" id="btnWhAgregar">Agregar a la ruta</button>
+              <button class="btn btn-secondary" type="button" id="btnWhCancelar">Cancelar</button>
+              <span class="rt-nota" id="whMensaje"></span>
+            </div>
+          </form>
+          <p class="rt-nota" style="margin:10px 0 0;">Arrastra una tienda a otro día para moverla (en el celular usa “Mover a”). Las tiendas que mueves a mano quedan <b>fijadas</b> y el cálculo las respeta. Una tienda 2x o 3x semana se mueve con sus otros días; una semanal se mueve en A y B a la vez. El <b>warehouse</b> se pone como una parada más: arrástralo a cada día que el IBP va a cargar (o usa sus botones de días); esos días la ruta sale de ahí.</p>
         </div>
         <div class="card">
           <div id="mapa" class="rt-mapa"></div>
@@ -205,16 +224,6 @@
           </div>
           <div class="rt-acciones" style="margin-top:14px;">
             <button class="btn btn-primary" id="btnGuardarReglas">Guardar reglas</button>
-          </div>
-        </div>
-        <div class="card">
-          <strong>Warehouses</strong>
-          <p class="rt-nota">Cada ruta sale de su warehouse y carga en sus propios días. Aquí van la ubicación de cada warehouse (en Google Maps, clic derecho → copia las coordenadas) y sus días de carga normales. En la pestaña Plan cada ruta elige su warehouse y puede ajustar sus días de carga. Aplican a todas las rutas.</p>
-          <div class="rt-wh-fila" style="font-size:11px; color:var(--gray); text-transform:uppercase;"><span>Nombre</span><span>Ubicación (lat, lng)</span><span>Días de carga</span><span></span></div>
-          <div id="listaWarehouses"></div>
-          <button class="btn btn-secondary btn-small" id="btnAgregarWarehouse">Agregar warehouse</button>
-          <div class="rt-acciones" style="margin-top:14px;">
-            <button class="btn btn-primary" id="btnGuardarWarehouses">Guardar warehouses</button>
           </div>
         </div>
       </section>

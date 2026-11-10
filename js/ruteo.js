@@ -12,7 +12,8 @@
 //    mientras baje el costo total = millas de todos los días + penalidad por
 //    días desbalanceados + penalidad fuerte si un día pasa del máximo.
 // 3. Orden dentro de cada día: vecino más cercano + 2-opt (problema del
-//    viajero), saliendo del punto de inicio del IBP si existe.
+//    viajero), saliendo del warehouse los días que el IBP carga ahí (o del
+//    punto de salida si lo hay).
 //
 // Distancia: línea recta (haversine) x 1.3 como aproximación de manejo.
 // Slots: "A1".."A7" / "B1".."B7" (semana + día, 1 = lunes ... 7 = domingo).
@@ -207,6 +208,12 @@
     return mejor.concat(sinPos);
   }
 
+  // `inicio` puede ser un punto {lat,lng}, null, o una función slot -> punto
+  // (para salir del warehouse solo los días que el IBP carga ahí).
+  function salidaDe(inicio, k) {
+    return (typeof inicio === "function" ? inicio(k) : inicio) || null;
+  }
+
   // Estimación rápida de millas de un día (para la búsqueda local).
   function costoRapido(ids, pos, inicio) {
     if (!ids.length) return 0;
@@ -232,7 +239,7 @@
   /**
    * tiendas: [{ id, lat, lng, freq }]  (freq: "3x" | "2x" | "1x" | "q" | "fuera")
    * opts: {
-   *   dias: [1,2,3,4,5], inicio: {lat,lng} | null,
+   *   dias: [1,2,3,4,5], inicio: {lat,lng} | null | (slot) => {lat,lng} | null,
    *   fijadas: { id: ["A1","B1"] }   // patrón que no se toca
    *   pesoBalance (default 3), maxPorDia (default null), intentos (default 8)
    * }
@@ -269,7 +276,7 @@
       let c = 0;
       todosSlots.forEach((k) => {
         const n = s[k].length;
-        c += costoRapido(s[k], pos, o.inicio) + o.pesoBalance * (n - meta) ** 2;
+        c += costoRapido(s[k], pos, salidaDe(o.inicio, k)) + o.pesoBalance * (n - meta) ** 2;
         if (o.maxPorDia && n > o.maxPorDia) c += 1000 * (n - o.maxPorDia);
       });
       return { costo: c, slots: s };
@@ -302,8 +309,8 @@
     const { slots } = activos.length ? evaluar(mejor.asig) : { slots: Object.fromEntries(todosSlots.map((k) => [k, []])) };
     const millasPorSlot = {};
     Object.keys(slots).forEach((k) => {
-      slots[k] = ordenarDia(slots[k], pos, o.inicio);
-      millasPorSlot[k] = largo(slots[k], pos, o.inicio);
+      slots[k] = ordenarDia(slots[k], pos, salidaDe(o.inicio, k));
+      millasPorSlot[k] = largo(slots[k], pos, salidaDe(o.inicio, k));
     });
     return { slots, sinUbicar, sinDias, millas: millasPorSlot };
   }
@@ -311,14 +318,14 @@
   // Reordena solo los días indicados (después de mover tiendas a mano).
   function reordenarSlots(slots, claves, pos, inicio) {
     const out = Object.assign({}, slots);
-    claves.forEach((k) => { out[k] = ordenarDia(out[k] || [], pos, inicio); });
+    claves.forEach((k) => { out[k] = ordenarDia(out[k] || [], pos, salidaDe(inicio, k)); });
     return out;
   }
 
   function millasDeSlots(slots, pos, inicio) {
     const out = {};
     Object.keys(slots).forEach((k) => {
-      out[k] = largo((slots[k] || []).filter((id) => pos[id]), pos, inicio);
+      out[k] = largo((slots[k] || []).filter((id) => pos[id]), pos, salidaDe(inicio, k));
     });
     return out;
   }
@@ -348,6 +355,7 @@
     reordenarSlots,
     millasDeSlots,
     validar,
+    salidaDe,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.BimboRuteo = api;
