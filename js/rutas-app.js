@@ -654,7 +654,7 @@
   }
 
   function htmlParada(t, n, slot) {
-    const opciones = R.patrones(t.freq, S.dias)
+    const opciones = R.patrones(t.freq, S.dias, true)
       .map((p) => `<option value="${p.clave}">${esc(p.etiqueta)}</option>`)
       .join("");
     const editable = !S.soloLectura;
@@ -722,7 +722,7 @@
       S.plan.fijadas.delete(id);
       marcarSucio();
     } else {
-      const p = R.patrones(t.freq, S.dias).find((x) => x.clave === sel.value);
+      const p = R.patrones(t.freq, S.dias, true).find((x) => x.clave === sel.value);
       if (p) aplicarPatron(id, p, true);
     }
     renderTodo();
@@ -822,14 +822,39 @@
       renderPlan();
       return renderStats();
     }
-    const p = R.patronConSlot(t.freq, S.dias, destino);
-    if (!p) {
-      const ops = R.patrones(t.freq, S.dias).map((x) => x.etiqueta.toLowerCase()).join(" o ");
-      return toast(ops ? `Una tienda ${R.ETIQUETA_FREQ[t.freq].toLowerCase()} solo puede ir ${ops}.` : `Con los días de carga ${nombreDias(S.dias)} no cabe una tienda ${R.ETIQUETA_FREQ[t.freq].toLowerCase()}.`);
-    }
+    const p = patronMovido(t, origen, destino);
+    if (!p) return;
     aplicarPatron(id, p, true);
     renderTodo();
   });
+
+  // Patrón nuevo al arrastrar una visita de `origen` a `destino` (slots
+  // "A1"...). En 2x/3x solo cambia el día arrastrado y los otros se quedan
+  // (L+J arrastrando el jueves al martes = L+M), igual en semana A y B.
+  function patronMovido(t, origen, destino) {
+    const etiqueta = R.ETIQUETA_FREQ[t.freq].toLowerCase();
+    const todos = R.patrones(t.freq, S.dias, true);
+    if (!todos.length) {
+      toast(`Con los días de trabajo ${nombreDias(S.dias)} no cabe una tienda ${etiqueta}.`);
+      return null;
+    }
+    const dDest = Number(destino[1]);
+    if ((t.freq === "2x" || t.freq === "3x") && origen) {
+      const actual = R.patronActual(t.id, t.freq, S.dias, S.plan.slots);
+      if (actual) {
+        const dias = actual.clave.split("+").map(Number);
+        const dOrig = Number(origen[1]);
+        if (dias.includes(dDest)) {
+          toast(`${t.nombre} ya va el ${R.DIAS[dDest].toLowerCase()}.`);
+          return null;
+        }
+        const nuevos = dias.map((d) => (d === dOrig ? dDest : d)).sort((a, b) => a - b);
+        return todos.find((p) => p.clave === nuevos.join("+")) || null;
+      }
+    }
+    // Desde "Sin asignar" (o semanal/quincenal): el mejor patrón que incluya ese día.
+    return R.patronConSlot(t.freq, S.dias, destino) || todos.find((p) => p.slots.includes(destino)) || null;
+  }
 
   function renderMapa() {
     if (!window.L) return;

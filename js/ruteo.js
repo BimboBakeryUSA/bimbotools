@@ -88,9 +88,17 @@
     };
   }
 
-  // dias: días de carga de la ruta, ej. [1,2,3,4,5] o [1,3,5]
-  function patrones(freq, dias) {
+  // dias: días que trabaja la ruta, ej. [1,2,3,4,5] o [1,3,5]
+  // todos = false: solo los patrones bien espaciados (los que usa el cálculo).
+  // todos = true: cualquier combinación de días (para mover a mano: L+M+J,
+  // L+M+S...); primero van los bien espaciados.
+  function patrones(freq, dias, todos) {
     const lista = [...new Set(dias)].sort((a, b) => a - b);
+    if (todos && (freq === "2x" || freq === "3x")) {
+      const buenos = patrones(freq, dias, false);
+      const claves = new Set(buenos.map((p) => p.clave));
+      return buenos.concat(combinaciones(lista, freq === "2x" ? 2 : 3).map(patronMultiple).filter((p) => !claves.has(p.clave)));
+    }
     if (freq === "2x") {
       const pares = combinaciones(lista, 2);
       // Preferimos 3 días entre visitas (lunes+jueves, martes+viernes...);
@@ -127,9 +135,10 @@
   }
 
   // Patrón que una tienda tiene hoy dentro de un plan (por sus slots).
+  // Acepta cualquier combinación de días, también las puestas a mano.
   function patronActual(id, freq, dias, slots) {
     const donde = Object.keys(slots).filter((s) => slots[s].includes(id)).sort();
-    return patrones(freq, dias).find((p) => p.slots.slice().sort().join() === donde.join()) || null;
+    return patrones(freq, dias, true).find((p) => p.slots.slice().sort().join() === donde.join()) || null;
   }
 
   // --------------------------------------------------------------------------
@@ -261,7 +270,7 @@
       const fij = o.fijadas[t.id];
       const ps = patrones(t.freq, o.dias);
       if (fij) {
-        const p = ps.find((x) => x.slots.slice().sort().join() === fij.slice().sort().join());
+        const p = patrones(t.freq, o.dias, true).find((x) => x.slots.slice().sort().join() === fij.slice().sort().join());
         if (p) return [p];
       }
       return ps;
