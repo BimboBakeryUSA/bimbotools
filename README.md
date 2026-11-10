@@ -104,7 +104,7 @@ Ahí, por cada tienda:
   `prompt`, obligatorio). No hay un estatus aparte de "pedir borrado": pedir
   que se elimine una tienda es simplemente marcarla inactiva y explicar por
   qué en el motivo — es la misma decisión, la diferencia es solo el motivo.
-- Elige su **frecuencia de visita**: semanal, 2 veces por semana, quincenal,
+- Elige su **frecuencia de visita**: semanal, 2 veces por semana, 3 veces por semana, quincenal,
   o a pedido del cliente.
 - Si la tienda queda activa, marca **qué días** la visita (lunes a sábado,
   domingo no se pauta) con un selector de pastillas.

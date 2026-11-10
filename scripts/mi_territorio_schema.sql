@@ -51,7 +51,7 @@ create table public.tiendas (
   productos integer not null default 0,   -- productos Bimbo distintos vendidos en el periodo del reporte
   estatus text check (estatus in ('activa', 'inactiva')),
   motivo text,
-  frecuencia text check (frecuencia in ('semanal', '2x_semana', 'quincenal', 'pedido')),
+  frecuencia text check (frecuencia in ('semanal', '2x_semana', '3x_semana', 'quincenal', 'pedido')),
   dias_visita text[] not null default '{}', -- lunes..sabado, domingo no se pauta
   revisado_en timestamptz,
   created_at timestamptz not null default now()
@@ -291,7 +291,7 @@ declare
   v_anterior text;
   v_acceso record;
 begin
-  if p_frecuencia not in ('semanal', '2x_semana', 'quincenal', 'pedido') then
+  if p_frecuencia not in ('semanal', '2x_semana', '3x_semana', 'quincenal', 'pedido') then
     raise exception 'frecuencia inválida: %', p_frecuencia;
   end if;
 

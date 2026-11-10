@@ -169,6 +169,7 @@
     const FRECUENCIA_LABEL = {
       semanal: "Semanal",
       "2x_semana": "2 veces por semana",
+      "3x_semana": "3 veces por semana",
       quincenal: "Quincenal",
       pedido: "A pedido del cliente",
     };
@@ -609,6 +610,7 @@
               <option value="" ${!t.frecuencia ? "selected" : ""} disabled>Elegir…</option>
               <option value="semanal" ${t.frecuencia === "semanal" ? "selected" : ""}>Semanal</option>
               <option value="2x_semana" ${t.frecuencia === "2x_semana" ? "selected" : ""}>2 veces por semana</option>
+              <option value="3x_semana" ${t.frecuencia === "3x_semana" ? "selected" : ""}>3 veces por semana</option>
               <option value="quincenal" ${t.frecuencia === "quincenal" ? "selected" : ""}>Quincenal</option>
               <option value="pedido" ${t.frecuencia === "pedido" ? "selected" : ""}>A pedido del cliente</option>
             </select>
