@@ -132,5 +132,38 @@ $$;
 revoke all on function sync.enviar_cuenta(uuid) from public, anon, authenticated;
 revoke all on function sync.enviar_todas() from public, anon, authenticated;
 
+-- Botón "Sincronizar con inventario" del admin de catálogo (solo role admin).
+-- Sin correo: manda todas las cuentas. Con correo: solo esa. Devuelve
+-- cuántas mandó.
+create or replace function public.sincronizar_cuentas_inventario(p_email text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = public, sync
+as $$
+declare
+  r record;
+  n integer := 0;
+begin
+  if not exists (select 1 from public.profiles where id = auth.uid() and role::text = 'admin') then
+    raise exception 'solo un admin puede sincronizar';
+  end if;
+  if not exists (select 1 from sync.config where clave = 'secreto' and valor not like '<<%') then
+    raise exception 'falta configurar la sincronización (secreto) en este proyecto';
+  end if;
+  if p_email is null or trim(p_email) = '' then
+    return sync.enviar_todas();
+  end if;
+  for r in select u.id from auth.users u where lower(u.email) = lower(trim(p_email)) loop
+    perform sync.enviar_cuenta(r.id);
+    n := n + 1;
+  end loop;
+  return n;
+end;
+$$;
+
+revoke all on function public.sincronizar_cuentas_inventario(text) from public, anon;
+grant execute on function public.sincronizar_cuentas_inventario(text) to authenticated;
+
 -- Copia inicial (ya con todo instalado):
 select sync.enviar_todas() as cuentas_enviadas;
