@@ -233,6 +233,26 @@ async function invitarIbp(email, rutaId, nombre) {
 // sin invitación ni tocar su contraseña, así entra con su usuario regular.
 // Si no existe ninguna cuenta con ese correo, la Edge Function lo rechaza
 // (usar invitarIbp en ese caso).
+// Cuentas (admin.html). Ver y cambiar contraseña de otra cuenta: funciones
+// admin_ver_cuenta / admin_cambiar_clave (scripts/cuentas_admin.sql), solo
+// admin/corporativo. Cambiar la propia: directo con Supabase Auth.
+async function verCuenta(email) {
+  const { data, error } = await _client.rpc("admin_ver_cuenta", { p_email: email });
+  if (error) throw new Error(error.message);
+  return data && data[0] ? data[0] : null;
+}
+
+async function cambiarClaveDe(email, clave) {
+  const { data, error } = await _client.rpc("admin_cambiar_clave", { p_email: email, p_clave: clave });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function cambiarMiClave(clave) {
+  const { error } = await _client.auth.updateUser({ password: clave });
+  if (error) throw new Error(error.message);
+}
+
 async function asignarRutaACuenta(email, rutaId, nombre) {
   const { data, error } = await _client.functions.invoke("asignar-ruta", {
     body: { email, route_code: rutaId, nombre: nombre || null },
@@ -819,6 +839,9 @@ window.AppDatos = {
   getMensajes,
   marcarMensajeLeido,
   getPendientes,
+  verCuenta,
+  cambiarClaveDe,
+  cambiarMiClave,
   tieneNotificacionesActivas,
   activarNotificacionesPush,
 };

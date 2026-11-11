@@ -330,6 +330,14 @@ par de llaves, cada teléfono vuelve a pedir activar los avisos.
 - Ver el documento de especificación (carpeta raíz) para el resto de
   decisiones pendientes y el roadmap de próximas herramientas.
 
+## Cuentas (Administrador)
+
+Tarjeta "Cuentas" en `admin.html`: buscar una cuenta por correo (rol, si está
+confirmada o bloqueada, último ingreso) y ponerle contraseña nueva; y "Cambiar
+mi contraseña" para la sesión abierta. Usa `admin_ver_cuenta` /
+`admin_cambiar_clave` (`scripts/cuentas_admin.sql`), solo admin/corporativo.
+La cuenta es la misma en todas las apps del proyecto de Supabase.
+
 ## Tiendas pendientes y recordatorios (Mi Territorio)
 
 Una tienda activa está **pendiente** cuando ya se pasó de su frecuencia sin

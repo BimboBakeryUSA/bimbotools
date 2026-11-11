@@ -1510,6 +1510,12 @@ details.herramientas > summary {
   list-style-position: inside;
 }
 details.herramientas[open] > summary { margin-bottom: 12px; }
+.cuentas-fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.cuentas-fila input { flex: 1; min-width: 200px; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.cuentas-fila .btn { margin-top: 0; }
+.cuenta-info { font-size: 13px; line-height: 1.6; margin-top: 10px; }
+.cuenta-info:empty { display: none; }
+
 details.herramientas .herramienta + .herramienta {
   border-top: 1px solid var(--border);
   margin-top: 16px;
