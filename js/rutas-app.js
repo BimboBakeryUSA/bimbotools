@@ -218,7 +218,7 @@
       if (Array.isArray(wh)) S.warehouses = wh.filter((w) => w && w.id);
     } catch (e) {
       if (errorTablasFaltantes(e)) {
-        $("estadoGuardado").textContent = "Falta crear las tablas del planificador: corre scripts/rutas_schema.sql en Supabase.";
+        $("estadoGuardado").textContent = "Faltan las tablas del planificador: hay que correr su script en Supabase.";
         $("estadoGuardado").classList.add("sucio");
       } else console.error(e);
     }
@@ -289,7 +289,7 @@
         plan = await D.getPlanRuta(id);
       } catch (e) {
         if (!errorTablasFaltantes(e)) throw e;
-        toast("Faltan las tablas del planificador en Supabase (scripts/rutas_schema.sql). Puedes calcular, pero no guardar.");
+        toast("Faltan las tablas del planificador en Supabase. Puedes calcular, pero no guardar.");
       }
       S.ruta = id;
       try { localStorage.setItem(LS_RUTA, id); } catch (e) {}
@@ -308,7 +308,7 @@
 
       const p = plan || {};
       // rutas_plan.inicio guarda { lat, lng, warehouse:{...}, warehouseDias, dias }
-      // (ver scripts/rutas_schema.sql).
+      // (script privado).
       const ini = p.inicio || {};
       let wh = ini.warehouse && typeof ini.warehouse === "object" ? ini.warehouse : null;
       if (typeof ini.warehouse === "string") wh = S.warehouses.find((w) => w.id === ini.warehouse) || null;
@@ -1578,7 +1578,7 @@
       S.feriadosError = null;
     } catch (e) {
       S.feriados = [];
-      S.feriadosError = errorTablasFeriados(e) ? T("Falta crear las tablas de feriados: corre scripts/calendario_especial.sql en Supabase.") : e.message;
+      S.feriadosError = errorTablasFeriados(e) ? T("Faltan las tablas de feriados: hay que correr su script en Supabase.") : e.message;
     }
     try {
       const a = await D.getConfigRutas("semanaA");
@@ -1995,7 +1995,7 @@
       toast(T("Semana especial guardada. El plan A/B no cambió."));
     } catch (e) {
       console.error(e);
-      toast(errorTablasFeriados(e) ? T("Falta crear las tablas de feriados: corre scripts/calendario_especial.sql en Supabase.") : T("No se guardó: {e}", { e: e.message }));
+      toast(errorTablasFeriados(e) ? T("Faltan las tablas de feriados: hay que correr su script en Supabase.") : T("No se guardó: {e}", { e: e.message }));
     }
   };
 
@@ -2083,7 +2083,7 @@
     } catch (e) {
       console.error(e);
       toast(/duplicate|unique/i.test(e.message) ? T("Ese día ya está en el calendario (bórralo primero para cambiarlo).")
-        : errorTablasFeriados(e) ? T("Falta crear las tablas de feriados: corre scripts/calendario_especial.sql en Supabase.") : T("No se guardó: {e}", { e: e.message }));
+        : errorTablasFeriados(e) ? T("Faltan las tablas de feriados: hay que correr su script en Supabase.") : T("No se guardó: {e}", { e: e.message }));
     }
   };
 

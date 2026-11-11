@@ -1486,7 +1486,7 @@
 
     // ---------------------------------------------------------------------
     // Cuentas: ver una cuenta por correo (las cuentas se manejan en catálogo
-    // y se copian solas: scripts/sync_cuentas/).
+    // y se copian solas: script privado.
     // ---------------------------------------------------------------------
     const ROL_CUENTA = { admin: "Admin", corporativo: "Corporativo", route: "IBP (ruta)", dos: "DOS", zsl: "ZSL", msl: "MSL" };
 
@@ -1498,7 +1498,7 @@
 
     function errorDeCuenta(err) {
       return /admin_ver_cuenta/.test(err.message) && /(does not exist|not find|schema cache)/i.test(err.message)
-        ? "Falta crear las funciones de cuentas en Supabase: corre scripts/cuentas_admin.sql."
+        ? "Faltan las funciones de cuentas: hay que correr su script en Supabase."
         : err.message;
     }
 

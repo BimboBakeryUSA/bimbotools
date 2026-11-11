@@ -5,7 +5,7 @@ compilar nada.
 
 **Sin nombres de marca en el código.** El nombre de la app y la llave
 pública de los avisos vienen de la tabla `app_config` de Supabase
-(`scripts/app_config.sql`, leída por `js/marca.js`); la conexión a Supabase
+(un script privado, leída por `js/marca.js`); la conexión a Supabase
 está en `js/config.js`. Los títulos de las páginas llevan solo el nombre de
 la sección (`<title data-base="...">`) y `js/marca.js` le agrega el nombre.
 
@@ -61,15 +61,7 @@ Luego abre `http://localhost:8080`.
   index/ibp/msl/admin.
 - `data/tiendas.json` — foto del catálogo de tiendas (dueño de ruta,
   dirección, ventas de las últimas 12 semanas) tal como se generó del
-  reporte de ventas — es el insumo que se usó para sembrar Supabase (ver
-  `scripts/generar_tiendas.py`); la app ya no lee este archivo directamente.
-- `scripts/generar_tiendas.py` — regenera `data/tiendas.json` a partir de un
-  nuevo reporte Excel "Central List / Account L4 / Route / Product Name".
-- `scripts/mi_territorio_schema.sql` — el esquema de Supabase de Mi
-  Territorio (tablas, RLS, funciones), tal cual se aplicó al proyecto real.
-- `scripts/edge_functions/invitar-ibp.ts` — la Edge Function que manda la
-  invitación real a un IBP (ver "Autenticación" abajo), tal cual está
-  desplegada en el proyecto.
+  reporte de ventas — es el insumo que se usó para sembrar Supabase (con un script privado); la app ya no lee este archivo directamente.
 - `manifest.json` + `sw.js` + `icons/` — lo que hace la app instalable como
   PWA.
 
@@ -173,12 +165,11 @@ lado del servidor — ver "Autenticación" abajo.
 Mi Territorio usa Supabase — tablas `ibps`, `tiendas` (incluye
 `dias_visita`, el arreglo de días en que se visita cada tienda activa),
 `ventas_semanales` y `tiendas_historial` (el historial de cambios que ve el
-admin — quién, qué campo, valor antes/después y cuándo; esquema completo en
-`scripts/mi_territorio_schema.sql`). Vive dentro del
+admin — quién, qué campo, valor antes/después y cuándo; esquema completo en un script privado, fuera del repositorio). Vive dentro del
 proyecto de Supabase de otra app de la suite (tablas con nombre propio):
 la organización tiene tope de 2 proyectos activos en el plan free y ya
 estaban ocupados, así que se reusó uno en vez de crear uno nuevo. Si más adelante hace falta separarlo
-a su propio proyecto, es cuestión de correr ese mismo `.sql` ahí y copiar
+a su propio proyecto, es cuestión de correr ese mismo script ahí y copiar
 los datos — son tablas Postgres normales, no hay nada que las ate para
 siempre a estar juntas.
 
@@ -334,10 +325,10 @@ par de llaves, cada teléfono vuelve a pedir activar los avisos.
 
 Catálogo usa otro proyecto de Supabase para el login. Las cuentas se crean y
 se cambian **allá**; un trigger en el proyecto de catálogo
-(`scripts/sync_cuentas/2_catalogo.sql`) manda cada alta, cambio de contraseña
+(un script privado) manda cada alta, cambio de contraseña
 o de rol a la Edge Function `sincronizar-cuenta` de este proyecto
-(`scripts/edge_functions/sincronizar-cuenta.ts` +
-`scripts/sync_cuentas/1_inventario.sql`), protegida con un secreto compartido
+(un script privado +
+un script privado), protegida con un secreto compartido
 (`SYNC_SECRET`).
 
 - Solo se copian roles admin, msl, zsl e ibp (no clientes, no rechazadas).
@@ -345,14 +336,14 @@ o de rol a la Edge Function `sincronizar-cuenta` de este proyecto
 - Cuenta nueva aquí: admin → admin, msl/zsl → corporativo, ibp → route sin
   ruta. Si ya tenía perfil aquí, su rol y su ruta no se tocan.
 - Tarjeta "Cuentas" en `admin.html`: solo consulta (`admin_ver_cuenta`, en
-  `scripts/cuentas_admin.sql`).
+  un script privado).
 
 ## Tiendas pendientes y recordatorios (Mi Territorio)
 
 Una tienda activa está **pendiente** cuando ya se pasó de su frecuencia sin
 visita marcada: semanal con más de 7 días, quincenal con más de 14, 2x/3x
 con menos visitas de las que tocan en los últimos 7 días. Lo calcula
-Supabase (`pendientes_de_ruta`, en `scripts/pendientes_y_pruebas.sql`).
+Supabase (`pendientes_de_ruta`, en un script privado).
 
 - **Al abrir la app** el IBP ve primero la pantalla "Tiendas pendientes" (en
   rojo), puede marcarlas visitadas ahí, y luego pasa a su agenda. En la
@@ -399,5 +390,5 @@ Arma la semana A y B de cada IBP sin IA: todo es cálculo en el navegador
 Coordenadas en `rutas_geo` (Census batch, OpenStreetMap o manual). Plan en
 `rutas_plan` (warehouse, días de carga y días de trabajo dentro de
 `inicio`), reglas y warehouses usados en `rutas_config`. Las tablas se crean con
-`scripts/rutas_schema.sql` (solo agrega tablas; no toca las de Mi Territorio).
+un script privado (solo agrega tablas; no toca las de Mi Territorio).
 Solo admin y corporativo (managers) pueden abrirlo; no aparece en el inicio.

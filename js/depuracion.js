@@ -9,7 +9,7 @@
 // A diferencia de js/data.js (que todavía es local/localStorage), este
 // archivo SÍ habla con un backend real: Supabase (proyecto compartido con
 // otra app, tablas con prefijo propio para no chocar con ella — ver
-// scripts/mi_territorio_schema.sql). Todas las tiendas, decisiones (activa/
+// script privado. Todas las tiendas, decisiones (activa/
 // inactiva/motivo/frecuencia) y ventas semanales viven ahí, compartidas entre
 // todos los IBPs y el admin en vivo — ya no hay exportar/importar .json.
 //
@@ -234,8 +234,8 @@ async function invitarIbp(email, rutaId, nombre) {
 // Si no existe ninguna cuenta con ese correo, la Edge Function lo rechaza
 // (usar invitarIbp en ese caso).
 // Cuentas (admin.html): ver una cuenta por correo (admin_ver_cuenta en
-// scripts/cuentas_admin.sql, solo admin/corporativo). Las cuentas y las
-// contraseñas se manejan en catálogo y se copian solas (scripts/sync_cuentas/).
+// script privado, solo admin/corporativo). Las cuentas y las
+// contraseñas se manejan en catálogo y se copian solas (script privado).
 async function verCuenta(email) {
   const { data, error } = await _client.rpc("admin_ver_cuenta", { p_email: email });
   if (error) throw new Error(error.message);
@@ -582,7 +582,7 @@ async function enviarMensaje(rutaId, texto, nombreRemitente) {
 
 // Mensajes de una ruta, más reciente primero.
 // Tiendas pendientes de la ruta (función pendientes_de_ruta en Supabase, ver
-// scripts/pendientes_y_pruebas.sql): { activo, tiendas: [{ tienda_id, nombre,
+// script privado: { activo, tiendas: [{ tienda_id, nombre,
 // direccion, ciudad, frecuencia, dias_visita, ultima_visita, dias_sin_visita,
 // visitas_semana, visitas_necesarias }] }.
 async function getPendientes(rutaId) {
@@ -715,7 +715,7 @@ async function getTodasConEstado() {
 
 // ---------------------------------------------------------------------------
 // Planificador de rutas (rutas.html) — tablas rutas_geo / rutas_plan /
-// rutas_config (ver scripts/rutas_schema.sql). Lectura para admin/corporativo
+// rutas_config (script privado). Lectura para admin/corporativo
 // y el IBP de esa ruta; escritura solo admin/corporativo (RLS).
 // ---------------------------------------------------------------------------
 
@@ -787,7 +787,7 @@ async function guardarConfigRutas(clave, valor) {
   );
 }
 
-// Calendario de feriados y semanas especiales (scripts/calendario_especial.sql).
+// Calendario de feriados y semanas especiales (script privado).
 // rutas_dias_especiales: días sin ruta (o con ruta extra), para todas las rutas
 // (ibp_id null) o solo una. rutas_plan_especial: el plan de una ruta en una
 // semana especial; no toca rutas_plan (el plan A/B de siempre).

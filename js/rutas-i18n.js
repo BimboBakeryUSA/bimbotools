@@ -37,8 +37,8 @@
     "Plan guardado {fecha}{por}": "Plan saved {fecha}{por}",
     " por {a}": " by {a}",
     "No se pudo cargar la ruta: {e}": "Could not load the route: {e}",
-    "Falta crear las tablas del planificador: corre scripts/rutas_schema.sql en Supabase.": "The planner tables are missing: run scripts/rutas_schema.sql in Supabase.",
-    "Faltan las tablas del planificador en Supabase (scripts/rutas_schema.sql). Puedes calcular, pero no guardar.": "The planner tables are missing in Supabase (scripts/rutas_schema.sql). You can calculate but not save.",
+    "Faltan las tablas del planificador: hay que correr su script en Supabase.": "The planner tables are missing: its script still needs to run in Supabase.",
+    "Faltan las tablas del planificador en Supabase. Puedes calcular, pero no guardar.": "The planner tables are missing in Supabase. You can calculate but not save.",
     "Todavía no hay reglas de frecuencia: defínelas en la pestaña Reglas.": "There are no frequency rules yet: set them in the Rules tab.",
 
     // Estadísticas
@@ -257,7 +257,7 @@
     "No caben esta semana": "Don't fit this week",
     "Una visita menos esta semana. Arrástrala a un día si quieres que vaya.": "One visit less this week. Drag it to a day if you want it visited.",
     "día extra": "extra day",
-    "Falta crear las tablas de feriados: corre scripts/calendario_especial.sql en Supabase.": "The holiday tables are missing: run scripts/calendario_especial.sql in Supabase.",
+    "Faltan las tablas de feriados: hay que correr su script en Supabase.": "The holiday tables are missing: its script still needs to run in Supabase.",
     "Guardada {fecha}{por}": "Saved {fecha}{por}",
     "Propuesta: todavía no está guardada": "Proposal: not saved yet",
     "semana del {a} al {b}": "week of {a} to {b}",

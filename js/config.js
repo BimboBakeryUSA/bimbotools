@@ -3,7 +3,7 @@
 // viaja al navegador por diseño; los permisos los pone RLS en Postgres).
 // El nombre de la app y demás textos de la empresa NO van en el código:
 // vienen de la tabla app_config de Supabase (ver js/marca.js y
-// scripts/app_config.sql).
+// script privado.
 // ============================================================================
 
 window.APP_CONFIG = {
