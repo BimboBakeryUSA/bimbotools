@@ -12,9 +12,24 @@
   <link rel="stylesheet" href="css/styles.css" />
   <style>
     /* Pendientes: tiendas que ya se pasaron de su frecuencia sin visita */
-    .pend-card { border-left: 5px solid var(--rojo); }
-    .pend-card strong { color: var(--rojo); }
-    .pend-dato { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--rojo); }
+    /* Una fila por tienda, en rojo claro (pide una acción) con ⚠ arriba a la derecha */
+    .pend-fila { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr) 48px; gap: 12px; align-items: center;
+      background: #fdecea; border: 1px solid #f3b9b2; border-radius: 12px; padding: 14px 12px; margin-bottom: 10px; }
+    .pend-alerta { position: absolute; top: 8px; right: 10px; width: 18px; height: 18px; }
+    .pend-dias { width: 56px; height: 56px; border-radius: 12px; background: #fff; border: 1px solid #f3b9b2; color: var(--rojo);
+      display: grid; place-items: center; text-align: center; line-height: 1; }
+    .pend-dias b { display: block; font-size: 21px; }
+    .pend-dias small { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
+    .pend-nom { font-weight: 800; font-size: 15px; color: var(--dark); padding-right: 14px; overflow-wrap: anywhere; }
+    .pend-sub { font-size: 12px; color: #6b4a46; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pend-motivo { font-size: 12px; font-weight: 700; color: var(--rojo); margin-top: 3px; }
+    .pend-check { width: 46px; height: 46px; margin-top: 14px; border-radius: 50%; border: 2px solid var(--verde); background: #fff; color: var(--verde);
+      display: grid; place-items: center; cursor: pointer; padding: 0; }
+    .pend-check:active { background: var(--verde); color: #fff; }
+    .pend-fila.hecha { background: #eaf6ee; border-color: #b9e0c5; grid-template-columns: 56px minmax(0, 1fr) auto; }
+    .pend-fila.hecha .pend-dias { color: var(--verde); border-color: #b9e0c5; font-size: 24px; }
+    .pend-fila.hecha .pend-motivo { color: var(--verde); }
+    .pend-deshacer { font-size: 12px; font-weight: 700; color: var(--accent); cursor: pointer; background: none; border: 0; padding: 4px 0; }
     .pend-ok { border-left: 5px solid var(--verde); }
     .aviso-push { border: 2px solid var(--accent); }
     .aviso-push p { font-size: 13px; color: var(--gray); margin: 6px 0 0; }
@@ -372,24 +387,65 @@
       document.getElementById("pendientesSubtitulo").textContent = n
         ? `${n === 1 ? "Esta tienda ya se pasó" : `Estas ${n} tiendas ya se pasaron`} de su frecuencia sin visita marcada. Visítala${n === 1 ? "" : "s"} y márcala${n === 1 ? "" : "s"} como visitada${n === 1 ? "" : "s"}.`
         : "¡Al día! No tienes tiendas pendientes.";
-      document.getElementById("pendientesLista").innerHTML = n
-        ? pendientes.tiendas
-            .map(
-              (p) => `
-          <div class="card tienda-card pend-card">
-            <div class="fila-top"><strong>${p.nombre || "(sin nombre)"}</strong></div>
-            <span class="dir">${p.direccion || ""}${p.ciudad ? ", " + p.ciudad : ""}</span>
-            <div><span class="badge" style="margin-left:0;">${FRECUENCIA_LABEL[p.frecuencia] || p.frecuencia}</span>${
-              (p.dias_visita || []).length ? `<span class="badge">${p.dias_visita.map((d) => (DIA_LABEL[d] || d).slice(0, 3)).join(" · ")}</span>` : ""
-            }</div>
-            <span class="pend-dato">${textoPendiente(p)}</span>
-            <div style="margin-top:8px;">
-              <button class="btn btn-primary btn-small" onclick="marcarVisitaPendiente('${p.tienda_id}')">✅ Marcar visitada hoy</button>
-            </div>
-          </div>`
-            )
-            .join("")
-        : `<div class="card tienda-card pend-ok"><strong>✔️ Todo al día</strong></div>`;
+      const filas = pendientes.tiendas.map(htmlPendiente).join("") + [...recienMarcadas.values()].map(htmlMarcada).join("");
+      document.getElementById("pendientesLista").innerHTML =
+        filas || `<div class="card tienda-card pend-ok"><strong>✔️ Todo al día</strong></div>`;
+    }
+
+    const ICONO_ALERTA = `<svg class="pend-alerta" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 1.5 21h21L12 2.5z" fill="#c0392b"/><path d="M12 9v5.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.4" fill="#fff"/></svg>`;
+    const ICONO_CHECK = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+    // Tiendas que el IBP acaba de marcar desde aquí: se quedan en verde con
+    // "deshacer" hasta que salga de la pantalla (por si tocó la equivocada).
+    const recienMarcadas = new Map();
+
+    function lineaPendiente(p) {
+      const dias = (p.dias_visita || []).map((d) => (DIA_LABEL[d] || d).slice(0, 3)).join(" · ");
+      const dir = `${p.direccion || ""}${p.ciudad ? ", " + p.ciudad : ""}`;
+      return [FRECUENCIA_LABEL[p.frecuencia] || p.frecuencia, dias, dir].filter(Boolean).join(" · ");
+    }
+
+    function htmlPendiente(p) {
+      const esSemana = p.frecuencia === "2x_semana" || p.frecuencia === "3x_semana";
+      const numero = esSemana ? `${p.visitas_semana}/${p.visitas_necesarias}` : p.dias_sin_visita;
+      return `
+        <div class="pend-fila" role="group" aria-label="Pendiente: ${p.nombre || ""}">
+          ${ICONO_ALERTA}
+          <div class="pend-dias"><div><b>${numero}</b><small>${esSemana ? "visitas" : "días"}</small></div></div>
+          <div>
+            <div class="pend-nom">${p.nombre || "(sin nombre)"}</div>
+            <div class="pend-sub">${lineaPendiente(p)}</div>
+            <div class="pend-motivo">${textoPendiente(p)}</div>
+          </div>
+          <button class="pend-check" aria-label="Marcar ${p.nombre || "tienda"} visitada hoy" title="Marcar visitada hoy"
+            onclick="marcarVisitaPendiente('${p.tienda_id}')">${ICONO_CHECK}</button>
+        </div>`;
+    }
+
+    function htmlMarcada(p) {
+      return `
+        <div class="pend-fila hecha">
+          <div class="pend-dias">✔</div>
+          <div>
+            <div class="pend-nom">${p.nombre || "(sin nombre)"}</div>
+            <div class="pend-sub">${lineaPendiente(p)}</div>
+            <div class="pend-motivo">Visitada hoy</div>
+          </div>
+          <button class="pend-deshacer" onclick="deshacerVisitaPendiente('${p.tienda_id}')">deshacer</button>
+        </div>`;
+    }
+
+    async function deshacerVisitaPendiente(id) {
+      try {
+        await AppDatos.desmarcarVisitada(id, HOY_ISO);
+      } catch (err) {
+        alert("No se pudo deshacer. Revisa tu conexión e intenta de nuevo.");
+        return;
+      }
+      recienMarcadas.delete(id);
+      visitasHoy.delete(id);
+      await cargarPendientes(rutaActualId);
+      render();
     }
 
     async function marcarVisitaPendiente(id) {
@@ -399,12 +455,15 @@
         alert("No se pudo marcar la visita. Revisa tu conexión e intenta de nuevo.");
         return;
       }
+      const p = pendientes.tiendas.find((x) => x.tienda_id === id);
+      if (p) recienMarcadas.set(id, p);
       visitasHoy.set(id, new Date().toISOString());
       await cargarPendientes(rutaActualId);
       render();
     }
 
     document.getElementById("btnSalirPendientes").addEventListener("click", () => {
+      recienMarcadas.clear();
       vista = vistaDespuesDePendientes === "pendientes" ? (esRoute ? "agenda" : "editar") : vistaDespuesDePendientes;
       mostrarVista();
       window.scrollTo(0, 0);
