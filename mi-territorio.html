@@ -8,6 +8,15 @@
   <meta name="theme-color" content="#c0392b" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    /* Pendientes: tiendas que ya se pasaron de su frecuencia sin visita */
+    .pend-card { border-left: 5px solid var(--rojo); }
+    .pend-card strong { color: var(--rojo); }
+    .pend-dato { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--rojo); }
+    .pend-ok { border-left: 5px solid var(--verde); }
+    .aviso-push { border: 2px solid var(--accent); }
+    .aviso-push p { font-size: 13px; color: var(--gray); margin: 6px 0 0; }
+  </style>
   <script src="js/ui.js"></script>
 </head>
 <body>
@@ -51,14 +60,30 @@
     </div>
 
     <div id="sinRutaAdmin" class="card" style="display:none;">
-      <strong>Estás logueado como admin/corporativo</strong>
+      <strong>Estás como manager</strong>
       <p style="font-size:13px; color:var(--gray);">
-        Abre el enlace de una ruta específica, o entra a
-        <a href="admin.html">admin.html</a> → pestaña Territorios para ver todas.
+        Escribe el número de ruta para verla como la ve el IBP (o ábrela desde el planificador de rutas).
       </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+        <input type="text" id="inputRutaManager" placeholder="Ej. 0150" inputmode="numeric"
+          style="font:inherit; padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:120px;" />
+        <button class="btn btn-primary" style="margin-top:0;" id="btnAbrirRutaManager">Abrir ruta</button>
+        <a href="mi-territorio.html?ruta=9999" style="font-size:13px; font-weight:600;">Ruta de pruebas (9999)</a>
+      </div>
     </div>
 
     <div id="cargando" class="card" style="display:none;">Cargando…</div>
+
+    <!-- Pendientes: sale primero al abrir la app si hay tiendas atrasadas -->
+    <div id="contenidoPendientes" style="display:none;">
+      <div class="card">
+        <strong style="color:var(--rojo); font-size:17px;">⏰ Tiendas pendientes</strong>
+        <p style="font-size:13px; color:var(--gray); margin-top:6px;" id="pendientesSubtitulo"></p>
+      </div>
+      <div class="avisoPushSlot"></div>
+      <div id="pendientesLista"></div>
+      <button class="btn btn-primary" style="width:100%; margin:4px 0 16px;" id="btnSalirPendientes">Ir a mi agenda</button>
+    </div>
 
     <div id="contenidoAgenda" style="display:none;">
       <div class="card">
@@ -66,6 +91,7 @@
           <strong id="agendaRutaNombre">—</strong>
         </div>
         <div style="margin-top:8px; display:flex; gap:16px; flex-wrap:wrap;">
+          <span style="color:var(--rojo); cursor:pointer; font-weight:700; font-size:12px; display:none;" id="btnVerPendientes">⏰ Pendientes <span id="conteoPendientes" class="badge-conteo"></span></span>
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnIrEditar">✏️ Editar mi territorio</span>
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnAbrirMensajes">✉️ Mensajes <span id="mensajesNoLeidos" class="badge-conteo" style="display:none;"></span></span>
           <span style="color:var(--accent); cursor:pointer; font-weight:600; font-size:12px; display:none;" id="btnActivarPush">🔔 Activar notificaciones</span>
@@ -73,6 +99,8 @@
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:6px;" id="agendaSubtitulo"></p>
       </div>
+
+      <div class="avisoPushSlot"></div>
 
       <div class="dias-resumen-bar">
         <strong>Elige un día</strong>
@@ -153,7 +181,15 @@
     let vista = "editar";
     let diaAgendaSeleccionado = null;
 
-    const HOY_ISO = new Date().toISOString().slice(0, 10);
+    // Fecha local del teléfono (no UTC: de noche en EE.UU. el UTC ya es mañana).
+    const HOY_ISO = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
+    // Pendientes (función pendientes_de_ruta en Supabase): activo = encendido
+    // para esta ruta en rutas_config "pendientes".
+    let pendientes = { activo: false, tiendas: [] };
+    let pushActivas = false;
     let mensajesActuales = [];
     let visitasHoy = new Map(); // tienda_id -> visitada_en (solo tiendas activas, fecha = HOY_ISO)
 
@@ -182,7 +218,7 @@
     }
 
     function ocultarTodasLasPantallas() {
-      ["pantallaToken", "pantallaLogin", "sinRutaAdmin", "cargando", "contenidoAgenda", "contenidoRuta"].forEach((id) => {
+      ["pantallaToken", "pantallaLogin", "sinRutaAdmin", "cargando", "contenidoPendientes", "contenidoAgenda", "contenidoRuta"].forEach((id) => {
         document.getElementById(id).style.display = "none";
       });
     }
@@ -190,6 +226,7 @@
     // Muestra la pantalla que toque (agenda o edición) según `vista`, ya con
     // los datos de tiendasActuales cargados.
     function mostrarVista() {
+      document.getElementById("contenidoPendientes").style.display = vista === "pendientes" ? "block" : "none";
       document.getElementById("contenidoAgenda").style.display = vista === "agenda" ? "block" : "none";
       document.getElementById("contenidoRuta").style.display = vista === "editar" ? "block" : "none";
       document.getElementById("btnVolverAgenda").style.display = esRoute && vista === "editar" ? "inline" : "none";
@@ -275,9 +312,16 @@
         visitasHoy = new Map();
       }
 
+      await cargarPendientes(rutaId);
+      // Si hay pendientes, es lo primero que ve al abrir la app.
+      if (pendientes.tiendas.length) {
+        vistaDespuesDePendientes = vista;
+        vista = "pendientes";
+      }
+
       mostrarVista();
       if (esRoute) {
-        actualizarBotonPush(rutaId);
+        await actualizarBotonPush(rutaId);
         mostrarAvisoMensajesSiHay();
         iniciarPollingMensajes(rutaId);
       }
@@ -286,6 +330,122 @@
     function render() {
       renderEdicion();
       renderAgenda();
+      renderPendientes();
+      renderAvisoPush();
+    }
+
+    // ---------------------------------------------------------------------
+    // Pendientes: tiendas activas que ya se pasaron de su frecuencia sin
+    // visita marcada (semanal > 7 días, quincenal > 14, 2x/3x con menos
+    // visitas de las que tocan en los últimos 7 días). Las calcula Supabase.
+    // ---------------------------------------------------------------------
+
+    let vistaDespuesDePendientes = "agenda";
+    let rutaActualId = null;
+
+    async function cargarPendientes(rutaId) {
+      rutaActualId = rutaId;
+      try {
+        pendientes = await BimboDepuracion.getPendientes(rutaId);
+      } catch (err) {
+        // Sin la función en Supabase (o sin red): la app sigue como antes.
+        pendientes = { activo: false, tiendas: [] };
+      }
+    }
+
+    function textoPendiente(p) {
+      if (p.frecuencia === "2x_semana" || p.frecuencia === "3x_semana") {
+        return `Esta semana: ${p.visitas_semana} de ${p.visitas_necesarias} visitas`;
+      }
+      if (!p.ultima_visita) return `Sin visitas marcadas (${p.dias_sin_visita} días)`;
+      return `Última visita hace ${p.dias_sin_visita} días`;
+    }
+
+    function renderPendientes() {
+      const n = pendientes.tiendas.length;
+      const boton = document.getElementById("btnVerPendientes");
+      boton.style.display = pendientes.activo && n ? "inline" : "none";
+      document.getElementById("conteoPendientes").textContent = n;
+      document.getElementById("btnSalirPendientes").textContent = esRoute ? "Ir a mi agenda" : "Continuar";
+      document.getElementById("pendientesSubtitulo").textContent = n
+        ? `${n === 1 ? "Esta tienda ya se pasó" : `Estas ${n} tiendas ya se pasaron`} de su frecuencia sin visita marcada. Visítala${n === 1 ? "" : "s"} y márcala${n === 1 ? "" : "s"} como visitada${n === 1 ? "" : "s"}.`
+        : "¡Al día! No tienes tiendas pendientes.";
+      document.getElementById("pendientesLista").innerHTML = n
+        ? pendientes.tiendas
+            .map(
+              (p) => `
+          <div class="card tienda-card pend-card">
+            <div class="fila-top"><strong>${p.nombre || "(sin nombre)"}</strong></div>
+            <span class="dir">${p.direccion || ""}${p.ciudad ? ", " + p.ciudad : ""}</span>
+            <div><span class="badge" style="margin-left:0;">${FRECUENCIA_LABEL[p.frecuencia] || p.frecuencia}</span>${
+              (p.dias_visita || []).length ? `<span class="badge">${p.dias_visita.map((d) => (DIA_LABEL[d] || d).slice(0, 3)).join(" · ")}</span>` : ""
+            }</div>
+            <span class="pend-dato">${textoPendiente(p)}</span>
+            <div style="margin-top:8px;">
+              <button class="btn btn-primary btn-small" onclick="marcarVisitaPendiente('${p.tienda_id}')">✅ Marcar visitada hoy</button>
+            </div>
+          </div>`
+            )
+            .join("")
+        : `<div class="card tienda-card pend-ok"><strong>✔️ Todo al día</strong></div>`;
+    }
+
+    async function marcarVisitaPendiente(id) {
+      try {
+        await BimboDepuracion.marcarVisitada(id, HOY_ISO);
+      } catch (err) {
+        alert("No se pudo marcar la visita. Revisa tu conexión e intenta de nuevo.");
+        return;
+      }
+      visitasHoy.set(id, new Date().toISOString());
+      await cargarPendientes(rutaActualId);
+      render();
+    }
+
+    document.getElementById("btnSalirPendientes").addEventListener("click", () => {
+      vista = vistaDespuesDePendientes === "pendientes" ? (esRoute ? "agenda" : "editar") : vistaDespuesDePendientes;
+      mostrarVista();
+      window.scrollTo(0, 0);
+    });
+
+    document.getElementById("btnVerPendientes").addEventListener("click", async () => {
+      await cargarPendientes(rutaActualId);
+      vistaDespuesDePendientes = vista;
+      vista = "pendientes";
+      mostrarVista();
+      window.scrollTo(0, 0);
+    });
+
+    // Tarjeta grande para pedir permiso de avisos (recordatorios y mensajes).
+    // Solo al IBP, solo donde están encendidos los pendientes, y mientras no
+    // estén activos en este teléfono. El navegador exige que el permiso se
+    // pida con un toque, por eso es un botón y no sale solo.
+    function renderAvisoPush() {
+      let html = "";
+      const soporta = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+      if (esRoute && pendientes.activo && soporta && !pushActivas) {
+        html =
+          Notification.permission === "denied"
+            ? `<div class="card aviso-push"><strong>🔕 Los avisos están bloqueados</strong>
+                 <p>Para recibir recordatorios de tiendas pendientes y mensajes, permite las notificaciones de esta página en la configuración del navegador (el candado junto a la dirección → Notificaciones → Permitir).</p></div>`
+            : `<div class="card aviso-push"><strong>🔔 Activa los avisos</strong>
+                 <p>Te avisamos de tus tiendas pendientes y de los mensajes de tu manager, aunque no tengas la app abierta.</p>
+                 <button class="btn btn-primary" onclick="activarPushDesdeAviso()">Activar avisos</button></div>`;
+      }
+      document.querySelectorAll(".avisoPushSlot").forEach((el) => (el.innerHTML = html));
+    }
+
+    async function activarPushDesdeAviso() {
+      try {
+        await BimboDepuracion.activarNotificacionesPush(rutaActualId);
+        pushActivas = true;
+        document.getElementById("btnActivarPush").style.display = "none";
+        renderAvisoPush();
+        alert("Listo — te van a llegar los avisos aunque no tengas la app abierta.");
+      } catch (err) {
+        renderAvisoPush();
+        alert(`No se pudo activar: ${err.message}`);
+      }
     }
 
     function renderEdicion() {
@@ -531,6 +691,8 @@
       }
       boton.style.display = activas ? "none" : "inline";
       boton.dataset.rutaId = rutaId;
+      pushActivas = activas;
+      renderAvisoPush();
     }
 
     document.getElementById("btnActivarPush").addEventListener("click", async (e) => {
@@ -539,6 +701,8 @@
       try {
         await BimboDepuracion.activarNotificacionesPush(rutaId);
         boton.style.display = "none";
+        pushActivas = true;
+        renderAvisoPush();
         alert("Listo — ahora te llegan los mensajes como notificación, aunque no tengas la app abierta.");
       } catch (err) {
         alert(`No se pudo activar: ${err.message}`);
@@ -806,7 +970,8 @@
         return;
       }
 
-      if (perfil && (perfil.role === "admin" || perfil.role === "corporativo")) {
+      const ROLES_MANAGER = ["admin", "corporativo", "dos", "zsl", "msl"];
+      if (perfil && ROLES_MANAGER.includes(String(perfil.role || "").toLowerCase())) {
         if (rutaParam) {
           await cargarRuta(rutaParam);
           return;
@@ -845,6 +1010,14 @@
 
       mostrarPantallaLogin("Tu cuenta todavía no tiene una ruta asignada. Contacta a tu admin.");
     }
+
+    document.getElementById("btnAbrirRutaManager").addEventListener("click", () => {
+      const ruta = document.getElementById("inputRutaManager").value.trim();
+      if (ruta) location.href = `mi-territorio.html?ruta=${encodeURIComponent(ruta)}`;
+    });
+    document.getElementById("inputRutaManager").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("btnAbrirRutaManager").click();
+    });
 
     document.getElementById("btnEntrarToken").addEventListener("click", async () => {
       const email = document.getElementById("inputEmailToken").value.trim();

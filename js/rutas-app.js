@@ -338,6 +338,7 @@
         ? T("Plan guardado {fecha}{por}", { fecha: new Date(plan.actualizado_en).toLocaleString(I.locale), por: plan.actualizado_por ? T(" por {a}", { a: plan.actualizado_por }) : "" })
         : "Esta ruta todavía no tiene plan guardado.";
       $("vistaRuta").hidden = false;
+      $("lnkTerritorio").href = `mi-territorio.html?ruta=${encodeURIComponent(id)}`;
       renderBarraPlan();
       renderTodo();
       const faltan = S.tiendas.filter((t) => !S.geo.has(t.id));

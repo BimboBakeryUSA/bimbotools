@@ -325,6 +325,27 @@ nota al principio de `scripts/edge_functions/enviar-push.ts`.
 - Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de
   decisiones pendientes y el roadmap de próximas herramientas.
 
+## Tiendas pendientes y recordatorios (Mi Territorio)
+
+Una tienda activa está **pendiente** cuando ya se pasó de su frecuencia sin
+visita marcada: semanal con más de 7 días, quincenal con más de 14, 2x/3x
+con menos visitas de las que tocan en los últimos 7 días. Lo calcula
+Supabase (`pendientes_de_ruta`, en `scripts/pendientes_y_pruebas.sql`).
+
+- **Al abrir la app** el IBP ve primero la pantalla "Tiendas pendientes" (en
+  rojo), puede marcarlas visitadas ahí, y luego pasa a su agenda. En la
+  agenda queda el botón "⏰ Pendientes" para volver a verlas.
+- **Recordatorio push**: `enviar_recordatorios_pendientes()` deja un mensaje
+  corto a cada ruta con pendientes (máximo uno al día) y el trigger de
+  mensajes manda el aviso al celular. Se programa con pg_cron (instrucciones
+  al final del script).
+- **Permiso de avisos**: mientras el teléfono no los tenga activos, la app
+  muestra una tarjeta "Activa los avisos" (el navegador exige un toque).
+- **Encendido por ruta**: `rutas_config` clave `pendientes`. Arranca solo con
+  la ruta de pruebas **9999** (12 tiendas `PRUEBA01..12`, 5 pendientes).
+- Los managers (admin, corporativo, DOS, ZSL, MSL) abren cualquier ruta con
+  `mi-territorio.html?ruta=XXXX` (o "Ver en Mi Territorio" del planificador).
+
 ## Planificador de rutas (`rutas.html`)
 
 Arma la semana A y B de cada IBP sin IA: todo es cálculo en el navegador

@@ -72,6 +72,7 @@
     "KML semana A": "KML week A",
     "KML semana B": "KML week B",
     "Imprimir para el IBP": "Print for the IBP",
+    "Ver en Mi Territorio": "View in My Territory",
     "Plan calculado.": "Plan calculated.",
     " {n} tiendas sin ubicación quedaron sin asignar.": " {n} stores without location were left unassigned.",
     " {n} tiendas no caben en los días de trabajo ({dias}) con su frecuencia.": " {n} stores don't fit the working days ({dias}) with their frequency.",

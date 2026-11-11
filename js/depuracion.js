@@ -552,6 +552,16 @@ async function enviarMensaje(rutaId, texto, nombreRemitente) {
 }
 
 // Mensajes de una ruta, más reciente primero.
+// Tiendas pendientes de la ruta (función pendientes_de_ruta en Supabase, ver
+// scripts/pendientes_y_pruebas.sql): { activo, tiendas: [{ tienda_id, nombre,
+// direccion, ciudad, frecuencia, dias_visita, ultima_visita, dias_sin_visita,
+// visitas_semana, visitas_necesarias }] }.
+async function getPendientes(rutaId) {
+  const { data, error } = await _client.rpc("pendientes_de_ruta", { p_ruta: rutaId });
+  if (error) throw new Error(`pendientes_de_ruta: ${error.message}`);
+  return data && Array.isArray(data.tiendas) ? data : { activo: false, tiendas: [] };
+}
+
 async function getMensajes(rutaId) {
   return _checar(
     await _client
@@ -769,6 +779,7 @@ window.BimboDepuracion = {
   enviarMensaje,
   getMensajes,
   marcarMensajeLeido,
+  getPendientes,
   tieneNotificacionesActivas,
   activarNotificacionesPush,
 };
