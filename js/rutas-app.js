@@ -162,6 +162,8 @@
       renderBarraPlan();
       renderTodo();
       if (!$("tabReglas").hidden) renderReglas();
+      if (!$("tabFeriados").hidden) renderFeriados();
+      renderAvisoFeriado();
       if (S.sucio) marcarSucio();
     }
   }
@@ -228,6 +230,7 @@
     } else {
       S.rutas = await D.getRutas();
     }
+    await cargarFeriados();
     llenarSelectores();
     let ultima = null;
     try { ultima = localStorage.getItem(LS_RUTA); } catch (e) {}
@@ -256,12 +259,12 @@
   $("selMsl").onchange = llenarRutas;
 
   $("btnCargar").onclick = async () => {
-    if (S.sucio && !window.confirm(T("Hay cambios sin guardar en esta ruta. ¿Cargar otra de todos modos?"))) return;
+    if ((S.sucio || (S.esp && S.esp.sucio)) && !window.confirm(T("Hay cambios sin guardar en esta ruta. ¿Cargar otra de todos modos?"))) return;
     await cargarRuta($("selRuta").value);
   };
 
   window.addEventListener("beforeunload", (e) => {
-    if (S.sucio) { e.preventDefault(); e.returnValue = ""; }
+    if (S.sucio || (S.esp && S.esp.sucio)) { e.preventDefault(); e.returnValue = ""; }
   });
 
   // --------------------------------------------------------------------------
@@ -339,8 +342,11 @@
         : "Esta ruta todavía no tiene plan guardado.";
       $("vistaRuta").hidden = false;
       $("lnkTerritorio").href = `mi-territorio.html?ruta=${encodeURIComponent(id)}`;
+      await cargarPlanesEspeciales();
       renderBarraPlan();
       renderTodo();
+      renderAvisoFeriado();
+      if (!$("tabFeriados").hidden) renderFeriados();
       const faltan = S.tiendas.filter((t) => !S.geo.has(t.id));
       if (faltan.length && !S.soloLectura && !ubicando) {
         await ubicarRutaActual(faltan, !plan);
@@ -646,9 +652,10 @@
   document.querySelectorAll(".rt-tabs button").forEach((b) => {
     b.onclick = () => {
       document.querySelectorAll(".rt-tabs button").forEach((x) => x.setAttribute("aria-selected", x === b));
-      ["plan", "tiendas", "ubicaciones", "reglas"].forEach((t) => ($("tab" + t[0].toUpperCase() + t.slice(1)).hidden = t !== b.dataset.tab));
+      ["plan", "tiendas", "ubicaciones", "reglas", "feriados"].forEach((t) => ($("tab" + t[0].toUpperCase() + t.slice(1)).hidden = t !== b.dataset.tab));
       if (b.dataset.tab === "plan" && S.mapa) setTimeout(() => S.mapa.invalidateSize(), 50);
       if (b.dataset.tab === "reglas") renderReglas();
+      if (b.dataset.tab === "feriados") renderFeriados();
     };
   });
 
@@ -1535,6 +1542,624 @@
       });
     }));
     descargar(`Ruta_${S.ruta}_PlanAB.csv`, "﻿" + filas.map((f) => f.map(csvCampo).join(",")).join("\n"), "text/csv");
+  };
+
+  // --------------------------------------------------------------------------
+  // Feriados: calendario (rutas_dias_especiales) y semana especial de la ruta
+  // (rutas_plan_especial). El plan A/B (S.plan) no se toca: la semana especial
+  // se arma como copia y se guarda aparte.
+  // --------------------------------------------------------------------------
+
+  const DIA_MS = 864e5;
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const desdeIso = (s) => new Date(`${s}T00:00:00Z`);
+  const aIso = (d) => d.toISOString().slice(0, 10);
+  const sumarDias = (s, n) => aIso(new Date(desdeIso(s).getTime() + n * DIA_MS));
+  const lunesDe = (s) => sumarDias(s, 1 - (desdeIso(s).getUTCDay() || 7));
+  function hoyIso() {
+    const n = new Date();
+    return `${n.getFullYear()}-${pad2(n.getMonth() + 1)}-${pad2(n.getDate())}`;
+  }
+  const fechaCorta = (s) => desdeIso(s).toLocaleDateString(I.locale, { month: "short", day: "numeric", timeZone: "UTC" });
+  const diaCorto = (d) => R.DIAS[d].slice(0, 3);
+
+  S.feriados = [];
+  S.semanaA = null; // lunes de una semana A (rutas_config "semanaA")
+  S.planesEsp = new Map(); // lunes → fila guardada de esta ruta
+  S.esp = null; // { semana, base, slots:{E1..}, whDias, fuera:[ids], movidas:Set, sucio, guardada }
+
+  function errorTablasFeriados(e) {
+    return /rutas_(dias_especiales|plan_especial)/.test(e.message) && /(does not exist|schema cache|not find)/i.test(e.message);
+  }
+
+  async function cargarFeriados() {
+    try {
+      S.feriados = await D.getDiasEspeciales(sumarDias(hoyIso(), -14), sumarDias(hoyIso(), 400));
+      S.feriadosError = null;
+    } catch (e) {
+      S.feriados = [];
+      S.feriadosError = errorTablasFeriados(e) ? T("Falta crear las tablas de feriados: corre scripts/calendario_especial.sql en Supabase.") : e.message;
+    }
+    try {
+      const a = await D.getConfigRutas("semanaA");
+      S.semanaA = a && a.lunes ? lunesDe(a.lunes) : null;
+    } catch (e) { S.semanaA = null; }
+  }
+
+  async function cargarPlanesEspeciales() {
+    S.planesEsp = new Map();
+    S.esp = null;
+    if (S.feriadosError || !S.ruta) return;
+    try {
+      const filas = await D.getPlanesEspeciales(S.ruta, lunesDe(hoyIso()));
+      filas.forEach((f) => S.planesEsp.set(f.semana, f));
+    } catch (e) { console.error(e); }
+  }
+
+  // Regla de cada día (1..7) de la semana que empieza en `lunes` para esta
+  // ruta: { trabaja, nombre }. La de la ruta gana sobre la general.
+  function reglasSemana(lunes) {
+    const out = {};
+    TODOS_DIAS.forEach((d) => {
+      const f = sumarDias(lunes, d - 1);
+      const delDia = S.feriados.filter((x) => x.fecha === f && (!x.ibp_id || x.ibp_id === S.ruta));
+      const r = delDia.find((x) => x.ibp_id) || delDia[0];
+      if (r) out[d] = { trabaja: !!r.trabaja, nombre: r.nombre || "" };
+    });
+    return out;
+  }
+
+  // Días con ruta esa semana: los de siempre menos los feriados, más los extra.
+  function diasDeSemana(lunes) {
+    const r = reglasSemana(lunes);
+    return TODOS_DIAS.filter((d) => (r[d] ? r[d].trabaja : S.dias.includes(d)));
+  }
+
+  function nombreSemana(lunes) {
+    const r = reglasSemana(lunes);
+    return [...new Set(Object.values(r).map((x) => x.nombre).filter(Boolean))].join(" / ") || T("Semana especial");
+  }
+
+  // Semanas con algún feriado para esta ruta, desde esta semana.
+  function semanasEspeciales() {
+    const desde = lunesDe(hoyIso());
+    const lunes = new Set(
+      S.feriados.filter((x) => !x.ibp_id || x.ibp_id === S.ruta).map((x) => lunesDe(x.fecha)).filter((l) => l >= desde)
+    );
+    return [...lunes].sort().map((l) => {
+      const dias = diasDeSemana(l);
+      const cambia = dias.join() !== S.dias.join();
+      return { lunes: l, nombre: nombreSemana(l), cambia };
+    });
+  }
+
+  function baseDeSemana(lunes) {
+    if (!S.semanaA) return null;
+    const n = Math.round((desdeIso(lunes) - desdeIso(S.semanaA)) / (7 * DIA_MS));
+    return ((n % 2) + 2) % 2 === 0 ? "A" : "B";
+  }
+
+  function salidaEsp(k) {
+    const w = S.plan && S.plan.warehouse;
+    if (w && esPunto(w) && S.esp && S.esp.whDias.includes(Number(k.slice(1)))) return { lat: +w.lat, lng: +w.lng };
+    return (S.plan && S.plan.inicio) || null;
+  }
+
+  // Día con ruta más cercano a `d` (empate: el anterior) que cumpla `ok`.
+  function diaCercano(d, trab, ok) {
+    for (let k = 1; k < 7; k++) {
+      for (const x of [d - k, d + k]) if (trab.includes(x) && ok(x)) return x;
+    }
+    return null;
+  }
+
+  // Arma la semana especial desde el plan normal (semana `base`): las visitas
+  // de los días sin ruta pasan al día con ruta más cercano donde esa tienda
+  // no esté ya; si no hay, quedan "fuera" (una visita menos esa semana).
+  function proponerEspecial(lunes, base) {
+    const trab = diasDeSemana(lunes);
+    const slots = {};
+    trab.forEach((d) => (slots[`E${d}`] = S.dias.includes(d) ? (S.plan.slots[`${base}${d}`] || []).filter((id) => S.porId.has(id)) : []));
+    const movidas = new Set(), fuera = [], tocados = new Set();
+    S.dias.filter((d) => !trab.includes(d)).forEach((d) => {
+      (S.plan.slots[`${base}${d}`] || []).filter((id) => S.porId.has(id)).forEach((id) => {
+        // El día con ruta más conveniente: cerca del feriado (mejor antes que
+        // después) y sin cargarlo de más.
+        let dest = null, mejor = Infinity;
+        trab.forEach((x) => {
+          if (slots[`E${x}`].includes(id)) return;
+          const c = slots[`E${x}`].length + 2 * Math.abs(x - d) + (x > d ? 1 : 0);
+          if (c < mejor) { mejor = c; dest = x; }
+        });
+        if (dest) { slots[`E${dest}`].push(id); movidas.add(`${id}@${dest}`); tocados.add(`E${dest}`); }
+        else fuera.push(id);
+      });
+    });
+    const whDias = [];
+    (S.plan.warehouse ? S.plan.whDias : []).forEach((d) => {
+      const x = trab.includes(d) ? d : diaCercano(d, trab, () => true);
+      if (x && !whDias.includes(x)) whDias.push(x);
+    });
+    whDias.sort((a, b) => a - b);
+    S.esp = { semana: lunes, base, slots, whDias, fuera, movidas, sucio: false, guardada: false };
+    S.esp.slots = R.reordenarSlots(slots, [...tocados], posiciones(), salidaEsp);
+  }
+
+  // Carga la semana guardada (o la arma si no hay).
+  function abrirSemana(lunes) {
+    const g = S.planesEsp.get(lunes);
+    if (!g) return proponerEspecial(lunes, baseDeSemana(lunes) || "A");
+    const trab = diasDeSemana(lunes);
+    const base = g.base === "B" ? "B" : "A";
+    const slots = {};
+    trab.forEach((d) => (slots[`E${d}`] = ((g.slots || {})[`E${d}`] || []).filter((id) => S.porId.has(id))));
+    // Las que cambiaron de día respecto al plan normal, y las que faltan.
+    const movidas = new Set();
+    trab.forEach((d) => slots[`E${d}`].forEach((id) => { if (!(S.plan.slots[`${base}${d}`] || []).includes(id)) movidas.add(`${id}@${d}`); }));
+    const cuenta = (lista) => lista.reduce((m, id) => m.set(id, (m.get(id) || 0) + 1), new Map());
+    const enBase = cuenta(S.dias.flatMap((d) => S.plan.slots[`${base}${d}`] || []).filter((id) => S.porId.has(id)));
+    const enEsp = cuenta(Object.values(slots).flat());
+    const fuera = [];
+    enBase.forEach((n, id) => { for (let i = enEsp.get(id) || 0; i < n; i++) fuera.push(id); });
+    S.esp = { semana: lunes, base, slots, whDias: limpiarDias(g.wh_dias).filter((d) => trab.includes(d)), fuera, movidas, sucio: false, guardada: true, cuando: g.actualizado_en, por: g.actualizado_por };
+  }
+
+  function marcarSucioEsp(v = true) {
+    if (!S.esp) return;
+    S.esp.sucio = v;
+    renderEstadoEsp();
+  }
+
+  function renderEstadoEsp() {
+    const el = $("estadoEsp");
+    if (!S.esp) { el.textContent = ""; return; }
+    el.classList.toggle("sucio", S.esp.sucio || !S.esp.guardada);
+    el.textContent = S.esp.sucio
+      ? T("Cambios sin guardar")
+      : S.esp.guardada
+        ? T("Guardada {fecha}{por}", { fecha: new Date(S.esp.cuando).toLocaleString(I.locale), por: S.esp.por ? T(" por {a}", { a: S.esp.por }) : "" })
+        : T("Propuesta: todavía no está guardada");
+  }
+
+  // Aviso arriba de las pestañas si viene una semana con feriados (3 semanas).
+  function renderAvisoFeriado() {
+    const el = $("avisoFeriado");
+    const limite = sumarDias(lunesDe(hoyIso()), 21);
+    const prox = S.plan ? semanasEspeciales().find((s) => s.cambia && s.lunes <= limite) : null;
+    if (!prox) { el.hidden = true; return; }
+    const r = reglasSemana(prox.lunes);
+    const off = S.dias.filter((d) => r[d] && !r[d].trabaja);
+    const guardada = S.planesEsp.has(prox.lunes);
+    el.innerHTML = `<span><b>${esc(prox.nombre)}</b> · ${esc(T("semana del {a} al {b}", { a: fechaCorta(prox.lunes), b: fechaCorta(sumarDias(prox.lunes, 6)) }))}${off.length ? ` · ${esc(T("sin ruta: {dias}", { dias: off.map((d) => `${diaCorto(d)} ${fechaCorta(sumarDias(prox.lunes, d - 1))}`).join(", ") }))}` : ""}</span>
+      <span>${guardada ? esc(T("✓ Semana especial guardada")) : esc(T("Falta armar la semana especial."))}</span>
+      <button type="button" class="btn ${guardada ? "btn-secondary" : "btn-primary"} btn-small" data-ir-semana="${prox.lunes}">${esc(guardada ? T("Ver semana especial") : T("Armar semana especial"))}</button>`;
+    el.hidden = false;
+  }
+
+  $("avisoFeriado").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-ir-semana]");
+    if (!b) return;
+    irAFeriados(b.dataset.irSemana);
+  });
+
+  function irAFeriados(lunes) {
+    const tab = document.querySelector('.rt-tabs button[data-tab="feriados"]');
+    if (lunes && (!S.esp || S.esp.semana !== lunes)) {
+      if (S.esp && S.esp.sucio && !window.confirm(T("La semana especial tiene cambios sin guardar. ¿Cambiar de semana de todos modos?"))) return;
+      abrirSemana(lunes);
+    }
+    tab.click();
+  }
+
+  function renderFeriados() {
+    if (!S.plan) return;
+    const semanas = semanasEspeciales();
+    if (S.esp && !semanas.some((s) => s.lunes === S.esp.semana)) S.esp = null;
+    // Una propuesta sin guardar ni tocar se rehace (por si cambió el plan A/B).
+    if (S.esp && !S.esp.guardada && !S.esp.sucio) proponerEspecial(S.esp.semana, S.esp.base);
+    if (!S.esp) {
+      const primera = semanas.find((s) => s.cambia) || semanas[0];
+      if (primera) abrirSemana(primera.lunes);
+    }
+    $("selSemanaEsp").innerHTML = semanas.length
+      ? semanas.map((s) => `<option value="${s.lunes}">${esc(s.nombre)} · ${esc(T("semana del {a} al {b}", { a: fechaCorta(s.lunes), b: fechaCorta(sumarDias(s.lunes, 6)) }))}${S.planesEsp.has(s.lunes) ? " ✓" : ""}${s.cambia ? "" : esc(T(" (no cambia esta ruta)"))}</option>`).join("")
+      : `<option value="">${esc(T("No hay feriados en el calendario"))}</option>`;
+    $("selSemanaEsp").disabled = !semanas.length;
+    if (S.esp) {
+      $("selSemanaEsp").value = S.esp.semana;
+      $("selBaseEsp").value = S.esp.base;
+    }
+    ["selBaseEsp", "btnGuardarEsp", "btnRearmarEsp", "btnImprimirEsp"].forEach((id) => ($(id).disabled = !S.esp));
+    $("btnBorrarEsp").disabled = !(S.esp && S.esp.guardada);
+    renderEstadoEsp();
+    renderEspecial();
+    renderCalendario();
+  }
+
+  function htmlParadaEsp(t, n, d, trab) {
+    const ed = !S.soloLectura;
+    const opciones = trab.filter((x) => x !== d && !S.esp.slots[`E${x}`].includes(t.id))
+      .map((x) => `<option value="${x}">${esc(R.DIAS[x])} ${esc(fechaCorta(sumarDias(S.esp.semana, x - 1)))}</option>`).join("");
+    return `<div class="rt-parada" draggable="${ed}" data-id="${esc(t.id)}" data-dia="${d || ""}">
+      <span class="n">${n || "–"}</span>
+      <div>
+        <div class="s">${esc(t.nombre)}</div>
+        <div class="a">${esc(t.direccion)}, ${esc(t.ciudad)}</div>
+        ${chipFreq(t.freq)}${d && S.esp.movidas.has(`${t.id}@${d}`) ? `<span class="rt-chip movida">${esc(T("Cambió de día"))}</span>` : ""}${S.geo.has(t.id) ? "" : '<span class="rt-chip warn">Sin ubicación</span>'}
+        ${ed ? `<select class="rt-mover" data-id="${esc(t.id)}" data-dia="${d || ""}" aria-label="${esc(T("Mover {t}", { t: t.nombre }))}"><option value="">${esc(T("Mover a…"))}</option>${opciones}${d ? `<option value="__fuera">${esc(T("Quitar esta semana"))}</option>` : ""}</select>` : ""}
+      </div>
+      ${ed && d ? `<div class="flechas"><button data-sube="${esc(t.id)}" aria-label="Subir">▲</button><button data-baja="${esc(t.id)}" aria-label="Bajar">▼</button></div>` : "<span></span>"}
+    </div>`;
+  }
+
+  function renderEspecial() {
+    const cont = $("diasEsp");
+    const e = S.esp;
+    if (!e) {
+      cont.innerHTML = "";
+      $("resumenEsp").textContent = S.feriadosError || T("Agrega los feriados en el calendario de abajo.");
+      $("grupoWhEsp").hidden = true;
+      return;
+    }
+    const trab = diasDeSemana(e.semana);
+    const r = reglasSemana(e.semana);
+    const w = S.plan.warehouse;
+    const mi = R.millasDeSlots(e.slots, posiciones(), salidaEsp);
+    const columnas = TODOS_DIAS.filter((d) => trab.includes(d) || S.dias.includes(d));
+    cont.style.setProperty("--n", columnas.length + (e.fuera.length ? 1 : 0));
+    let html = "";
+    if (e.fuera.length) {
+      html += `<section class="rt-dia sinasignar" data-dia=""><h3>${esc(T("No caben esta semana"))}<small>${e.fuera.length}</small></h3>
+        <p class="rt-nota" style="font-size:11px; margin:0 0 4px;">${esc(T("Una visita menos esta semana. Arrástrala a un día si quieres que vaya."))}</p>
+        ${e.fuera.map((id) => S.porId.get(id) ? htmlParadaEsp(S.porId.get(id), null, null, trab) : "").join("")}</section>`;
+    }
+    columnas.forEach((d) => {
+      const fecha = fechaCorta(sumarDias(e.semana, d - 1));
+      if (!trab.includes(d)) {
+        html += `<section class="rt-dia off" data-off="1"><h3>${esc(R.DIAS[d])}<small>${esc(fecha)}</small></h3><p class="rt-off">${esc(T("Sin ruta"))}${r[d] && r[d].nombre ? ` · ${esc(r[d].nombre)}` : ""}</p></section>`;
+        return;
+      }
+      const k = `E${d}`;
+      const ids = e.slots[k] || [];
+      const extra = !S.dias.includes(d);
+      const tarjetaWh = w && e.whDias.includes(d)
+        ? `<div class="rt-parada wh"><span class="n">W</span><div><div class="s">${esc(w.nombre)}</div><div class="a">${esc(T("Carga · salida del día"))}</div></div><span></span></div>`
+        : "";
+      html += `<section class="rt-dia${extra ? " extra" : ""}" style="--c:${COLORES[d]}" data-dia="${d}"><h3>${esc(R.DIAS[d])}<small>${esc(fecha)}${extra ? ` · <b>${esc(T("día extra"))}</b>` : ""} · ${esc(T("{n} paradas · ~{mi} mi", { n: ids.length, mi: Math.round(mi[k] || 0) }))}</small></h3>${tarjetaWh}${ids
+        .map((id, i) => S.porId.get(id) ? htmlParadaEsp(S.porId.get(id), i + 1, d, trab) : "").join("")}</section>`;
+    });
+    cont.innerHTML = html;
+    const off = S.dias.filter((d) => !trab.includes(d));
+    const partes = [];
+    if (off.length) partes.push(T("Sin ruta: {dias}.", { dias: off.map((d) => `${R.DIAS[d]} ${fechaCorta(sumarDias(e.semana, d - 1))}`).join(", ") }));
+    const extras = trab.filter((d) => !S.dias.includes(d));
+    if (extras.length) partes.push(T("Día extra con ruta: {dias}.", { dias: extras.map((d) => `${R.DIAS[d]} ${fechaCorta(sumarDias(e.semana, d - 1))}`).join(", ") }));
+    partes.push(T("Sale del plan de la semana {b}.", { b: e.base }));
+    if (e.movidas.size) partes.push(T("{n} visitas cambiaron de día.", { n: e.movidas.size }));
+    if (e.fuera.length) partes.push(T("{n} visitas no caben esta semana.", { n: e.fuera.length }));
+    if (!S.semanaA) partes.push(T("Ojo: define abajo qué lunes empieza la semana A para que la app elija A o B sola."));
+    $("resumenEsp").textContent = partes.join(" ");
+    $("grupoWhEsp").hidden = !w;
+    if (w) {
+      $("whDiasEsp").innerHTML = trab.map((d) => `<button type="button" data-whesp="${d}" aria-pressed="${e.whDias.includes(d)}" title="${esc(R.DIAS[d])}" ${S.soloLectura ? "disabled" : ""}>${CORTO[d]}</button>`).join("");
+    }
+  }
+
+  // Mueve una visita de `desde` (día o null = "No caben") a `hasta` (día o null).
+  function moverEsp(id, desde, hasta, antesDe) {
+    const e = S.esp;
+    const t = S.porId.get(id);
+    if (hasta && e.slots[`E${hasta}`].includes(id)) {
+      toast(T("{tienda} ya va el {dia}.", { tienda: t.nombre, dia: I.idioma === "en" ? R.DIAS[hasta] : R.DIAS[hasta].toLowerCase() }));
+      return;
+    }
+    if (desde) {
+      const a = e.slots[`E${desde}`];
+      a.splice(a.indexOf(id), 1);
+      e.movidas.delete(`${id}@${desde}`);
+    } else {
+      e.fuera.splice(e.fuera.indexOf(id), 1);
+    }
+    const tocados = [];
+    if (desde) tocados.push(`E${desde}`);
+    if (hasta) {
+      const a = e.slots[`E${hasta}`];
+      const i = antesDe ? a.indexOf(antesDe) : -1;
+      a.splice(i < 0 ? a.length : i, 0, id);
+      e.movidas.add(`${id}@${hasta}`);
+      tocados.push(`E${hasta}`);
+    } else {
+      e.fuera.push(id);
+    }
+    e.slots = R.reordenarSlots(e.slots, tocados, posiciones(), salidaEsp);
+    marcarSucioEsp();
+    renderEspecial();
+  }
+
+  $("diasEsp").addEventListener("change", (ev) => {
+    const sel = ev.target.closest(".rt-mover");
+    if (!sel || !sel.value || !S.esp) return;
+    const desde = Number(sel.dataset.dia) || null;
+    moverEsp(sel.dataset.id, desde, sel.value === "__fuera" ? null : Number(sel.value));
+  });
+
+  $("diasEsp").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-sube], button[data-baja]");
+    if (!b || !S.esp) return;
+    const id = b.dataset.sube || b.dataset.baja;
+    const arr = S.esp.slots[`E${b.closest(".rt-parada").dataset.dia}`];
+    const i = arr.indexOf(id);
+    const j = b.dataset.sube ? i - 1 : i + 1;
+    if (j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    marcarSucioEsp();
+    renderEspecial();
+  });
+
+  let arrastreEsp = null;
+  $("diasEsp").addEventListener("dragstart", (ev) => {
+    const el = ev.target.closest(".rt-parada[data-id]");
+    if (!el || S.soloLectura) return;
+    arrastreEsp = { id: el.dataset.id, dia: Number(el.dataset.dia) || null };
+    el.classList.add("arrastrando");
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", el.dataset.id);
+  });
+  $("diasEsp").addEventListener("dragend", (ev) => {
+    const el = ev.target.closest(".rt-parada");
+    if (el) el.classList.remove("arrastrando");
+    document.querySelectorAll("#diasEsp .rt-dia.sobre").forEach((x) => x.classList.remove("sobre"));
+  });
+  $("diasEsp").addEventListener("dragover", (ev) => {
+    const col = ev.target.closest(".rt-dia");
+    if (!col || !arrastreEsp || col.dataset.off) return;
+    ev.preventDefault();
+    document.querySelectorAll("#diasEsp .rt-dia.sobre").forEach((x) => x !== col && x.classList.remove("sobre"));
+    col.classList.add("sobre");
+  });
+  $("diasEsp").addEventListener("drop", (ev) => {
+    const col = ev.target.closest(".rt-dia");
+    if (!col || !arrastreEsp || col.dataset.off) return;
+    ev.preventDefault();
+    col.classList.remove("sobre");
+    const { id, dia } = arrastreEsp;
+    arrastreEsp = null;
+    const hasta = Number(col.dataset.dia) || null;
+    const objetivo = ev.target.closest(".rt-parada[data-id]");
+    if (hasta && hasta === dia) {
+      // Reordenar dentro del mismo día.
+      const arr = S.esp.slots[`E${hasta}`];
+      arr.splice(arr.indexOf(id), 1);
+      const i = objetivo && objetivo.dataset.id !== id ? arr.indexOf(objetivo.dataset.id) : arr.length;
+      arr.splice(i < 0 ? arr.length : i, 0, id);
+      marcarSucioEsp();
+      return renderEspecial();
+    }
+    if (!hasta && !dia) return;
+    moverEsp(id, dia, hasta, objetivo ? objetivo.dataset.id : null);
+  });
+
+  $("whDiasEsp").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-whesp]");
+    if (!b || !S.esp || S.soloLectura) return;
+    const d = Number(b.dataset.whesp);
+    const e = S.esp;
+    e.whDias = e.whDias.includes(d) ? e.whDias.filter((x) => x !== d) : limpiarDias(e.whDias.concat(d));
+    e.slots = R.reordenarSlots(e.slots, Object.keys(e.slots), posiciones(), salidaEsp);
+    marcarSucioEsp();
+    renderEspecial();
+  });
+
+  $("selSemanaEsp").onchange = () => {
+    const l = $("selSemanaEsp").value;
+    if (!l || (S.esp && S.esp.semana === l)) return;
+    if (S.esp && S.esp.sucio && !window.confirm(T("La semana especial tiene cambios sin guardar. ¿Cambiar de semana de todos modos?"))) {
+      $("selSemanaEsp").value = S.esp.semana;
+      return;
+    }
+    abrirSemana(l);
+    renderFeriados();
+  };
+
+  $("selBaseEsp").onchange = () => {
+    if (!S.esp) return;
+    const base = $("selBaseEsp").value;
+    if ((S.esp.sucio || S.esp.guardada) && !window.confirm(T("Se vuelve a armar la semana desde el plan de la semana {b}. Los cambios a mano de esta semana se pierden. ¿Seguir?", { b: base }))) {
+      $("selBaseEsp").value = S.esp.base;
+      return;
+    }
+    const guardada = S.esp.guardada, cuando = S.esp.cuando, por = S.esp.por;
+    proponerEspecial(S.esp.semana, base);
+    Object.assign(S.esp, { guardada, cuando, por, sucio: guardada });
+    renderFeriados();
+  };
+
+  $("btnRearmarEsp").onclick = () => {
+    if (!S.esp) return;
+    if ((S.esp.sucio || S.esp.guardada) && !window.confirm(T("Se vuelve a armar la semana desde el plan normal. Los cambios a mano de esta semana se pierden. ¿Seguir?"))) return;
+    const guardada = S.esp.guardada, cuando = S.esp.cuando, por = S.esp.por;
+    proponerEspecial(S.esp.semana, S.esp.base);
+    Object.assign(S.esp, { guardada, cuando, por, sucio: guardada });
+    renderFeriados();
+    toast(T("Semana armada desde el plan normal."));
+  };
+
+  $("btnGuardarEsp").onclick = async () => {
+    if (!S.esp) return;
+    try {
+      const cuando = await D.guardarPlanEspecial(S.ruta, S.esp.semana, { base: S.esp.base, slots: S.esp.slots, whDias: S.esp.whDias }, S.perfil.nombre || S.perfil.email);
+      S.planesEsp.set(S.esp.semana, { semana: S.esp.semana, base: S.esp.base, slots: JSON.parse(JSON.stringify(S.esp.slots)), wh_dias: S.esp.whDias.slice(), actualizado_en: cuando, actualizado_por: S.perfil.nombre || S.perfil.email });
+      Object.assign(S.esp, { guardada: true, sucio: false, cuando, por: S.perfil.nombre || S.perfil.email });
+      renderFeriados();
+      renderAvisoFeriado();
+      toast(T("Semana especial guardada. El plan A/B no cambió."));
+    } catch (e) {
+      console.error(e);
+      toast(errorTablasFeriados(e) ? T("Falta crear las tablas de feriados: corre scripts/calendario_especial.sql en Supabase.") : T("No se guardó: {e}", { e: e.message }));
+    }
+  };
+
+  $("btnBorrarEsp").onclick = async () => {
+    if (!S.esp || !S.esp.guardada) return;
+    if (!window.confirm(T("¿Borrar la semana especial guardada? Se vuelve a la propuesta automática."))) return;
+    try {
+      await D.borrarPlanEspecial(S.ruta, S.esp.semana);
+      S.planesEsp.delete(S.esp.semana);
+      proponerEspecial(S.esp.semana, baseDeSemana(S.esp.semana) || S.esp.base);
+      renderFeriados();
+      renderAvisoFeriado();
+      toast(T("Semana especial borrada."));
+    } catch (e) {
+      console.error(e);
+      toast(T("No se pudo borrar: {e}", { e: e.message }));
+    }
+  };
+
+  // Calendario de feriados (tabla + agregar / borrar)
+  function renderCalendario() {
+    const desde = lunesDe(hoyIso());
+    const lista = S.feriados.filter((x) => x.fecha >= desde);
+    if (S.semanaA) {
+      $("ferSemanaA").value = S.semanaA;
+      $("ferSemanaAInfo").textContent = T("Esta semana (del {f}) es semana {b}.", { f: fechaCorta(desde), b: baseDeSemana(desde) });
+    } else {
+      $("ferSemanaA").value = "";
+      $("ferSemanaAInfo").textContent = T("Sin definir: en cada semana especial eliges si sale de la semana A o B.");
+    }
+    if (S.feriadosError) {
+      $("tablaFeriados").innerHTML = `<tbody><tr><td class="rt-no">${esc(S.feriadosError)}</td></tr></tbody>`;
+      return;
+    }
+    if (!lista.length) {
+      $("tablaFeriados").innerHTML = `<tbody><tr><td class="rt-nota">${esc(T("No hay feriados en el calendario"))}</td></tr></tbody>`;
+      return;
+    }
+    let filas = "";
+    let semana = null;
+    lista.forEach((x) => {
+      const l = lunesDe(x.fecha);
+      if (l !== semana) {
+        semana = l;
+        const r = reglasSemana(l);
+        const chips = TODOS_DIAS.map((d) => {
+          const trab = r[d] ? r[d].trabaja : S.dias.includes(d);
+          const cls = r[d] && !r[d].trabaja ? "off" : trab ? "" : "nada";
+          return `<span class="${cls}" title="${esc(R.DIAS[d])} ${esc(fechaCorta(sumarDias(l, d - 1)))}">${CORTO[d]} ${desdeIso(sumarDias(l, d - 1)).getUTCDate()}</span>`;
+        }).join("");
+        filas += `<tr><td colspan="5" style="background:var(--gray-light);"><b>${esc(T("Semana del {a} al {b}", { a: fechaCorta(l), b: fechaCorta(sumarDias(l, 6)) }))}</b>${S.semanaA ? ` · ${esc(T("semana {b}", { b: baseDeSemana(l) }))}` : ""} <div class="rt-fer-dias" style="margin-left:8px; vertical-align:middle;">${chips}</div></td></tr>`;
+      }
+      const otraRuta = x.ibp_id && x.ibp_id !== S.ruta;
+      filas += `<tr${otraRuta ? ' style="opacity:.55"' : ""}>
+        <td>${esc(R.DIAS[desdeIso(x.fecha).getUTCDay() || 7])} ${esc(fechaCorta(x.fecha))}</td>
+        <td>${esc(x.nombre || "")}</td>
+        <td>${x.trabaja ? `<span class="rt-ok">${esc(T("Con ruta"))}</span>` : `<span class="rt-no">${esc(T("Sin ruta"))}</span>`}</td>
+        <td>${x.ibp_id ? esc(T("Solo ruta {r}", { r: x.ibp_id })) : esc(T("Todas las rutas"))}</td>
+        <td>${S.soloLectura ? "" : `<button type="button" class="btn btn-secondary btn-small" data-borrar-fer="${x.id}">${esc(T("Borrar"))}</button>`}</td>
+      </tr>`;
+    });
+    $("tablaFeriados").innerHTML = `<thead><tr><th>${esc(T("Fecha"))}</th><th>${esc(T("Nombre"))}</th><th>${esc(T("Ese día"))}</th><th>${esc(T("Aplica a"))}</th><th></th></tr></thead><tbody>${filas}</tbody>`;
+  }
+
+  // Después de cambiar el calendario: si la semana abierta no estaba guardada
+  // ni tocada, se vuelve a armar con los días nuevos.
+  function refrescarTrasCalendario() {
+    if (S.esp && !S.esp.guardada && !S.esp.sucio) S.esp = null;
+    else if (S.esp && S.esp.guardada && !S.esp.sucio) abrirSemana(S.esp.semana);
+    renderFeriados();
+    renderAvisoFeriado();
+  }
+
+  $("formFeriado").onsubmit = async (ev) => {
+    ev.preventDefault();
+    const fecha = $("ferFecha").value;
+    if (!fecha) return;
+    const dia = { fecha, nombre: $("ferNombre").value.trim(), trabaja: $("ferTrabaja").value === "true", ibp_id: $("ferAlcance").value === "ruta" ? S.ruta : null };
+    try {
+      const fila = await D.guardarDiaEspecial(dia);
+      S.feriados = S.feriados.concat(fila).sort((a, b) => a.fecha.localeCompare(b.fecha));
+      $("ferFecha").value = "";
+      refrescarTrasCalendario();
+      toast(T("{f} agregado al calendario.", { f: `${R.DIAS[desdeIso(fecha).getUTCDay() || 7]} ${fechaCorta(fecha)}` }));
+    } catch (e) {
+      console.error(e);
+      toast(/duplicate|unique/i.test(e.message) ? T("Ese día ya está en el calendario (bórralo primero para cambiarlo).")
+        : errorTablasFeriados(e) ? T("Falta crear las tablas de feriados: corre scripts/calendario_especial.sql en Supabase.") : T("No se guardó: {e}", { e: e.message }));
+    }
+  };
+
+  $("tablaFeriados").addEventListener("click", async (ev) => {
+    const b = ev.target.closest("button[data-borrar-fer]");
+    if (!b) return;
+    const x = S.feriados.find((f) => String(f.id) === b.dataset.borrarFer);
+    if (!x || !window.confirm(T("¿Quitar {f} del calendario?", { f: `${fechaCorta(x.fecha)}${x.nombre ? ` (${x.nombre})` : ""}` }))) return;
+    try {
+      await D.borrarDiaEspecial(x.id);
+      S.feriados = S.feriados.filter((f) => f.id !== x.id);
+      refrescarTrasCalendario();
+    } catch (e) {
+      console.error(e);
+      toast(T("No se pudo borrar: {e}", { e: e.message }));
+    }
+  });
+
+  $("ferSemanaA").onchange = async () => {
+    const v = $("ferSemanaA").value;
+    if (!v) return;
+    S.semanaA = lunesDe(v);
+    try { await D.guardarConfigRutas("semanaA", { lunes: S.semanaA }); } catch (e) { console.error(e); toast(T("No se guardó: {e}", { e: e.message })); }
+    if (S.esp && !S.esp.guardada && !S.esp.sucio) proponerEspecial(S.esp.semana, baseDeSemana(S.esp.semana));
+    renderFeriados();
+  };
+
+  // Hoja de la semana especial para el IBP: días con fecha; los días sin ruta
+  // salen marcados.
+  function htmlHojaEsp() {
+    const e = S.esp;
+    const info = S.rutas.find((r) => r.ruta === S.ruta) || {};
+    const w = S.plan.warehouse;
+    const trab = diasDeSemana(e.semana);
+    const r = reglasSemana(e.semana);
+    const mi = R.millasDeSlots(e.slots, posiciones(), salidaEsp);
+    const dir = (t) => [t.direccion, t.ciudad, `${t.estado_us || ""} ${t.zip || ""}`.trim()].filter(Boolean).join(", ");
+    let html = `<h1>${esc(T("Ruta {ruta}", { ruta: S.ruta }))}${info.propietario ? ` · ${esc(info.propietario)}` : ""}</h1>
+      <p class="sub"><b>${esc(nombreSemana(e.semana))}</b> · ${esc(T("Semana del {a} al {b}", { a: fechaCorta(e.semana), b: fechaCorta(sumarDias(e.semana, 6)) }))}</p>
+      <p class="sub">${esc(T("Plan especial solo para esta semana. La semana siguiente vuelve el plan de siempre."))}</p>`;
+    if (w) html += `<p class="sub">${esc(T("Warehouse: {w}", { w: w.nombre }))}${dir(w) ? ` — ${esc(dir(w))}` : ""} · ${esc(T("Carga: {dias}", { dias: e.whDias.length ? nombreDias(e.whDias) : "—" }))}</p>`;
+    html += `<p class="sub">${esc(T("Impreso {fecha}", { fecha: new Date().toLocaleDateString(I.locale) }))}</p><section class="semana">`;
+    TODOS_DIAS.filter((d) => trab.includes(d) || S.dias.includes(d)).forEach((d) => {
+      const titulo = `${R.DIAS[d]} ${fechaCorta(sumarDias(e.semana, d - 1))}`;
+      if (!trab.includes(d)) {
+        html += `<div class="dia"><h3><span>${esc(titulo)}</span></h3><p class="vacio"><b>${esc(T("Sin ruta"))}</b>${r[d] && r[d].nombre ? ` — ${esc(r[d].nombre)}` : ""}</p></div>`;
+        return;
+      }
+      const k = `E${d}`;
+      const ids = (e.slots[k] || []).filter((id) => S.porId.has(id));
+      const conWh = w && e.whDias.includes(d);
+      html += `<div class="dia"><h3><span>${esc(titulo)}</span><small>${esc(T("{n} paradas · ~{mi} mi", { n: ids.length, mi: Math.round(mi[k] || 0) }))}</small></h3>`;
+      if (!ids.length && !conWh) { html += `<p class="vacio">${esc(T("Sin visitas"))}</p></div>`; return; }
+      html += `<table><thead><tr><th>#</th><th>${esc(T("Tienda"))}</th><th>${esc(T("Código"))}</th><th>${esc(T("Dirección"))}</th><th>${esc(T("Frecuencia"))}</th><th>${esc(T("Hecho"))}</th></tr></thead><tbody>`;
+      if (conWh) html += `<tr class="wh"><td class="n">W</td><td>${esc(w.nombre)}</td><td></td><td>${esc(dir(w))}</td><td>${esc(T("Carga"))}</td><td class="ok"></td></tr>`;
+      ids.forEach((id, i) => {
+        const t = S.porId.get(id);
+        html += `<tr><td class="n">${i + 1}</td><td>${esc(t.nombre)}${e.movidas.has(`${id}@${d}`) ? ` <b>*</b>` : ""}</td><td>${esc(t.id)}</td><td>${esc(dir(t))}</td><td>${esc(R.ETIQUETA_FREQ[t.freq])}</td><td class="ok"></td></tr>`;
+      });
+      html += `</tbody></table></div>`;
+    });
+    html += `</section>`;
+    if (e.movidas.size) html += `<p class="sub">* ${esc(T("Cambió de día esta semana."))}</p>`;
+    return html;
+  }
+
+  $("btnImprimirEsp").onclick = () => {
+    if (!S.esp) return;
+    if (S.esp.sucio || !S.esp.guardada) toast(T("Ojo: la semana especial no está guardada; se imprime lo que ves en pantalla."));
+    $("hoja").innerHTML = htmlHojaEsp();
+    const titulo = document.title;
+    document.title = `${T("Ruta {ruta}", { ruta: S.ruta })} · ${nombreSemana(S.esp.semana)}`;
+    setTimeout(() => {
+      window.print();
+      document.title = titulo;
+    }, 50);
   };
 
   iniciar().catch((e) => {

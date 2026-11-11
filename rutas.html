@@ -92,6 +92,18 @@
     .rt-regla-fila input, .rt-regla-fila select { font:inherit; font-size:13px; padding:6px; border:1px solid var(--border); border-radius:6px; min-width:0; }
     @media (max-width:640px) { .rt-regla-fila { grid-template-columns:1fr 1fr; } }
     [hidden] { display:none !important; }
+    .rt-aviso-fer { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; background:#fdecea; border:1px solid #f5c6c0; border-left:4px solid var(--rojo); border-radius:8px; padding:10px 14px; margin:0 0 12px; font-size:14px; }
+    .rt-aviso-fer b { color:var(--rojo); }
+    #diasEsp .rt-dia h3 { flex-wrap:wrap; }
+    #diasEsp .rt-dia h3 small { white-space:normal; }
+    .rt-dia.off { --c: var(--gris); background:repeating-linear-gradient(-45deg, var(--gray-light) 0 8px, white 8px 16px); }
+    .rt-dia.off .rt-off { font-size:13px; font-weight:600; color:var(--rojo); margin:8px 0 0; }
+    .rt-dia.extra h3 small b { color:var(--verde); }
+    .rt-chip.movida { border-color:var(--amarillo); color:var(--amarillo); }
+    .rt-fer-dias { display:inline-flex; gap:3px; flex-wrap:wrap; }
+    .rt-fer-dias span { font-size:11px; font-weight:600; min-width:30px; text-align:center; padding:3px 4px; border-radius:4px; background:#e8f5e9; color:var(--verde); }
+    .rt-fer-dias span.off { background:#fdecea; color:var(--rojo); }
+    .rt-fer-dias span.nada { background:var(--gray-light); color:var(--gray); }
     .rt-idioma { margin-left:auto; font:700 13px inherit; font-family:inherit; color:white; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.55); border-radius:8px; padding:6px 10px; cursor:pointer; min-width:44px; }
     .rt-idioma:hover { background:rgba(255,255,255,.28); }
 
@@ -156,7 +168,11 @@
         <button role="tab" data-tab="tiendas" aria-selected="false">Tiendas y frecuencias</button>
         <button role="tab" data-tab="ubicaciones" aria-selected="false">Ubicaciones</button>
         <button role="tab" data-tab="reglas" aria-selected="false">Reglas</button>
+        <button role="tab" data-tab="feriados" aria-selected="false">Feriados</button>
       </div>
+
+      <!-- Aviso de semana con feriados -->
+      <div class="rt-aviso-fer" id="avisoFeriado" hidden></div>
 
       <!-- PLAN -->
       <section id="tabPlan">
@@ -236,6 +252,46 @@
           <div class="rt-progreso" id="progreso" hidden><div></div></div>
           <p class="rt-nota" id="ubiMensaje"></p>
           <div class="rt-scroll"><table class="rt-tabla" id="tablaUbicaciones"></table></div>
+        </div>
+      </section>
+
+      <!-- FERIADOS -->
+      <section id="tabFeriados" hidden>
+        <div class="card">
+          <strong>Semana especial de esta ruta</strong>
+          <p class="rt-nota" data-t="notaEspecial">En una semana con feriados la ruta usa un plan aparte. Se arma solo desde el plan normal: las visitas de los días sin ruta pasan al día anterior (o al siguiente). Arrastra lo que quieras mover y guarda. El plan A/B de siempre no cambia, y pasada esa semana la ruta vuelve sola a él.</p>
+          <div class="rt-barra">
+            <label style="flex:1; min-width:240px;">Semana <select id="selSemanaEsp"></select></label>
+            <label>Sale del plan <select id="selBaseEsp"><option value="A">Semana A</option><option value="B">Semana B</option></select></label>
+            <span class="rt-guardado" id="estadoEsp"></span>
+          </div>
+          <div class="rt-acciones" style="margin-top:12px;">
+            <button class="btn btn-primary" id="btnGuardarEsp">Guardar semana especial</button>
+            <button class="btn btn-secondary" id="btnRearmarEsp">Volver a armar desde el plan normal</button>
+            <button class="btn btn-secondary" id="btnBorrarEsp">Borrar semana especial</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-primary btn-small" id="btnImprimirEsp">Imprimir semana para el IBP</button>
+          </div>
+          <p class="rt-nota" id="resumenEsp" style="margin:10px 0 0;"></p>
+          <div class="rt-grupo" id="grupoWhEsp" style="margin-top:10px;"><span>Días que carga en el warehouse esta semana</span><div class="rt-diaschk" id="whDiasEsp"></div></div>
+        </div>
+        <div class="rt-dias" id="diasEsp"></div>
+
+        <div class="card" style="margin-top:14px;">
+          <strong>Calendario de feriados</strong>
+          <p class="rt-nota" data-t="notaCalendario">Los días sin ruta (Rts Off) aplican a todas las rutas, salvo que lo pongas solo para esta. Domingo no hace falta: ya es día sin ruta. También puedes poner un día con ruta extra.</p>
+          <form class="rt-barra" id="formFeriado">
+            <label>Fecha <input type="date" id="ferFecha" required /></label>
+            <label style="flex:1; min-width:160px;">Nombre <input type="text" id="ferNombre" placeholder="Thanksgiving" /></label>
+            <label>Ese día <select id="ferTrabaja"><option value="false">Sin ruta</option><option value="true">Con ruta (día extra)</option></select></label>
+            <label>Aplica a <select id="ferAlcance"><option value="">Todas las rutas</option><option value="ruta">Solo esta ruta</option></select></label>
+            <button class="btn btn-primary" type="submit">Agregar</button>
+          </form>
+          <div class="rt-barra" style="margin-top:12px;">
+            <label>La semana A empieza el lunes <input type="date" id="ferSemanaA" /></label>
+            <span class="rt-nota" id="ferSemanaAInfo"></span>
+          </div>
+          <div class="rt-scroll" style="margin-top:12px;"><table class="rt-tabla" id="tablaFeriados"></table></div>
         </div>
       </section>
 

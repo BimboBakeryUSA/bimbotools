@@ -787,6 +787,50 @@ async function guardarConfigRutas(clave, valor) {
   );
 }
 
+// Calendario de feriados y semanas especiales (scripts/calendario_especial.sql).
+// rutas_dias_especiales: días sin ruta (o con ruta extra), para todas las rutas
+// (ibp_id null) o solo una. rutas_plan_especial: el plan de una ruta en una
+// semana especial; no toca rutas_plan (el plan A/B de siempre).
+async function getDiasEspeciales(desde, hasta) {
+  let q = _client.from("rutas_dias_especiales").select("id, fecha, nombre, trabaja, ibp_id").order("fecha");
+  if (desde) q = q.gte("fecha", desde);
+  if (hasta) q = q.lte("fecha", hasta);
+  return _checar(await q, "rutas_dias_especiales");
+}
+
+async function guardarDiaEspecial(dia) {
+  const fila = { fecha: dia.fecha, nombre: dia.nombre || null, trabaja: !!dia.trabaja, ibp_id: dia.ibp_id || null };
+  return _checar(await _client.from("rutas_dias_especiales").insert(fila).select().single(), "rutas_dias_especiales (guardar)");
+}
+
+async function borrarDiaEspecial(id) {
+  _checar(await _client.from("rutas_dias_especiales").delete().eq("id", id), "rutas_dias_especiales (borrar)");
+}
+
+async function getPlanesEspeciales(ibpId, desde) {
+  let q = _client.from("rutas_plan_especial").select("ibp_id, semana, base, slots, wh_dias, actualizado_en, actualizado_por").eq("ibp_id", ibpId);
+  if (desde) q = q.gte("semana", desde);
+  return _checar(await q.order("semana"), "rutas_plan_especial");
+}
+
+async function guardarPlanEspecial(ibpId, semana, plan, autor) {
+  const fila = {
+    ibp_id: ibpId,
+    semana,
+    base: plan.base,
+    slots: plan.slots || {},
+    wh_dias: plan.whDias || [],
+    actualizado_en: new Date().toISOString(),
+    actualizado_por: autor || null,
+  };
+  _checar(await _client.from("rutas_plan_especial").upsert(fila, { onConflict: "ibp_id,semana" }), "rutas_plan_especial (guardar)");
+  return fila.actualizado_en;
+}
+
+async function borrarPlanEspecial(ibpId, semana) {
+  _checar(await _client.from("rutas_plan_especial").delete().eq("ibp_id", ibpId).eq("semana", semana), "rutas_plan_especial (borrar)");
+}
+
 window.AppDatos = {
   init,
   getTiendasBasicas,
@@ -796,6 +840,12 @@ window.AppDatos = {
   guardarPlanRuta,
   getConfigRutas,
   guardarConfigRutas,
+  getDiasEspeciales,
+  guardarDiaEspecial,
+  borrarDiaEspecial,
+  getPlanesEspeciales,
+  guardarPlanEspecial,
+  borrarPlanEspecial,
   getDiasSemana,
   getRangoSemanas,
   getRutas,
