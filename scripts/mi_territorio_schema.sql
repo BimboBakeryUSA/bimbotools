@@ -1,7 +1,7 @@
 -- ============================================================================
--- Mi Territorio (Bimbo Tools) — esquema de base de datos.
+-- Mi Territorio — esquema de base de datos.
 -- ----------------------------------------------------------------------------
--- Vive hoy dentro del proyecto Supabase "bimbo-inventory-pro" (se reusó ese
+-- Vive hoy dentro del proyecto de Supabase de la app (se reusó ese
 -- proyecto porque el free tier de la organización tiene tope de 2 proyectos
 -- activos — ver README, sección "Base de datos"). Tablas con nombre propio
 -- para no chocar con las de esa otra app.
@@ -13,7 +13,7 @@
 --
 -- Autenticación: Mi Territorio NO tiene su propio sistema de usuarios —
 -- reusa `auth.users` + `public.profiles` (role: admin/corporativo/route,
--- route_code) que ya trae bimbo-inventory-pro, y las funciones
+-- route_code) que ya traía el proyecto, y las funciones
 -- current_user_role()/current_user_route_code() que ya usan sus otras
 -- tablas (products, scan_sessions). Ese esquema NO se repite aquí porque no
 -- es de Mi Territorio — ver el proyecto real si hace falta consultarlo.
@@ -48,7 +48,7 @@ create table public.tiendas (
   estado_us text not null default '',     -- estado de EE.UU. (VA, MD...), no confundir con "estatus"
   zip text not null default '',
   tipo_cuenta text not null default '',
-  productos integer not null default 0,   -- productos Bimbo distintos vendidos en el periodo del reporte
+  productos integer not null default 0,   -- productos distintos vendidos en el periodo del reporte
   estatus text check (estatus in ('activa', 'inactiva')),
   motivo text,
   frecuencia text check (frecuencia in ('semanal', '2x_semana', '3x_semana', 'quincenal', 'pedido')),

@@ -44,4 +44,4 @@ function iniciarGeofence({ onCerca, getPendientes, onEstado }) {
   );
 }
 
-window.BimboGeo = { iniciarGeofence };
+window.AppGeo = { iniciarGeofence };

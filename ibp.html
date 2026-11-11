@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Mi Ruta — Bimbo Tools</title>
+  <title data-base="Mi Ruta">Mi Ruta</title>
+  <script src="js/config.js"></script>
+  <script src="js/marca.js"></script>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#c0392b" />
   <link rel="icon" href="icons/icon-192.png" />
@@ -74,7 +76,7 @@
     let diaSeleccionado = null; // se fija a "hoy" real en el primer render
 
     function renderDiasTabs(diaDeHoy) {
-      const dias = BimboData.getDiasSemana();
+      const dias = DatosLocales.getDiasSemana();
       const cont = document.getElementById("diasTabs");
       cont.innerHTML = dias
         .map((d) => {
@@ -87,18 +89,18 @@
     }
 
     async function render() {
-      await BimboData.init();
-      const diaDeHoy = BimboData.getDiaDeHoy();
+      await DatosLocales.init();
+      const diaDeHoy = DatosLocales.getDiaDeHoy();
       if (!diaSeleccionado) diaSeleccionado = diaDeHoy;
 
-      const usuario = BimboData.getUsuario(ibpId);
+      const usuario = DatosLocales.getUsuario(ibpId);
       document.getElementById("titulo").textContent =
         (usuario ? usuario.nombre : "Mi Ruta") + (viendoComoMSL ? " (vista MSL)" : "");
       document.getElementById("linkVolver").href = volverA;
 
       renderDiasTabs(diaDeHoy);
 
-      const { ruta, paradas, esHoyReal } = BimboData.getRutaDelDia(ibpId, diaSeleccionado);
+      const { ruta, paradas, esHoyReal } = DatosLocales.getRutaDelDia(ibpId, diaSeleccionado);
       document.getElementById("rutaNombre").textContent = ruta ? ruta.nombre : "Sin ruta asignada";
 
       const nombreDia = diaSeleccionado.charAt(0).toUpperCase() + diaSeleccionado.slice(1);
@@ -120,7 +122,7 @@
       } else {
         lista.innerHTML = paradas
           .map((p) => {
-            const sem = BimboData.semaforoFrescura(p.cliente.frescura);
+            const sem = DatosLocales.semaforoFrescura(p.cliente.frescura);
             const frescuraPct = p.cliente.frescura != null ? Math.round(p.cliente.frescura * 100) + "%" : "—";
             const acciones = !esHoyReal
               ? `<span class="badge">Vista previa — no editable</span>`
@@ -152,7 +154,7 @@
     }
 
     function renderNotificaciones() {
-      const notifs = BimboData.getNotificaciones(ibpId);
+      const notifs = DatosLocales.getNotificaciones(ibpId);
       const noLeidas = notifs.filter((n) => !n.leida).length;
       document.getElementById("notifCount").textContent = noLeidas ? `(${noLeidas})` : "";
       const panel = document.getElementById("notifPanel");
@@ -169,9 +171,9 @@
 
     function renderPanelAgregar(ruta) {
       if (!ruta) return;
-      const { paradas } = BimboData.getRutaDelDia(ibpId, diaSeleccionado);
+      const { paradas } = DatosLocales.getRutaDelDia(ibpId, diaSeleccionado);
       const idsHoy = new Set(paradas.map((p) => p.cliente.id));
-      const disponibles = BimboData.getClientesDeRuta(ruta.id).filter((c) => !idsHoy.has(c.id));
+      const disponibles = DatosLocales.getClientesDeRuta(ruta.id).filter((c) => !idsHoy.has(c.id));
       const lista = document.getElementById("listaAgregar");
       lista.innerHTML = disponibles.length
         ? disponibles
@@ -192,20 +194,20 @@
     }
 
     function marcar(id) {
-      BimboData.marcarVisitado(id, "manual");
+      DatosLocales.marcarVisitado(id, "manual");
       render();
     }
     function desmarcar(id) {
-      BimboData.desmarcarVisitado(id);
+      DatosLocales.desmarcarVisitado(id);
       render();
     }
     function agregar(id) {
-      BimboData.agregarClienteAHoy(id, quienEdita);
+      DatosLocales.agregarClienteAHoy(id, quienEdita);
       document.getElementById("panelAgregar").style.display = "none";
       render();
     }
     function quitar(id) {
-      BimboData.quitarClienteDeHoy(id, quienEdita);
+      DatosLocales.quitarClienteDeHoy(id, quienEdita);
       render();
     }
 
@@ -226,19 +228,19 @@
       const panel = document.getElementById("notifPanel");
       panel.style.display = panel.style.display === "none" ? "block" : "none";
       if (panel.style.display === "block") {
-        BimboData.marcarNotificacionesLeidas(ibpId);
+        DatosLocales.marcarNotificacionesLeidas(ibpId);
         renderNotificaciones();
       }
     });
 
     render().then(() => {
-      BimboGeo.iniciarGeofence({
+      AppGeo.iniciarGeofence({
         onCerca: (clienteId) => {
-          BimboData.marcarVisitado(clienteId, "geofence");
+          DatosLocales.marcarVisitado(clienteId, "geofence");
           render();
         },
         getPendientes: () => {
-          const { paradas } = BimboData.getRutaDelDia(ibpId);
+          const { paradas } = DatosLocales.getRutaDelDia(ibpId);
           return paradas.filter((p) => !p.visitada).map((p) => p.cliente);
         },
         onEstado: (msg) => {

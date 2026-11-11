@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Tiendas pendientes + recordatorio push + ruta de pruebas + reglas por cadena
 -- ----------------------------------------------------------------------------
--- Se corre en el SQL Editor del proyecto Supabase "bimbo-inventory-pro".
+-- Se corre en el SQL Editor del proyecto de Supabase de la app.
 -- Se puede correr más de una vez (borra y vuelve a crear solo lo de pruebas).
 --
 --   1. Reglas del planificador: Walmart 3x, Wawa 2x, 7-Eleven semanal
@@ -324,5 +324,6 @@ revoke all on function public.enviar_recordatorios_pendientes(text) from public,
 -- Enlace para entrar como el IBP de la ruta de pruebas (ábrelo en una
 -- ventana de incógnito o en otro teléfono, NO en el navegador donde ya
 -- entraste con tu cuenta):
-select 'https://bimbobakeryusa.github.io/bimbotools/mi-territorio.html?t=' || token as enlace_ruta_pruebas
+-- (Va después de la dirección donde está publicada la app.)
+select 'mi-territorio.html?t=' || token as enlace_ruta_pruebas
 from public.ibps where id = '9999';

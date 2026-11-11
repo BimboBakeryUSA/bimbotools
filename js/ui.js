@@ -1,7 +1,7 @@
 // Helpers de UI compartidos (tarjetas estilo shadcn/ui, iconos SVG, semáforo).
 // Sin dependencias: todo es HTML en strings, igual que el resto de la app.
 
-const BimboUI = (() => {
+const AppUI = (() => {
   const ICONOS = {
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
@@ -72,6 +72,6 @@ const BimboUI = (() => {
 // Reemplaza <span data-icono="nombre"></span> por el SVG correspondiente.
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-icono]").forEach((el) => {
-    el.innerHTML = BimboUI.icono(el.dataset.icono, Number(el.dataset.size) || 18);
+    el.innerHTML = AppUI.icono(el.dataset.icono, Number(el.dataset.size) || 18);
   });
 });

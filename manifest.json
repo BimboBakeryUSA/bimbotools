@@ -1,6 +1,6 @@
 {
-  "name": "Bimbo Tools — Optimizador de Ruta",
-  "short_name": "Bimbo Tools",
+  "name": "Optimizador de Ruta",
+  "short_name": "Mi Ruta",
   "description": "Ruta optimizada para IBPs y dashboard de cumplimiento para Managers MSL.",
   "start_url": "index.html",
   "scope": ".",

@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Dashboard MSL — Bimbo Tools</title>
+  <title data-base="Dashboard MSL">Dashboard MSL</title>
+  <script src="js/config.js"></script>
+  <script src="js/marca.js"></script>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#c0392b" />
   <link rel="icon" href="icons/icon-192.png" />
@@ -47,20 +49,20 @@
 
       let hoyTotal = 0, hoyVisitados = 0, semTotal = 0, semVisitados = 0, sumaFrescura = 0, conFrescura = 0;
       ibps.forEach((ibp) => {
-        const hoy = BimboData.getCumplimientoIbp(ibp.id);
-        const sem = BimboData.getProgresoSemanalIbp(ibp.id);
+        const hoy = DatosLocales.getCumplimientoIbp(ibp.id);
+        const sem = DatosLocales.getProgresoSemanalIbp(ibp.id);
         hoyTotal += hoy.total;
         hoyVisitados += hoy.visitadas;
         semTotal += sem.total;
         semVisitados += sem.visitados;
-        const f = BimboData.getFrescuraIbp(ibp.id);
+        const f = DatosLocales.getFrescuraIbp(ibp.id);
         if (f != null) { sumaFrescura += f; conFrescura++; }
       });
 
       const pctHoy = hoyTotal ? Math.round((hoyVisitados / hoyTotal) * 100) : 0;
       const pctSem = semTotal ? Math.round((semVisitados / semTotal) * 100) : 0;
       const frescuraProm = conFrescura ? sumaFrescura / conFrescura : null;
-      const semFrescura = BimboData.semaforoFrescura(frescuraProm);
+      const semFrescura = DatosLocales.semaforoFrescura(frescuraProm);
       const pctFrescura = frescuraProm != null ? Math.round(frescuraProm * 100) + "%" : "—";
 
       cont.innerHTML = `
@@ -111,11 +113,11 @@
     }
 
     async function render() {
-      await BimboData.init();
-      const msl = BimboData.getUsuario(mslId);
+      await DatosLocales.init();
+      const msl = DatosLocales.getUsuario(mslId);
       document.getElementById("titulo").textContent = msl ? msl.nombre : "Dashboard MSL";
 
-      const ibps = BimboData.getIbpsDeMSL(mslId);
+      const ibps = DatosLocales.getIbpsDeMSL(mslId);
       const cont = document.getElementById("contenido");
 
       renderResumenGeneral(ibps);
@@ -123,11 +125,11 @@
       if (nivel === "ibp") {
         cont.innerHTML = ibps
           .map((ibp) => {
-            const { total, visitadas, pendientes } = BimboData.getCumplimientoIbp(ibp.id);
-            const semanal = BimboData.getProgresoSemanalIbp(ibp.id);
-            const porDia = BimboData.getProgresoSemanalPorDia(ibp.id);
-            const frescura = BimboData.getFrescuraIbp(ibp.id);
-            const sem = BimboData.semaforoFrescura(frescura);
+            const { total, visitadas, pendientes } = DatosLocales.getCumplimientoIbp(ibp.id);
+            const semanal = DatosLocales.getProgresoSemanalIbp(ibp.id);
+            const porDia = DatosLocales.getProgresoSemanalPorDia(ibp.id);
+            const frescura = DatosLocales.getFrescuraIbp(ibp.id);
+            const sem = DatosLocales.semaforoFrescura(frescura);
             const pct = frescura != null ? Math.round(frescura * 100) + "%" : "—";
             const pctSemanal = semanal.total ? Math.round((semanal.visitados / semanal.total) * 100) : 0;
             return `
@@ -156,13 +158,13 @@
       if (nivel === "ruta") {
         cont.innerHTML = ibps
           .map((ibp) => {
-            const ruta = BimboData.getRutaDeIbp(ibp.id);
+            const ruta = DatosLocales.getRutaDeIbp(ibp.id);
             if (!ruta) return "";
-            const frescura = BimboData.getFrescuraRuta(ruta.id);
-            const sem = BimboData.semaforoFrescura(frescura);
+            const frescura = DatosLocales.getFrescuraRuta(ruta.id);
+            const sem = DatosLocales.semaforoFrescura(frescura);
             const pct = frescura != null ? Math.round(frescura * 100) + "%" : "—";
-            const clientes = BimboData.getClientesDeRuta(ruta.id);
-            const semanal = BimboData.getProgresoSemanalRuta(ruta.id);
+            const clientes = DatosLocales.getClientesDeRuta(ruta.id);
+            const semanal = DatosLocales.getProgresoSemanalRuta(ruta.id);
             const pctSemanal = semanal.total ? Math.round((semanal.visitados / semanal.total) * 100) : 0;
             return `
               <div class="card">
@@ -184,9 +186,9 @@
       if (nivel === "cliente") {
         const filas = ibps
           .flatMap((ibp) => {
-            const ruta = BimboData.getRutaDeIbp(ibp.id);
+            const ruta = DatosLocales.getRutaDeIbp(ibp.id);
             if (!ruta) return [];
-            return BimboData.getClientesDeRuta(ruta.id).map((c) => ({ ...c, ibpNombre: ibp.nombre, rutaNombre: ruta.nombre }));
+            return DatosLocales.getClientesDeRuta(ruta.id).map((c) => ({ ...c, ibpNombre: ibp.nombre, rutaNombre: ruta.nombre }));
           })
           .sort((a, b) => (a.frescura || 0) - (b.frescura || 0));
 
@@ -199,7 +201,7 @@
               <tbody>
                 ${filas
                   .map((c) => {
-                    const sem = BimboData.semaforoFrescura(c.frescura);
+                    const sem = DatosLocales.semaforoFrescura(c.frescura);
                     const pct = c.frescura != null ? Math.round(c.frescura * 100) + "%" : "—";
                     return `
                       <tr>

@@ -5,8 +5,8 @@
 // ============================================================================
 
 (function () {
-  const D = window.BimboDepuracion;
-  const R = window.BimboRuteo;
+  const D = window.AppDatos;
+  const R = window.Ruteo;
   const I = window.RutasIdioma;
   const T = (es, vars) => I.T(es, vars);
   const LS_IDIOMA = "rutasIdioma";
@@ -145,7 +145,7 @@
   // Sesión
   // --------------------------------------------------------------------------
 
-  // Regla con el texto que arma BimboRuteo ("Venta > 400", "Resto (semanal)"...).
+  // Regla con el texto que arma Ruteo ("Venta > 400", "Resto (semanal)"...).
   function traducirRegla(r) {
     const m = /^Venta ([<>]) (.+)$/.exec(r || "");
     return m ? T(`Venta ${m[1]} {n}`, { n: m[2] }) : T(r || "");
@@ -197,11 +197,11 @@
 
   async function arrancar() {
     S.perfil = await D.getPerfilActual();
-    if (!S.perfil) return mostrarLogin("Tu cuenta no tiene perfil en Bimbo Tools.");
+    if (!S.perfil) return mostrarLogin("Tu cuenta no tiene perfil en la app.");
     // Solo admin y corporativo (managers: DOS, ZSL, MSL). Nadie más.
     if (!["admin", "corporativo", "dos", "zsl", "msl"].includes(String(S.perfil.role || "").toLowerCase())) {
       await D.cerrarSesion().catch(() => {});
-      return mostrarLogin("Esta página es solo para managers de Bimbo Tools.");
+      return mostrarLogin("Esta página es solo para managers.");
     }
     S.soloLectura = false;
     $("pantallaLogin").hidden = true;
@@ -1114,7 +1114,7 @@
         T("Guardadas {n} ubicaciones del Census.", { n: aGuardar.length }) +
         (sinMatch ? T(" {n} direcciones no tuvieron coincidencia (búscalas en OpenStreetMap o ponlas a mano).", { n: sinMatch }) : "") +
         (manuales ? T(" {n} no se tocaron porque ya tenían ubicación manual.", { n: manuales }) : "") +
-        (encontrados.length - validos.length ? T(" {n} códigos no existen en Bimbo Tools.", { n: encontrados.length - validos.length }) : "");
+        (encontrados.length - validos.length ? T(" {n} códigos no existen en la base.", { n: encontrados.length - validos.length }) : "");
     } catch (err) {
       console.error(err);
       $("ubiMensaje").textContent = T("No se pudo importar: {e}", { e: err.message });

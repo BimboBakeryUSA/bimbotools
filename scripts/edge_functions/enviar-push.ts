@@ -12,15 +12,13 @@
 // invitar-ibp.ts y scripts/mi_territorio_schema.sql. Para redeployarla:
 // mcp__Supabase__deploy_edge_function con este archivo como index.ts.
 //
-// Llave privada VAPID: no hay forma de configurar secretos de Supabase
-// desde las herramientas usadas para armar esto, así que queda embebida
-// abajo (nunca llega al navegador -- solo vive en el código de esta
-// función, del lado del servidor). Si más adelante se quiere mover a un
-// secreto real: reemplazar las dos constantes VAPID_* por
-// Deno.env.get("VAPID_PUBLIC_KEY")/("VAPID_PRIVATE_KEY") y correr
-// `supabase secrets set` -- pero si se regenera la llave pública, hay
-// que actualizarla también en js/depuracion.js (VAPID_PUBLIC_KEY), o
-// las suscripciones viejas del navegador dejan de servir.
+// Llaves y nombre: nada va en el código.
+//   - VAPID_PRIVATE_KEY y VAPID_SUBJECT ("mailto:correo-de-soporte"):
+//     secretos de la Edge Function (Supabase → Edge Functions → Secrets).
+//   - Llave pública VAPID y nombre de la app: tabla app_config
+//     (claves "vapid_public" y "nombre_app"), la misma que lee el navegador.
+// Si se cambia el par de llaves, cada teléfono vuelve a pedir activar los
+// avisos solo; las suscripciones viejas se borran al fallar aquí.
 // =========================================================
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -30,10 +28,17 @@ import webpush from "npm:web-push@3.6.7";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-const VAPID_PUBLIC_KEY = "BLFPiseSMlKivquERfG16C4lrY3k-CAedeuECWfscLcJ1VV4XlgcIfAtk0zqeedelXzuS66NfLnrfCruwRHwGhc";
-const VAPID_PRIVATE_KEY = "k8b1uEJbvPkWpskt9Y8AZPnbVyPnOC8sLyZSmFro12Q";
+const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY");
+const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT");
 
-webpush.setVapidDetails("mailto:soporte@bimbobakeryusa.com", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+// app_config: { clave: valor } (vapid_public, nombre_app).
+async function leerConfig(adminClient: ReturnType<typeof createClient>) {
+  const { data, error } = await adminClient.from("app_config").select("clave, valor");
+  if (error) throw new Error(`app_config: ${error.message}`);
+  const cfg: Record<string, string> = {};
+  (data || []).forEach((f: { clave: string; valor: string }) => (cfg[f.clave] = f.valor));
+  return cfg;
+}
 
 function jsonResponse(obj: unknown, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -48,7 +53,13 @@ Deno.serve(async (req) => {
     const { ruta_id, texto } = body;
     if (!ruta_id) return jsonResponse({ error: "falta ruta_id" }, 400);
 
+    if (!VAPID_PRIVATE_KEY || !VAPID_SUBJECT) {
+      return jsonResponse({ error: "faltan los secretos VAPID_PRIVATE_KEY / VAPID_SUBJECT" }, 500);
+    }
     const adminClient = createClient(SUPABASE_URL!, SERVICE_ROLE_KEY!);
+    const cfg = await leerConfig(adminClient);
+    if (!cfg.vapid_public) return jsonResponse({ error: "falta app_config.vapid_public" }, 500);
+    webpush.setVapidDetails(VAPID_SUBJECT, cfg.vapid_public.trim(), VAPID_PRIVATE_KEY);
     const { data: subs, error } = await adminClient
       .from("push_subscripciones")
       .select("id, endpoint, p256dh, auth")
@@ -58,9 +69,10 @@ Deno.serve(async (req) => {
     if (!subs || !subs.length) return jsonResponse({ ok: true, enviados: 0 });
 
     const payload = JSON.stringify({
-      title: "Bimbo Tools — nuevo mensaje",
+      title: cfg.nombre_app ? `${cfg.nombre_app.trim()} — nuevo mensaje` : "Nuevo mensaje",
       body: String(texto || "").slice(0, 180),
-      url: "/bimbotools/mi-territorio.html",
+      // Relativa a sw.js: abre mi-territorio.html de donde esté publicada la app.
+      url: "mi-territorio.html",
     });
 
     const resultados = await Promise.all(
@@ -75,7 +87,8 @@ Deno.serve(async (req) => {
           const statusCode = (e as { statusCode?: number }).statusCode;
           // 404/410 = el navegador ya no reconoce esa suscripción (desinstaló,
           // borró datos, etc.) -- se limpia sola para no reintentar siempre.
-          if (statusCode === 404 || statusCode === 410) {
+          // 403 = la suscripción se hizo con otro par de llaves (se cambiaron).
+          if (statusCode === 404 || statusCode === 410 || statusCode === 403) {
             await adminClient.from("push_subscripciones").delete().eq("id", s.id);
           }
           return { id: s.id, ok: false, error: String(e) };

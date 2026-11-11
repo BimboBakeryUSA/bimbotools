@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Planificador de rutas (rutas.html) — tablas nuevas.
 -- ----------------------------------------------------------------------------
--- Se corre UNA vez en el SQL Editor del proyecto Supabase "bimbo-inventory-pro"
+-- Se corre UNA vez en el SQL Editor del proyecto de Supabase de la app
 -- (el mismo de Mi Territorio). Solo AGREGA tablas: no modifica tiendas, ibps,
 -- ventas_semanales ni nada de lo que ya usan los IBPs.
 --

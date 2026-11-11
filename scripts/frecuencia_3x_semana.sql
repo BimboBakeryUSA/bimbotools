@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Mi Territorio: agrega la frecuencia "3 veces por semana" (3x_semana).
 -- ----------------------------------------------------------------------------
--- Se corre UNA vez en el SQL Editor del proyecto Supabase "bimbo-inventory-pro".
+-- Se corre UNA vez en el SQL Editor del proyecto de Supabase de la app.
 -- Solo amplía la lista de valores permitidos: no cambia ninguna tienda.
 -- Es seguro correrlo más de una vez.
 -- ============================================================================

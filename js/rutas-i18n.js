@@ -7,7 +7,7 @@
 //     y, si está en EN, lo cambia. Al volver a español se restaura el original.
 //   - Los textos con datos (números, nombres) pasan por T("plantilla {x}", {x}).
 //   - Los párrafos con formato llevan data-t="id" y se cambian enteros (HTML_EN).
-//   - Días y frecuencias los cambia BimboRuteo.setIdioma.
+//   - Días y frecuencias los cambia Ruteo.setIdioma.
 // ============================================================================
 
 (function () {
@@ -17,13 +17,13 @@
     "Semana A y B por IBP": "Week A and B by IBP",
     "Volver al Administrador": "Back to Admin",
     "Iniciar sesión": "Sign in",
-    "Con tu cuenta de admin de Bimbo Tools.": "With your Bimbo Tools admin account.",
+    "Con tu cuenta de admin.": "With your admin account.",
     "Correo": "Email",
     "Contraseña": "Password",
     "Entrar": "Sign in",
     "Correo o contraseña incorrectos.": "Wrong email or password.",
-    "Tu cuenta no tiene perfil en Bimbo Tools.": "Your account has no Bimbo Tools profile.",
-    "Esta página es solo para managers de Bimbo Tools.": "This page is for Bimbo Tools managers only.",
+    "Tu cuenta no tiene perfil en la app.": "Your account has no profile in the app.",
+    "Esta página es solo para managers.": "This page is for managers only.",
     "No se pudo conectar: {e}": "Could not connect: {e}",
 
     // Barra de ruta
@@ -178,7 +178,7 @@
     "Guardadas {n} ubicaciones del Census.": "Saved {n} locations from the Census.",
     " {n} direcciones no tuvieron coincidencia (búscalas en OpenStreetMap o ponlas a mano).": " {n} addresses had no match (search them in OpenStreetMap or enter them by hand).",
     " {n} no se tocaron porque ya tenían ubicación manual.": " {n} were left as is because they already had a manual location.",
-    " {n} códigos no existen en Bimbo Tools.": " {n} codes don't exist in Bimbo Tools.",
+    " {n} códigos no existen en la base.": " {n} codes don't exist in the database.",
     "No se pudo importar: {e}": "Could not import: {e}",
     "Ubicando tiendas ({fase}): {h} de {n}…": "Locating stores ({fase}): {h} of {n}…",
     "{n} tiendas ubicadas. {m} sin ubicación: ponlas a mano en la pestaña Ubicaciones.": "{n} stores located. {m} without location: enter them by hand in the Locations tab.",
@@ -310,7 +310,7 @@
   function setIdioma(nuevo) {
     idioma = nuevo === "en" ? "en" : "es";
     document.documentElement.lang = idioma;
-    if (window.BimboRuteo) window.BimboRuteo.setIdioma(idioma);
+    if (window.Ruteo) window.Ruteo.setIdioma(idioma);
     if (idioma === "en") return recorrer(document.body);
     textos.forEach((r, nodo) => { if (nodo.isConnected && nodo.nodeValue === r.en) nodo.nodeValue = r.es; });
     atributos.forEach((reg, el) => Object.keys(reg).forEach((a) => { if (el.getAttribute(a) === reg[a].en) el.setAttribute(a, reg[a].es); }));

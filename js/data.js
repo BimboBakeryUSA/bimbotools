@@ -1,5 +1,5 @@
 // ============================================================================
-// Capa de datos — Bimbo Tools / Optimizador de Ruta
+// Capa de datos — Optimizador de Ruta
 // ----------------------------------------------------------------------------
 // Fuente de datos HOY: data/seed.json + overrides guardados en localStorage.
 // Fuente de datos MAÑANA (cuando se migre): Supabase (Postgres + Auth).
@@ -11,7 +11,16 @@
 // ============================================================================
 
 const SEED_URL = "data/seed.json";
-const STORAGE_KEY = "bimbo_tools_estado_v1";
+const STORAGE_KEY = "app_estado_v1";
+// Nombre anterior de esta clave (terminaba igual): se pasa al nuevo una vez.
+try {
+  Object.keys(localStorage)
+    .filter((k) => k !== STORAGE_KEY && k.endsWith("_tools_estado_v1"))
+    .forEach((vieja) => {
+      if (!localStorage.getItem(STORAGE_KEY)) localStorage.setItem(STORAGE_KEY, localStorage.getItem(vieja));
+      localStorage.removeItem(vieja);
+    });
+} catch (e) {}
 
 const DIAS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
 
@@ -467,7 +476,7 @@ function getProgresoSemanalIbp(ibpId) {
 // directa desde <script> normal en cada página).
 // ---------------------------------------------------------------------------
 
-window.BimboData = {
+window.DatosLocales = {
   init,
   getUsuarios,
   getUsuario,

@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Sincronización Mi Territorio con el listado oficial ZSL Diego Guzmán
 -- (DOS Rebecca Crocker → ZSL Diego Guzmán → 5 MSL → 59 rutas → 1597 tiendas)
--- Aplicado en Supabase (proyecto bimbo-inventory-pro) el 2026-11-01.
+-- Aplicado en Supabase (proyecto de Supabase de la app) el 2026-11-01.
 -- Se deja aquí como registro; NO volver a correr tal cual.
 -- ============================================================================
 

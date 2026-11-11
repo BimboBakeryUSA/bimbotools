@@ -1,7 +1,13 @@
-# Bimbo Tools — Optimizador de Ruta
+# Optimizador de Ruta
 
-PWA en HTML/CSS/JS puro (sin build, sin npm). Igual que catalogo-bimbo y
-bimbo-inventory-pro: se abre directo, no necesita compilar nada.
+PWA en HTML/CSS/JS puro (sin build, sin npm): se abre directo, no necesita
+compilar nada.
+
+**Sin nombres de marca en el código.** El nombre de la app y la llave
+pública de los avisos vienen de la tabla `app_config` de Supabase
+(`scripts/app_config.sql`, leída por `js/marca.js`); la conexión a Supabase
+está en `js/config.js`. Los títulos de las páginas llevan solo el nombre de
+la sección (`<title data-base="...">`) y `js/marca.js` le agrega el nombre.
 
 ## Cómo correrlo
 
@@ -48,7 +54,7 @@ Luego abre `http://localhost:8080`.
   **Supabase** — ver "Base de datos" abajo. También trae la sesión (login,
   entrada por token, cierre por inactividad) que usan tanto
   `mi-territorio.html` como `admin.html`. El nombre interno
-  (`depuracion.js` / `BimboDepuracion`) se quedó como estaba al renombrar la
+  (`depuracion.js` / `AppDatos`) se quedó como estaba al renombrar la
   página, es solo la capa de datos.
 - `js/geo.js` — geofence (confirmación automática de visita por GPS).
 - `data/seed.json` — datos de ejemplo (usuarios, rutas, clientes) usados por
@@ -169,18 +175,17 @@ Mi Territorio usa Supabase — tablas `ibps`, `tiendas` (incluye
 `ventas_semanales` y `tiendas_historial` (el historial de cambios que ve el
 admin — quién, qué campo, valor antes/después y cuándo; esquema completo en
 `scripts/mi_territorio_schema.sql`). Vive dentro del
-proyecto **`bimbo-inventory-pro`** (mismo Supabase, tablas con nombre
-propio): la organización tiene tope de 2 proyectos activos en el plan free
-y ya estaban ocupados por `bimbo-inventory-pro` y `catalogo-bimbo`, así que
-se reusó ese en vez de crear uno nuevo. Si más adelante hace falta separarlo
+proyecto de Supabase de otra app de la suite (tablas con nombre propio):
+la organización tiene tope de 2 proyectos activos en el plan free y ya
+estaban ocupados, así que se reusó uno en vez de crear uno nuevo. Si más adelante hace falta separarlo
 a su propio proyecto, es cuestión de correr ese mismo `.sql` ahí y copiar
 los datos — son tablas Postgres normales, no hay nada que las ate para
 siempre a estar juntas.
 
 ### Autenticación (real, compartida con el resto de la suite)
 
-Mi Territorio usa el mismo sistema de cuentas que ya tenía
-`bimbo-inventory-pro` (`auth.users` de Supabase + tabla `profiles` con
+Mi Territorio usa el mismo sistema de cuentas que ya tenía ese proyecto
+(`auth.users` de Supabase + tabla `profiles` con
 `role`: `admin` / `corporativo` / `route`, y `route_code` para saber a qué
 ruta pertenece un `route`). No se inventó nada nuevo — se reutilizan tal
 cual las funciones `current_user_role()`/`current_user_route_code()` que ya
@@ -236,7 +241,7 @@ vez que se pierde el localStorage del dispositivo).
 `admin.html` lo parsea con SheetJS ubicando la columna "Central Store" y
 calculando el resto de columnas en relativo a esa (tolera que el reporte
 agregue/mueva columnas antes de "Central Store", como pasó con "DSDE L2"),
-y sube `ibps`/`tiendas`/`ventas_semanales` vía `BimboDepuracion.cargarCatalogo`
+y sube `ibps`/`tiendas`/`ventas_semanales` vía `AppDatos.cargarCatalogo`
 (upsert en lotes). Las semanas visibles se calculan dinámicamente con la
 función `semanas_recientes` (últimas 12 semanas presentes en
 `ventas_semanales`), así que subir el reporte de la próxima semana actualiza
@@ -280,11 +285,11 @@ mensaje, un trigger de Postgres (`mensajes_notificar_push`, vía la extensión
 `pg_net`) llama automáticamente a la Edge Function `enviar-push`, que manda
 la notificación real con el protocolo Web Push (librería `web-push` sobre
 Deno, firmada con un par de llaves VAPID). `sw.js` la muestra (evento
-`push`) y abre/enfoca la app al tocarla (`notificationclick`). La llave
-privada VAPID queda embebida en el código de la Edge Function (no en un
-secreto real de Supabase, por límite de las herramientas usadas para
-armarlo) — si se quiere mover a un secreto de verdad más adelante, ver la
-nota al principio de `scripts/edge_functions/enviar-push.ts`.
+`push`) y abre/enfoca la app al tocarla (`notificationclick`). Las llaves no
+van en el código: la privada y el remitente son secretos de la Edge Function
+(`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) y la pública está en `app_config`
+(`vapid_public`), de donde la leen el navegador y la función. Si se cambia el
+par de llaves, cada teléfono vuelve a pedir activar los avisos.
 
 ## Estado actual
 
@@ -322,7 +327,7 @@ nota al principio de `scripts/edge_functions/enviar-push.ts`.
   campo ya está listo para usarse como gate.
 - El resto de la app (ibp/msl/admin fuera de Territorios) todavía no
   se migra a Supabase — sigue en `localStorage`.
-- Ver `bimbo-tools-especificacion.md` (carpeta raíz) para el resto de
+- Ver el documento de especificación (carpeta raíz) para el resto de
   decisiones pendientes y el roadmap de próximas herramientas.
 
 ## Tiendas pendientes y recordatorios (Mi Territorio)

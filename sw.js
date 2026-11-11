@@ -11,7 +11,7 @@
 // cacheado de antes). `cache: "reload"` obliga a ignorar esa caché HTTP y sí
 // ir a la red de verdad en cada visita.
 
-const CACHE_NAME = "bimbo-tools-v18";
+const CACHE_NAME = "app-v19";
 const ARCHIVOS_SHELL = [
   "index.html",
   "ibp.html",
@@ -22,6 +22,8 @@ const ARCHIVOS_SHELL = [
   "css/styles.css",
   "js/data.js",
   "js/geo.js",
+  "js/config.js",
+  "js/marca.js",
   "js/depuracion.js",
   "js/ui.js",
   "js/ruteo.js",
@@ -60,7 +62,7 @@ self.addEventListener("activate", (event) => {
 // Notificaciones push (mensajes admin -> IBP, ver enviar-push). El payload
 // ya viene armado por la Edge Function como { title, body, url }.
 self.addEventListener("push", (event) => {
-  let datos = { title: "Bimbo Tools", body: "Tienes un mensaje nuevo." };
+  let datos = { title: "Nuevo mensaje", body: "Tienes un mensaje nuevo." };
   try {
     if (event.data) datos = { ...datos, ...event.data.json() };
   } catch (e) {

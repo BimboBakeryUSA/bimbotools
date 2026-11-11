@@ -2,13 +2,13 @@
 // Capa de datos — "Mi Territorio" (mi-territorio.html), la página donde cada
 // IBP decide qué tiendas siguen en su lista.
 // ----------------------------------------------------------------------------
-// El archivo y el nombre interno (BimboDepuracion) se quedaron como estaban
+// El archivo y el nombre interno (AppDatos) se quedaron como estaban
 // desde que la página se llamaba "depuración" — es la misma capa de datos,
 // solo cambió lo que ve el IBP.
 //
 // A diferencia de js/data.js (que todavía es local/localStorage), este
-// archivo SÍ habla con un backend real: Supabase (proyecto "bimbo-inventory-pro",
-// tablas con prefijo propio para no chocar con esa otra app — ver
+// archivo SÍ habla con un backend real: Supabase (proyecto compartido con
+// otra app, tablas con prefijo propio para no chocar con ella — ver
 // scripts/mi_territorio_schema.sql). Todas las tiendas, decisiones (activa/
 // inactiva/motivo/frecuencia) y ventas semanales viven ahí, compartidas entre
 // todos los IBPs y el admin en vivo — ya no hay exportar/importar .json.
@@ -37,20 +37,40 @@
 // ============================================================================
 
 (function () {
-const SUPABASE_URL = "https://obfikwhukpzelsghowcq.supabase.co";
-const SUPABASE_KEY = "sb_publishable_-qW3XyldNJgpOk6BLReC3A_HIyZHrHM";
+// Conexión: js/config.js (cargado antes que este archivo).
+const SUPABASE_URL = window.APP_CONFIG.supabaseUrl;
+const SUPABASE_KEY = window.APP_CONFIG.supabaseKey;
 
-// Llave pública VAPID — debe coincidir con la privada embebida en la Edge
-// Function enviar-push (scripts/edge_functions/enviar-push.ts). No es
-// secreta (viaja al navegador por diseño del protocolo Web Push).
-const VAPID_PUBLIC_KEY = "BLFPiseSMlKivquERfG16C4lrY3k-CAedeuECWfscLcJ1VV4XlgcIfAtk0zqeedelXzuS66NfLnrfCruwRHwGhc";
+// Llave pública VAPID (avisos push): NO va en el código. Se lee de la tabla
+// app_config (clave "vapid_public") y debe hacer pareja con la privada, que
+// vive como secreto de la Edge Function enviar-push (VAPID_PRIVATE_KEY).
+// Si se cambia el par de llaves, cada teléfono vuelve a pedir activar los
+// avisos solo (ver tieneNotificacionesActivas).
+let _vapidPublica = null;
+async function _llaveVapid() {
+  if (_vapidPublica) return _vapidPublica;
+  const { data, error } = await _client.from("app_config").select("valor").eq("clave", "vapid_public").maybeSingle();
+  if (error) throw new Error(`app_config: ${error.message}`);
+  if (!data || !data.valor) throw new Error("Falta la llave de avisos en Supabase (app_config: vapid_public).");
+  _vapidPublica = data.valor.trim();
+  return _vapidPublica;
+}
 
 // Sesión cerrada sola tras 30 días sin actividad (clics/teclas) en la
 // página — antes eran 6h, muy poco para un IBP que no abre la app a diario;
 // el token real ya vive en localStorage y sobrevive a cerrar el navegador
 // solo, este límite es un tope de seguridad, no el mecanismo de "recordarme".
 const INACTIVIDAD_LIMITE_MS = 30 * 24 * 60 * 60 * 1000;
-const LS_ULTIMA_ACTIVIDAD = "bimboUltimaActividad";
+const LS_ULTIMA_ACTIVIDAD = "appUltimaActividad";
+// Nombre anterior de esta clave: se pasa al nuevo una sola vez.
+try {
+  Object.keys(localStorage)
+    .filter((k) => k !== LS_ULTIMA_ACTIVIDAD && k.endsWith("UltimaActividad"))
+    .forEach((vieja) => {
+      if (!localStorage.getItem(LS_ULTIMA_ACTIVIDAD)) localStorage.setItem(LS_ULTIMA_ACTIVIDAD, localStorage.getItem(vieja));
+      localStorage.removeItem(vieja);
+    });
+} catch (e) {}
 
 // Días de visita posibles — domingo no se pauta, igual que en js/data.js.
 const DIAS_SEMANA = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
@@ -167,7 +187,7 @@ async function getPerfilActual() {
 // Todos los perfiles "route" (uno por sesión ligada a una ruta) — para que
 // admin.html sepa qué correo se reportó en cada ruta durante su semana de
 // prueba por token, y a quién invitar. Solo lo pueden ver admin/corporativo
-// (RLS de profiles ya existente en bimbo-inventory-pro).
+// (RLS de profiles que ya existía en el proyecto de Supabase).
 async function getPerfilesRoute() {
   return _checar(
     await _client
@@ -596,13 +616,27 @@ function soportaPush() {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
-// true si ya hay permiso concedido y una suscripción activa guardada.
+function _mismaLlave(sub, llave) {
+  const actual = sub && sub.options && sub.options.applicationServerKey;
+  if (!actual) return true; // el navegador no la expone: se asume la misma
+  const a = new Uint8Array(actual);
+  const b = _urlBase64ToUint8Array(llave);
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
+// true si ya hay permiso concedido y una suscripción activa con la llave
+// actual (si se cambió el par de llaves, la vieja ya no sirve).
 async function tieneNotificacionesActivas() {
   if (!soportaPush() || Notification.permission !== "granted") return false;
   const registro = await navigator.serviceWorker.getRegistration();
   if (!registro) return false;
   const sub = await registro.pushManager.getSubscription();
-  return !!sub;
+  if (!sub) return false;
+  try {
+    return _mismaLlave(sub, await _llaveVapid());
+  } catch (e) {
+    return true;
+  }
 }
 
 // Pide permiso (si hace falta), crea/recupera la suscripción del navegador
@@ -613,12 +647,17 @@ async function activarNotificacionesPush(rutaId) {
   const permiso = await Notification.requestPermission();
   if (permiso !== "granted") throw new Error("No se dio permiso de notificaciones.");
 
+  const llave = await _llaveVapid();
   const registro = await navigator.serviceWorker.ready;
   let sub = await registro.pushManager.getSubscription();
+  if (sub && !_mismaLlave(sub, llave)) {
+    await sub.unsubscribe();
+    sub = null;
+  }
   if (!sub) {
     sub = await registro.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      applicationServerKey: _urlBase64ToUint8Array(llave),
     });
   }
 
@@ -739,7 +778,7 @@ async function guardarConfigRutas(clave, valor) {
   );
 }
 
-window.BimboDepuracion = {
+window.AppDatos = {
   init,
   getTiendasBasicas,
   getGeo,

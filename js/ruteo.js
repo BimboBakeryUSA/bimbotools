@@ -404,5 +404,5 @@
     setIdioma,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else raiz.BimboRuteo = api;
+  else raiz.Ruteo = api;
 })(typeof window !== "undefined" ? window : globalThis);
