@@ -229,6 +229,7 @@
     "Ojo: hay cambios sin guardar; se imprime lo que ves en pantalla.": "Note: there are unsaved changes; what you see on screen is printed.",
     "{n} tiendas sin asignar no salen en la hoja.": "{n} unassigned stores are not on the sheet.",
 
+    "Ojo: el warehouse quedó en esta ruta, pero no se guardó en la lista compartida: {e}": "Note: the warehouse was added to this route, but not saved to the shared list: {e}",
     // Feriados y semana especial
     "Feriados": "Holidays",
     "Semana especial de esta ruta": "Special week for this route",

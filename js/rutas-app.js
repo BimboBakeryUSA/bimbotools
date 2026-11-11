@@ -29,7 +29,7 @@
     porId: new Map(),
     geo: new Map(),
     plan: null, // { inicio, warehouse, whDias, frecuencias, slots, fijadas:Set }
-    // Warehouses ya registrados (rutas_config "warehouses"), para no volver a
+    // Warehouses ya registrados (tabla rutas_warehouses), para no volver a
     // escribir la dirección en cada ruta: [{ id, nombre, direccion, ciudad, estado_us, zip, lat, lng }]
     warehouses: [],
     dias: [1, 2, 3, 4, 5],
@@ -214,8 +214,7 @@
       const guardadas = await D.getConfigRutas("reglas");
       if (guardadas && guardadas.cadenas) S.reglas = guardadas;
       else if (!S.soloLectura) toast("Todavía no hay reglas de frecuencia: defínelas en la pestaña Reglas.");
-      const wh = await D.getConfigRutas("warehouses");
-      if (Array.isArray(wh)) S.warehouses = wh.filter((w) => w && w.id);
+      await cargarWarehouses();
     } catch (e) {
       if (errorTablasFaltantes(e)) {
         $("estadoGuardado").textContent = "Faltan las tablas del planificador: hay que correr su script en Supabase.";
@@ -550,7 +549,24 @@
     renderTodo();
   }
 
-  function abrirFormWarehouse() {
+  // Lista compartida de warehouses: tabla rutas_warehouses (todos los
+  // managers ven los de todos) más la lista vieja de rutas_config, por si
+  // falta la tabla o algún warehouse no se ha pasado.
+  async function cargarWarehouses() {
+    const porId = new Map();
+    try {
+      const viejos = await D.getConfigRutas("warehouses");
+      if (Array.isArray(viejos)) viejos.filter((w) => w && w.id).forEach((w) => porId.set(w.id, w));
+    } catch (e) { console.error(e); }
+    try {
+      (await D.getWarehouses()).forEach((w) => porId.set(w.id, w));
+      S.whTabla = true;
+    } catch (e) { S.whTabla = false; console.error(e); }
+    S.warehouses = [...porId.values()].sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+  }
+
+  async function abrirFormWarehouse() {
+    await cargarWarehouses();
     const f = $("formWarehouse");
     const otros = S.warehouses.filter((w) => esPunto(w));
     $("selWhGuardado").innerHTML = `<option value="">— Uno nuevo (escribe la dirección) —</option>` +
@@ -627,7 +643,12 @@
     toast(T("{w} agregado. Arrástralo a los días que el IBP va a cargar (o usa sus botones de días). Luego Guardar.", { w: w.nombre }));
     // Queda registrado para elegirlo en otras rutas sin volver a escribirlo.
     S.warehouses = S.warehouses.filter((x) => x.id !== w.id).concat(w);
-    try { await D.guardarConfigRutas("warehouses", S.warehouses); } catch (err) { console.error(err); }
+    try {
+      await D.guardarWarehouse(w, S.perfil.nombre || S.perfil.email);
+    } catch (err) {
+      console.error(err);
+      toast(T("Ojo: el warehouse quedó en esta ruta, pero no se guardó en la lista compartida: {e}", { e: err.message }));
+    }
   };
 
   $("txtInicio").onchange = () => {

@@ -791,6 +791,17 @@ async function guardarConfigRutas(clave, valor) {
 // rutas_dias_especiales: días sin ruta (o con ruta extra), para todas las rutas
 // (ibp_id null) o solo una. rutas_plan_especial: el plan de una ruta en una
 // semana especial; no toca rutas_plan (el plan A/B de siempre).
+// Warehouses compartidos (tabla rutas_warehouses): una fila por warehouse,
+// los ven y agregan todos los managers; los IBP no.
+async function getWarehouses() {
+  return _checar(await _client.from("rutas_warehouses").select("id, nombre, direccion, ciudad, estado_us, zip, lat, lng").order("nombre"), "rutas_warehouses");
+}
+
+async function guardarWarehouse(w, autor) {
+  const fila = { id: w.id, nombre: w.nombre, direccion: w.direccion || null, ciudad: w.ciudad || null, estado_us: w.estado_us || null, zip: w.zip || null, lat: w.lat, lng: w.lng, actualizado_en: new Date().toISOString(), actualizado_por: autor || null };
+  _checar(await _client.from("rutas_warehouses").upsert(fila, { onConflict: "id" }), "rutas_warehouses (guardar)");
+}
+
 async function getDiasEspeciales(desde, hasta) {
   let q = _client.from("rutas_dias_especiales").select("id, fecha, nombre, trabaja, ibp_id").order("fecha");
   if (desde) q = q.gte("fecha", desde);
@@ -840,6 +851,8 @@ window.AppDatos = {
   guardarPlanRuta,
   getConfigRutas,
   guardarConfigRutas,
+  getWarehouses,
+  guardarWarehouse,
   getDiasEspeciales,
   guardarDiaEspecial,
   borrarDiaEspecial,
