@@ -118,8 +118,7 @@
     <div id="tabDepuracion">
       <div class="admin-identidad">
         <span data-icono="user" data-size="16" style="display:inline-flex; color:var(--accent);"></span> Sesión: <strong id="adminSesionLabel">—</strong>
-        <span style="margin-left:auto; color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnMiClave">Cambiar mi contraseña</span>
-        <span style="margin-left:14px; color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAdmin">Cerrar sesión</span>
+        <span style="margin-left:auto; color:var(--accent); cursor:pointer; font-weight:600; font-size:12px;" id="btnCerrarSesionAdmin">Cerrar sesión</span>
       </div>
 
       <div class="filtros-jerarquia" id="filtrosJerarquia">
@@ -180,18 +179,14 @@
           <h2>Cuentas</h2>
         </div>
         <p style="font-size:12px; color:var(--gray); margin-top:-4px;">
-          Busca a alguien por su correo para ver su rol y cuándo entró por última vez, y ponle una contraseña nueva.
-          Es la misma cuenta en todas las apps: el cambio aplica en todas.
+          Busca a alguien por su correo para ver si ya tiene acceso aquí, su rol y cuándo entró por última vez.
+          Las cuentas y contraseñas se crean y se cambian en <b>catálogo</b>: se copian solas a esta app.
         </p>
         <div class="cuentas-fila">
           <input type="email" id="cuentaCorreo" placeholder="correo@empresa.com" autocomplete="off" />
           <button class="btn btn-secondary" id="btnBuscarCuenta">Buscar</button>
         </div>
         <div id="cuentaInfo" class="cuenta-info"></div>
-        <div class="cuentas-fila" id="cuentaCambio" style="display:none;">
-          <input type="text" id="cuentaClave" placeholder="Contraseña nueva (mínimo 8)" autocomplete="new-password" />
-          <button class="btn btn-primary" id="btnCambiarClave">Cambiar contraseña</button>
-        </div>
         <p id="cuentaMensaje" style="font-size:13px; margin:8px 0 0;"></p>
       </div>
 
@@ -1490,7 +1485,8 @@
     });
 
     // ---------------------------------------------------------------------
-    // Cuentas: ver una cuenta por correo y cambiarle la contraseña.
+    // Cuentas: ver una cuenta por correo (las cuentas se manejan en catálogo
+    // y se copian solas: scripts/sync_cuentas/).
     // ---------------------------------------------------------------------
     const ROL_CUENTA = { admin: "Admin", corporativo: "Corporativo", route: "IBP (ruta)", dos: "DOS", zsl: "ZSL", msl: "MSL" };
 
@@ -1501,7 +1497,7 @@
     }
 
     function errorDeCuenta(err) {
-      return /admin_(ver_cuenta|cambiar_clave)/.test(err.message) && /(does not exist|not find|schema cache)/i.test(err.message)
+      return /admin_ver_cuenta/.test(err.message) && /(does not exist|not find|schema cache)/i.test(err.message)
         ? "Falta crear las funciones de cuentas en Supabase: corre scripts/cuentas_admin.sql."
         : err.message;
     }
@@ -1510,7 +1506,6 @@
       const correo = document.getElementById("cuentaCorreo").value.trim();
       const info = document.getElementById("cuentaInfo");
       info.innerHTML = "";
-      document.getElementById("cuentaCambio").style.display = "none";
       mensajeCuenta("");
       if (!correo) return mensajeCuenta("Escribe un correo.", true);
       let c;
@@ -1519,7 +1514,7 @@
       } catch (err) {
         return mensajeCuenta(errorDeCuenta(err), true);
       }
-      if (!c) return mensajeCuenta(`No hay ninguna cuenta con ${correo}.`, true);
+      if (!c) return mensajeCuenta(`${correo} todavía no tiene acceso a esta app. Créala en catálogo (como admin, MSL, ZSL o IBP) y se copia sola en unos segundos.`, true);
       const fecha = (f) => (f ? new Date(f).toLocaleString("es-US") : "nunca");
       const rol = c.rol ? ROL_CUENTA[c.rol] || c.rol : "sin perfil en la app";
       const avisos = [];
@@ -1533,41 +1528,10 @@
         <div>Rol: <b>${h(rol)}</b>${c.ruta ? ` · Ruta ${h(c.ruta)}` : ""}${c.estado ? ` · ${h(c.estado)}` : ""}</div>
         <div>Último ingreso: ${fecha(c.ultimo_ingreso)} · Creada: ${fecha(c.creada)}</div>
         ${avisos.map((a) => `<div style="color:var(--rojo); font-weight:600;">⚠ ${a}</div>`).join("")}`;
-      document.getElementById("cuentaCambio").style.display = "flex";
-      document.getElementById("cuentaClave").value = "";
-      document.getElementById("cuentaClave").focus();
     }
 
     document.getElementById("btnBuscarCuenta").addEventListener("click", buscarCuenta);
     document.getElementById("cuentaCorreo").addEventListener("keydown", (e) => { if (e.key === "Enter") buscarCuenta(); });
-
-    document.getElementById("btnCambiarClave").addEventListener("click", async () => {
-      const correo = document.getElementById("cuentaCorreo").value.trim();
-      const clave = document.getElementById("cuentaClave").value;
-      if (clave.length < 8) return mensajeCuenta("La contraseña debe tener al menos 8 caracteres.", true);
-      if (!window.confirm(`¿Cambiar la contraseña de ${correo}? La anterior deja de servir en todas las apps.`)) return;
-      try {
-        await AppDatos.cambiarClaveDe(correo, clave);
-      } catch (err) {
-        return mensajeCuenta(errorDeCuenta(err), true);
-      }
-      document.getElementById("cuentaClave").value = "";
-      mensajeCuenta(`Listo: ${correo} ya entra con la contraseña nueva. Dásela por un medio privado.`);
-    });
-
-    document.getElementById("btnMiClave").addEventListener("click", async () => {
-      const clave = window.prompt("Tu contraseña nueva (mínimo 8 caracteres):");
-      if (clave == null) return;
-      if (clave.length < 8) return alert("La contraseña debe tener al menos 8 caracteres.");
-      const otra = window.prompt("Escríbela otra vez para confirmar:");
-      if (otra !== clave) return alert("No coinciden. No se cambió nada.");
-      try {
-        await AppDatos.cambiarMiClave(clave);
-        alert("Listo: tu contraseña cambió.");
-      } catch (err) {
-        alert(`No se pudo cambiar: ${err.message}`);
-      }
-    });
 
     document.getElementById("btnCerrarSesionAdmin").addEventListener("click", async () => {
       await AppDatos.cerrarSesion();

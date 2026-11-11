@@ -1,14 +1,11 @@
 -- ============================================================================
--- Cuentas desde el Administrador: ver una cuenta y cambiarle la contraseña
+-- Cuentas desde el Administrador: ver una cuenta por correo
 -- ----------------------------------------------------------------------------
 -- Se corre una vez en el SQL Editor del proyecto de Supabase de la app.
 -- Se puede volver a correr.
 --
--- Solo admin y corporativo pueden usarlas (se revisa con la sesión real, no
--- con lo que mande el navegador). La contraseña nunca se guarda en claro:
--- se guarda cifrada (bcrypt), igual que cuando la pone Supabase.
--- La cuenta es la misma para todas las apps del proyecto: cambiarla aquí la
--- cambia en todas.
+-- Solo admin y corporativo pueden usarla (se revisa con la sesión real, no
+-- con lo que mande el navegador).
 -- ============================================================================
 
 -- Datos de una cuenta por correo: si existe, si está confirmada o bloqueada,
@@ -36,37 +33,9 @@ begin
 end;
 $$;
 
--- Pone una contraseña nueva a la cuenta de ese correo. Devuelve el correo.
-create or replace function public.admin_cambiar_clave(p_email text, p_clave text)
-returns text
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_email text;
-begin
-  if lower(coalesce(public.current_user_role()::text, '')) not in ('admin', 'corporativo') then
-    raise exception 'solo admin o corporativo';
-  end if;
-  if p_clave is null or length(p_clave) < 8 then
-    raise exception 'la contraseña debe tener al menos 8 caracteres';
-  end if;
-
-  update auth.users
-  set encrypted_password = extensions.crypt(p_clave, extensions.gen_salt('bf')),
-      updated_at = now()
-  where lower(email) = lower(trim(p_email))
-  returning email into v_email;
-
-  if v_email is null then
-    raise exception 'no hay ninguna cuenta con el correo %', trim(p_email);
-  end if;
-  return v_email;
-end;
-$$;
+-- Las contraseñas ya no se cambian desde esta app: se manejan en catálogo y
+-- se copian solas (scripts/sync_cuentas/). Si quedó la función vieja, se quita.
+drop function if exists public.admin_cambiar_clave(text, text);
 
 revoke all on function public.admin_ver_cuenta(text) from public, anon;
-revoke all on function public.admin_cambiar_clave(text, text) from public, anon;
 grant execute on function public.admin_ver_cuenta(text) to authenticated;
-grant execute on function public.admin_cambiar_clave(text, text) to authenticated;

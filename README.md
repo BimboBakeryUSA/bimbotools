@@ -330,13 +330,22 @@ par de llaves, cada teléfono vuelve a pedir activar los avisos.
 - Ver el documento de especificación (carpeta raíz) para el resto de
   decisiones pendientes y el roadmap de próximas herramientas.
 
-## Cuentas (Administrador)
+## Cuentas: se manejan en catálogo y se copian a esta app
 
-Tarjeta "Cuentas" en `admin.html`: buscar una cuenta por correo (rol, si está
-confirmada o bloqueada, último ingreso) y ponerle contraseña nueva; y "Cambiar
-mi contraseña" para la sesión abierta. Usa `admin_ver_cuenta` /
-`admin_cambiar_clave` (`scripts/cuentas_admin.sql`), solo admin/corporativo.
-La cuenta es la misma en todas las apps del proyecto de Supabase.
+Catálogo usa otro proyecto de Supabase para el login. Las cuentas se crean y
+se cambian **allá**; un trigger en el proyecto de catálogo
+(`scripts/sync_cuentas/2_catalogo.sql`) manda cada alta, cambio de contraseña
+o de rol a la Edge Function `sincronizar-cuenta` de este proyecto
+(`scripts/edge_functions/sincronizar-cuenta.ts` +
+`scripts/sync_cuentas/1_inventario.sql`), protegida con un secreto compartido
+(`SYNC_SECRET`).
+
+- Solo se copian roles admin, msl, zsl e ibp (no clientes, no rechazadas).
+- Misma contraseña (hash bcrypt); nunca viaja en claro.
+- Cuenta nueva aquí: admin → admin, msl/zsl → corporativo, ibp → route sin
+  ruta. Si ya tenía perfil aquí, su rol y su ruta no se tocan.
+- Tarjeta "Cuentas" en `admin.html`: solo consulta (`admin_ver_cuenta`, en
+  `scripts/cuentas_admin.sql`).
 
 ## Tiendas pendientes y recordatorios (Mi Territorio)
 
