@@ -35,6 +35,9 @@
     .ft-acciones .btn { flex:1; text-align:center; }
     .ft-aviso { font-size:13px; color:var(--gray); margin:8px 0 0; }
     .ft-ok { color:var(--verde); font-weight:600; }
+    .ft-guardar { display:block; width:100%; margin-top:12px; padding:18px; font:700 20px inherit; font-family:inherit; color:white; background:var(--verde); border:0; border-radius:12px; cursor:pointer; }
+    .ft-guardar:active { filter:brightness(.9); }
+    .ft-guardar.listo { background:var(--dark); }
   </style>
 </head>
 <body>
@@ -80,11 +83,9 @@
 
       <div id="resultado" hidden class="card" style="margin-top:14px;">
         <img id="preview" class="ft-preview" alt="Foto con sello" />
-        <div class="ft-acciones">
-          <button class="btn btn-primary" id="btnCompartir">Guardar / compartir</button>
-          <a class="btn btn-secondary" id="btnDescargar" download="foto.jpg">Descargar</a>
-        </div>
-        <p class="ft-aviso">En iPhone: "Guardar / compartir" → "Guardar imagen" para que quede en Fotos.</p>
+        <button class="ft-guardar" id="btnGuardar">Guardar</button>
+        <a id="btnDescargar" download="foto.jpg" hidden></a>
+        <p class="ft-aviso" id="avisoGuardar"></p>
       </div>
 
       <p style="text-align:center; margin:24px 0;"><button class="btn btn-secondary btn-small" id="btnSalir">Cerrar sesión</button></p>
@@ -394,24 +395,32 @@
         S.blob = await sellar(file);
         const url = URL.createObjectURL(S.blob);
         $("preview").src = url;
-        const nombre = `${(S.elegida ? S.elegida.nombre : "ubicacion").replace(/[^\w\-]+/g, "_").slice(0, 40)}_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.jpg`;
+        const nombre = `BimboPics_${(S.elegida ? S.elegida.nombre : "ubicacion").replace(/[^\w\-]+/g, "_").slice(0, 40)}_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.jpg`;
         $("btnDescargar").href = url;
         $("btnDescargar").download = nombre;
         S.nombreArchivo = nombre;
+        $("btnGuardar").textContent = "Guardar";
+        $("btnGuardar").classList.remove("listo");
+        $("avisoGuardar").textContent = ES_IOS ? "Toca Guardar → \"Guardar imagen\" y queda en Fotos." : "";
         $("resultado").scrollIntoView({ behavior: "smooth" });
       } catch (err) {
         $("preview").alt = "No se pudo procesar la foto: " + err.message;
       }
     });
 
-    $("btnCompartir").onclick = async () => {
+    // iPhone: la hoja de compartir trae "Guardar imagen" (va directo a Fotos).
+    // Android/otros: descarga directa a Descargas con el nombre BimboPics_….
+    const ES_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    $("btnGuardar").onclick = async () => {
       if (!S.blob) return;
       const f = new File([S.blob], S.nombreArchivo || "foto.jpg", { type: "image/jpeg" });
-      if (navigator.canShare && navigator.canShare({ files: [f] })) {
-        try { await navigator.share({ files: [f] }); } catch (e) {}
+      if (ES_IOS && navigator.canShare && navigator.canShare({ files: [f] })) {
+        try { await navigator.share({ files: [f] }); } catch (e) { return; }
       } else {
         $("btnDescargar").click();
       }
+      $("btnGuardar").textContent = "✓ Guardada";
+      $("btnGuardar").classList.add("listo");
     };
 
     // ---------- sesión y datos ----------
