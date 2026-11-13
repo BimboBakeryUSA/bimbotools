@@ -166,8 +166,14 @@
     $("btnRefrescar").onclick = refrescarZona;
     // Al volver a la app (estaba en segundo plano) la tienda anterior ya no sirve.
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && S.tiendas.length) refrescarZona();
+      if (document.visibilityState !== "visible" || !S.tiendas.length) return;
+      // Volver de la cámara o de la hoja de Guardar no es cambiar de tienda.
+      if (Date.now() - S.ultimaAccion < 3 * 60 * 1000) return;
+      refrescarZona();
     });
+    S.ultimaAccion = 0;
+    $("camara").addEventListener("click", () => (S.ultimaAccion = Date.now()));
+    $("btnGuardar").addEventListener("click", () => (S.ultimaAccion = Date.now()));
 
     function pintarGps(txt, clase) {
       $("gps").className = "ft-gps " + (clase || "");
