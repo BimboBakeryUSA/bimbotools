@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title data-base="Aprobar semana especial">Aprobar semana especial</title>
+  <script src="js/config.js"></script>
+  <script src="js/marca.js"></script>
+  <meta name="theme-color" content="#c0392b" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <style>
+    main { max-width:760px; margin:0 auto; padding:12px; display:grid; gap:12px; }
+    .ap-titulo h2 { margin:0 0 4px; font-size:20px; }
+    .ap-titulo p { margin:0; color:var(--gray); font-size:14px; }
+    .ap-estado { padding:12px 14px; border-radius:10px; font-size:15px; border:1px solid var(--border); }
+    .ap-estado.aprobado { background:#e8f5ec; border-color:#2e8a4e; }
+    .ap-estado.cambios { background:#fff4e0; border-color:#c77a00; }
+    .ap-estado.pendiente { background:#eef4fb; border-color:#1f6fb2; }
+    #mapa { height:340px; border-radius:10px; border:1px solid var(--border); z-index:0; }
+    .ap-leyenda { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .ap-leyenda button { display:flex; align-items:center; gap:6px; font:inherit; font-size:12px; padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:white; cursor:pointer; }
+    .ap-leyenda button[aria-pressed=false] { opacity:.4; }
+    .ap-leyenda i { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .ap-num { width:22px; height:22px; border-radius:50%; color:white; font:700 11px/22px system-ui,sans-serif; text-align:center; border:2px solid white; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+    .ap-wh { width:16px; height:16px; background:var(--dark); border:3px solid white; transform:rotate(45deg); box-shadow:0 1px 3px rgba(0,0,0,.4); }
+    .ap-dia { border-left:5px solid var(--c, var(--gray)); }
+    .ap-dia h3 { margin:0 0 8px; font-size:16px; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    .ap-dia h3 small { color:var(--gray); font-weight:400; font-size:13px; }
+    .ap-dia.off { opacity:.75; background:#f6f6f6; }
+    .ap-dia ol { margin:0; padding-left:22px; display:grid; gap:6px; }
+    .ap-dia li .a { color:var(--gray); font-size:12px; }
+    .ap-chip { display:inline-block; font-size:11px; padding:1px 7px; border-radius:999px; background:#fff4e0; color:#8a5300; margin-left:4px; }
+    .ap-chip.wh { background:#eee; color:var(--dark); }
+    .ap-form { display:grid; gap:10px; }
+    .ap-form label { display:grid; gap:4px; font-size:13px; color:var(--gray); }
+    .ap-form input, .ap-form textarea { font:inherit; font-size:15px; padding:10px; border:1px solid var(--border); border-radius:8px; }
+    .ap-botones { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .ap-botones button { font:inherit; font-size:16px; font-weight:700; padding:14px; border-radius:10px; border:0; cursor:pointer; color:white; }
+    #btnAprobar { background:#2e8a4e; }
+    #btnCambios { background:#c77a00; }
+    .ap-botones button:disabled { opacity:.5; cursor:default; }
+    .ap-idioma { margin-left:auto; font:inherit; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.6); background:transparent; color:inherit; cursor:pointer; }
+    .ap-error { color:var(--rojo); font-size:14px; }
+    #contenido:not([hidden]) { display:grid; gap:12px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-title"><h1 id="tTitulo">Tu ruta de la semana especial</h1><span class="topbar-sub" id="tSub">Revísala y apruébala</span></div>
+    <button type="button" class="ap-idioma" id="btnIdioma">EN</button>
+  </header>
+
+  <main>
+    <div class="card" id="cargando"><span id="tCargando">Cargando…</span></div>
+    <div class="card ap-error" id="error" hidden></div>
+
+    <div id="contenido" hidden>
+      <div class="card ap-titulo"><h2 id="titulo"></h2><p id="subtitulo"></p></div>
+      <div class="ap-estado" id="estado" hidden></div>
+      <div class="card">
+        <div id="mapa"></div>
+        <div class="ap-leyenda" id="leyenda"></div>
+      </div>
+      <div id="dias" style="display:grid; gap:10px;"></div>
+      <div class="card" id="fuera" hidden></div>
+
+      <div class="card ap-form" id="form">
+        <strong id="tPregunta">¿Esta ruta te funciona para esa semana?</strong>
+        <label><span id="tNombre">Tu nombre</span> <input type="text" id="nombre" maxlength="120" autocomplete="name" /></label>
+        <label><span id="tNota">Si necesitas un cambio, explícalo aquí</span> <textarea id="nota" rows="3" maxlength="1000"></textarea></label>
+        <div class="ap-botones">
+          <button type="button" id="btnAprobar">Aprobar</button>
+          <button type="button" id="btnCambios">Pedir cambio</button>
+        </div>
+        <span class="ap-error" id="formError"></span>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+  (function () {
+    const $ = (id) => document.getElementById(id);
+    const COLORES = ["", "#c0392b", "#1f6fb2", "#2e8a4e", "#c77a00", "#7a4bb0", "#00838f", "#6d4c41"];
+    const TXT = {
+      es: {
+        dias: ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+        locale: "es-US",
+        tTitulo: "Tu ruta de la semana especial", tSub: "Revísala y apruébala", tCargando: "Cargando…",
+        tPregunta: "¿Esta ruta te funciona para esa semana?", tNombre: "Tu nombre", tNota: "Si necesitas un cambio, explícalo aquí",
+        btnAprobar: "Aprobar", btnCambios: "Pedir cambio", idioma: "EN",
+        ruta: "Ruta {r}", semana: "Semana del {a} al {b}", sinRuta: "Sin ruta", diaExtra: "día extra",
+        paradas: "{n} paradas", wh: "Carga en el warehouse", cambio: "cambió de día",
+        fuera: "No caben esta semana (una visita menos):",
+        pendiente: "⏳ Esperando tu respuesta.", aprobado: "✅ Aprobaste esta ruta{n} el {f}. Gracias.",
+        cambios: "⚠️ Pediste un cambio{n} el {f}. Tu manager lo va a revisar.", cambiar: "Puedes cambiar tu respuesta abajo.",
+        notaFalta: "Escribe qué cambio necesitas.", linkMalo: "Este link no es válido o ya no existe. Pídele a tu manager uno nuevo.",
+        errorRed: "No se pudo cargar. Revisa tu conexión e inténtalo de nuevo.", enviando: "Enviando…", noSeEnvio: "No se envió: {e}",
+        salida: "Salida", deParte: "Enviada por {p}.",
+      },
+      en: {
+        dias: ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        locale: "en-US",
+        tTitulo: "Your holiday week route", tSub: "Review and approve it", tCargando: "Loading…",
+        tPregunta: "Does this route work for you that week?", tNombre: "Your name", tNota: "If you need a change, explain it here",
+        btnAprobar: "Approve", btnCambios: "Request change", idioma: "ES",
+        ruta: "Route {r}", semana: "Week of {a} to {b}", sinRuta: "No route", diaExtra: "extra day",
+        paradas: "{n} stops", wh: "Loads at the warehouse", cambio: "day changed",
+        fuera: "Not visited this week (one less visit):",
+        pendiente: "⏳ Waiting for your answer.", aprobado: "✅ You approved this route{n} on {f}. Thank you.",
+        cambios: "⚠️ You requested a change{n} on {f}. Your manager will review it.", cambiar: "You can change your answer below.",
+        notaFalta: "Write the change you need.", linkMalo: "This link is not valid or no longer exists. Ask your manager for a new one.",
+        errorRed: "Could not load. Check your connection and try again.", enviando: "Sending…", noSeEnvio: "Not sent: {e}",
+        salida: "Start", deParte: "Sent by {p}.",
+      },
+    };
+    let idioma = (localStorage.getItem("aprobIdioma") || (navigator.language || "es")).slice(0, 2) === "en" ? "en" : "es";
+    const t = (k, v = {}) => String(TXT[idioma][k]).replace(/\{(\w+)\}/g, (_, x) => (v[x] ?? ""));
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const fechaCorta = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString(TXT[idioma].locale, { weekday: undefined, month: "short", day: "numeric", timeZone: "UTC" });
+    const sumarDias = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+    const token = new URLSearchParams(location.search).get("t");
+    const cliente = window.supabase.createClient(window.APP_CONFIG.supabaseUrl, window.APP_CONFIG.supabaseKey, { auth: { persistSession: false } });
+    let datos = null;
+    let mapa = null, capa = null;
+    const ocultos = new Set();
+
+    function textosFijos() {
+      ["tTitulo", "tSub", "tCargando", "tPregunta", "tNombre", "tNota", "btnAprobar", "btnCambios"].forEach((id) => ($(id).textContent = t(id)));
+      $("btnIdioma").textContent = t("idioma");
+      document.documentElement.lang = idioma;
+    }
+
+    function error(msg) {
+      $("cargando").hidden = true;
+      $("contenido").hidden = true;
+      $("error").hidden = false;
+      $("error").textContent = msg;
+    }
+
+    async function cargar() {
+      textosFijos();
+      if (!token || !/^[0-9a-f-]{36}$/i.test(token)) return error(t("linkMalo"));
+      const { data, error: e } = await cliente.rpc("plan_especial_por_token", { p_token: token });
+      if (e) { console.error(e); return error(/uuid|not valid|no válido/i.test(e.message) ? t("linkMalo") : t("errorRed")); }
+      if (!data || !data.envio) return error(t("linkMalo"));
+      datos = data;
+      if (data.nombre && !$("nombre").value) $("nombre").value = data.nombre;
+      render();
+    }
+
+    function render() {
+      const v = datos.envio;
+      $("cargando").hidden = true;
+      $("contenido").hidden = false;
+      textosFijos();
+      $("titulo").textContent = `${t("ruta", { r: v.ruta })}${v.propietario ? " · " + v.propietario : ""} — ${v.nombre}`;
+      $("subtitulo").textContent = `${t("semana", { a: fechaCorta(v.semana), b: fechaCorta(sumarDias(v.semana, 6)) })}${v.enviado_por ? ". " + t("deParte", { p: v.enviado_por }) : ""}`;
+
+      const est = datos.estado || "pendiente";
+      const cuando = datos.respondido_en ? new Date(datos.respondido_en).toLocaleString(TXT[idioma].locale, { dateStyle: "medium", timeStyle: "short" }) : "";
+      const quien = datos.nombre ? ` (${datos.nombre})` : "";
+      $("estado").hidden = false;
+      $("estado").className = `ap-estado ${est}`;
+      $("estado").innerHTML = est === "pendiente"
+        ? esc(t("pendiente"))
+        : `${esc(t(est, { n: quien, f: cuando }))}${datos.nota ? `<br><i>“${esc(datos.nota)}”</i>` : ""}<br><small>${esc(t("cambiar"))}</small>`;
+
+      $("dias").innerHTML = v.dias.map((d) => {
+        const fecha = fechaCorta(d.fecha);
+        const nombreDia = TXT[idioma].dias[d.dia];
+        if (!d.trabaja) {
+          return `<section class="card ap-dia off"><h3>${esc(nombreDia)} <small>${esc(fecha)}</small></h3><div>${esc(t("sinRuta"))}${d.feriado ? ` · ${esc(d.feriado)}` : ""}</div></section>`;
+        }
+        return `<section class="card ap-dia" style="--c:${COLORES[d.dia]}">
+          <h3><span>${esc(nombreDia)} <small>${esc(fecha)}${d.extra ? ` · <b>${esc(t("diaExtra"))}</b>` : ""}</small></span><small>${esc(t("paradas", { n: d.paradas.length }))}</small></h3>
+          ${d.warehouse && v.warehouse ? `<div style="margin-bottom:6px;"><span class="ap-chip wh">◆ ${esc(t("wh"))}: ${esc(v.warehouse.nombre)}</span></div>` : ""}
+          <ol>${d.paradas.map((p) => `<li><div>${esc(p.nombre)}${p.cambio ? `<span class="ap-chip">${esc(t("cambio"))}</span>` : ""}</div><div class="a">${esc(p.direccion)}</div></li>`).join("")}</ol>
+        </section>`;
+      }).join("");
+
+      $("fuera").hidden = !(v.fuera && v.fuera.length);
+      $("fuera").innerHTML = v.fuera && v.fuera.length ? `<strong>${esc(t("fuera"))}</strong><ul style="margin:6px 0 0; padding-left:20px;">${v.fuera.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : "";
+
+      renderMapa(true);
+    }
+
+    function renderMapa(ajustar) {
+      const v = datos.envio;
+      if (!window.L) return;
+      if (!mapa) {
+        mapa = L.map("mapa", { scrollWheelZoom: false, tap: true });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
+        capa = L.layerGroup().addTo(mapa);
+        mapa.setView([38.9, -77.3], 9);
+      }
+      mapa.invalidateSize();
+      capa.clearLayers();
+      const limites = [];
+      const trab = v.dias.filter((d) => d.trabaja);
+      trab.forEach((d) => {
+        if (ocultos.has(d.dia)) return;
+        const con = d.paradas.filter((p) => p.lat != null && p.lng != null);
+        const puntos = con.map((p) => [p.lat, p.lng]);
+        const sal = d.warehouse && v.warehouse ? v.warehouse : v.salida;
+        if (sal && puntos.length) puntos.unshift([sal.lat, sal.lng]);
+        if (puntos.length > 1) L.polyline(puntos, { color: COLORES[d.dia], weight: 3, opacity: 0.75 }).addTo(capa);
+        d.paradas.forEach((p, i) => {
+          if (p.lat == null || p.lng == null) return;
+          const icono = L.divIcon({ className: "", html: `<div class="ap-num" style="background:${COLORES[d.dia]}">${i + 1}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+          L.marker([p.lat, p.lng], { icon: icono, title: p.nombre })
+            .bindPopup(`<b>${esc(p.nombre)}</b><br>${esc(p.direccion)}<br>${esc(TXT[idioma].dias[d.dia])} ${esc(fechaCorta(d.fecha))} · #${i + 1}`)
+            .addTo(capa);
+          limites.push([p.lat, p.lng]);
+        });
+      });
+      if (v.warehouse) {
+        L.marker([v.warehouse.lat, v.warehouse.lng], { icon: L.divIcon({ className: "", html: '<div class="ap-wh"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), title: v.warehouse.nombre })
+          .bindPopup(`<b>${esc(v.warehouse.nombre)}</b>`).addTo(capa);
+        limites.push([v.warehouse.lat, v.warehouse.lng]);
+      }
+      if (v.salida) {
+        L.marker([v.salida.lat, v.salida.lng], { icon: L.divIcon({ className: "", html: '<div class="ap-wh" style="background:var(--gray)"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) })
+          .bindPopup(esc(t("salida"))).addTo(capa);
+        limites.push([v.salida.lat, v.salida.lng]);
+      }
+      if (ajustar && limites.length) mapa.fitBounds(limites, { padding: [24, 24] });
+      $("leyenda").innerHTML = trab.map((d) => `<button type="button" data-dia="${d.dia}" aria-pressed="${!ocultos.has(d.dia)}"><i style="background:${COLORES[d.dia]}"></i>${esc(TXT[idioma].dias[d.dia])} ${esc(fechaCorta(d.fecha))}</button>`).join("");
+    }
+
+    $("leyenda").addEventListener("click", (ev) => {
+      const b = ev.target.closest("button[data-dia]");
+      if (!b) return;
+      const d = Number(b.dataset.dia);
+      ocultos.has(d) ? ocultos.delete(d) : ocultos.add(d);
+      renderMapa(false);
+    });
+
+    async function responder(estado) {
+      const nota = $("nota").value.trim();
+      $("formError").textContent = "";
+      if (estado === "cambios" && !nota) { $("formError").textContent = t("notaFalta"); $("nota").focus(); return; }
+      $("btnAprobar").disabled = $("btnCambios").disabled = true;
+      $("formError").textContent = t("enviando");
+      const { data, error: e } = await cliente.rpc("responder_plan_especial", { p_token: token, p_estado: estado, p_nota: nota || null, p_nombre: $("nombre").value.trim() || null });
+      $("btnAprobar").disabled = $("btnCambios").disabled = false;
+      if (e) { console.error(e); $("formError").textContent = t("noSeEnvio", { e: e.message }); return; }
+      $("formError").textContent = "";
+      datos = data;
+      $("nota").value = "";
+      render();
+      $("estado").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    $("btnAprobar").onclick = () => responder("aprobado");
+    $("btnCambios").onclick = () => responder("cambios");
+    $("btnIdioma").onclick = () => {
+      idioma = idioma === "es" ? "en" : "es";
+      try { localStorage.setItem("aprobIdioma", idioma); } catch (e) {}
+      datos ? render() : textosFijos();
+    };
+
+    cargar().catch((e) => { console.error(e); error(t("errorRed")); });
+  })();
+  </script>
+</body>
+</html>

@@ -819,9 +819,38 @@ async function borrarDiaEspecial(id) {
 }
 
 async function getPlanesEspeciales(ibpId, desde) {
-  let q = _client.from("rutas_plan_especial").select("ibp_id, semana, base, slots, wh_dias, actualizado_en, actualizado_por").eq("ibp_id", ibpId);
-  if (desde) q = q.gte("semana", desde);
-  return _checar(await q.order("semana"), "rutas_plan_especial");
+  const base = "ibp_id, semana, base, slots, wh_dias, actualizado_en, actualizado_por";
+  const aprob = ", aprob_token, aprob_enviado_en, aprob_estado, aprob_nota, aprob_nombre, aprob_respondido_en";
+  const consulta = (cols) => {
+    let q = _client.from("rutas_plan_especial").select(cols).eq("ibp_id", ibpId);
+    if (desde) q = q.gte("semana", desde);
+    return q.order("semana");
+  };
+  // Si todavía no se corrió el script de aprobación, las columnas aprob_* no
+  // existen: se lee sin ellas para que la semana especial siga funcionando.
+  const r = await consulta(base + aprob);
+  if (!r.error) return r.data;
+  return _checar(await consulta(base), "rutas_plan_especial");
+}
+
+// Envía la semana especial al IBP para que la apruebe: guarda una foto del
+// plan (envio) y un token; el IBP la abre en aprobar.html?t=<token> sin login.
+async function enviarPlanEspecial(ibpId, semana, envio, tokenActual) {
+  const token = tokenActual || crypto.randomUUID();
+  const fila = {
+    aprob_token: token,
+    aprob_envio: envio,
+    aprob_enviado_en: new Date().toISOString(),
+    aprob_estado: "pendiente",
+    aprob_nota: null,
+    aprob_nombre: null,
+    aprob_respondido_en: null,
+  };
+  _checar(
+    await _client.from("rutas_plan_especial").update(fila).eq("ibp_id", ibpId).eq("semana", semana),
+    "rutas_plan_especial (enviar)"
+  );
+  return { token, enviado_en: fila.aprob_enviado_en };
 }
 
 async function guardarPlanEspecial(ibpId, semana, plan, autor) {
@@ -858,6 +887,7 @@ window.AppDatos = {
   borrarDiaEspecial,
   getPlanesEspeciales,
   guardarPlanEspecial,
+  enviarPlanEspecial,
   borrarPlanEspecial,
   getDiasSemana,
   getRangoSemanas,

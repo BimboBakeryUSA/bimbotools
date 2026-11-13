@@ -11,7 +11,7 @@
 // cacheado de antes). `cache: "reload"` obliga a ignorar esa caché HTTP y sí
 // ir a la red de verdad en cada visita.
 
-const CACHE_NAME = "app-v21";
+const CACHE_NAME = "app-v22";
 const ARCHIVOS_SHELL = [
   "index.html",
   "ibp.html",

@@ -334,7 +334,7 @@
       Object.keys(slotsGuardados).forEach((k) => {
         if (S.plan.slots[k]) S.plan.slots[k] = slotsGuardados[k].filter((x) => S.porId.has(x));
       });
-      S.ajustarMapa = true;
+      S.ajustarMapa = S.ajustarMapaEsp = true;
       marcarSucio(false);
       $("estadoGuardado").textContent = plan
         ? T("Plan guardado {fecha}{por}", { fecha: new Date(plan.actualizado_en).toLocaleString(I.locale), por: plan.actualizado_por ? T(" por {a}", { a: plan.actualizado_por }) : "" })
@@ -636,7 +636,7 @@
     if (cambio) S.plan.whDias = [];
     S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
     $("formWarehouse").hidden = true;
-    S.ajustarMapa = true;
+    S.ajustarMapa = S.ajustarMapaEsp = true;
     marcarSucio();
     renderBarraPlan();
     renderTodo();
@@ -657,7 +657,7 @@
     if (txt && !p) return toast("Escribe el punto de salida como “lat, lng”, por ejemplo 38.8462, -77.3064.");
     S.plan.inicio = p;
     S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots), posiciones(), salidaDe);
-    S.ajustarMapa = true;
+    S.ajustarMapa = S.ajustarMapaEsp = true;
     marcarSucio();
     renderTodo();
   };
@@ -1073,7 +1073,7 @@
       await D.guardarGeo([{ tienda_id: id, lat: p.lat, lng: p.lng, fuente: "manual" }]);
       S.geo.set(id, { tienda_id: id, lat: p.lat, lng: p.lng, fuente: "manual" });
       S.plan.slots = R.reordenarSlots(S.plan.slots, Object.keys(S.plan.slots).filter((k) => S.plan.slots[k].includes(id)), posiciones(), salidaDe);
-      S.ajustarMapa = true;
+      S.ajustarMapa = S.ajustarMapaEsp = true;
       renderTodo();
       toast("Ubicación guardada.");
     } catch (err) {
@@ -1135,7 +1135,7 @@
       const aGuardar = validos.filter((g) => !actuales.has(g.tienda_id) || actuales.get(g.tienda_id).fuente !== "manual");
       await D.guardarGeo(aGuardar);
       S.geo = await D.getGeo(S.tiendas.map((t) => t.id));
-      S.ajustarMapa = true;
+      S.ajustarMapa = S.ajustarMapaEsp = true;
       renderTodo();
       const manuales = validos.length - aGuardar.length;
       $("ubiMensaje").textContent =
@@ -1288,7 +1288,7 @@
       est.textContent = T("Ubicando tiendas ({fase}): {h} de {n}…", { fase, h, n });
     });
     if (res.cancelado || S.ruta !== ruta) return;
-    S.ajustarMapa = true;
+    S.ajustarMapa = S.ajustarMapaEsp = true;
     const msg = res.noEncontradas.length
       ? T("{n} tiendas ubicadas. {m} sin ubicación: ponlas a mano en la pestaña Ubicaciones.", { n: res.encontradas, m: res.noEncontradas.length })
       : T("{n} tiendas ubicadas.", { n: res.encontradas });
@@ -1321,7 +1321,7 @@
         $("progreso").firstElementChild.style.width = `${(h / n) * 100}%`;
         $("ubiMensaje").textContent = T("{fase}: {h} de {n} · {enc} ubicadas. Deja la página abierta.", { fase, h, n, enc });
       });
-      S.ajustarMapa = true;
+      S.ajustarMapa = S.ajustarMapaEsp = true;
       renderTodo();
       $("ubiMensaje").textContent = res.cancelado
         ? T("Búsqueda interrumpida. Lo ya encontrado quedó guardado; presiona de nuevo para seguir.")
@@ -1365,7 +1365,7 @@
     osmCorriendo = false;
     $("btnOsm").textContent = T("Buscar en OpenStreetMap las que faltan");
     $("progreso").hidden = true;
-    S.ajustarMapa = true;
+    S.ajustarMapa = S.ajustarMapaEsp = true;
     renderTodo();
     $("ubiMensaje").textContent = T("OpenStreetMap encontró {enc} de {h}.", { enc: encontradas, h: hechas }) +
       (noEncontradas.length ? T(" Sin resultado: {lista}. Ponlas a mano desde Google Maps.", { lista: noEncontradas.join(", ") }) : "");
@@ -1708,6 +1708,7 @@
 
   // Carga la semana guardada (o la arma si no hay).
   function abrirSemana(lunes) {
+    S.ajustarMapaEsp = true;
     const g = S.planesEsp.get(lunes);
     if (!g) return proponerEspecial(lunes, baseDeSemana(lunes) || "A");
     const trab = diasDeSemana(lunes);
@@ -1733,13 +1734,44 @@
 
   function renderEstadoEsp() {
     const el = $("estadoEsp");
-    if (!S.esp) { el.textContent = ""; return; }
+    if (!S.esp) { el.textContent = ""; renderAprobEsp(); return; }
     el.classList.toggle("sucio", S.esp.sucio || !S.esp.guardada);
     el.textContent = S.esp.sucio
       ? T("Cambios sin guardar")
       : S.esp.guardada
         ? T("Guardada {fecha}{por}", { fecha: new Date(S.esp.cuando).toLocaleString(I.locale), por: S.esp.por ? T(" por {a}", { a: S.esp.por }) : "" })
         : T("Propuesta: todavía no está guardada");
+    renderAprobEsp();
+  }
+
+  // Cuadro con el estado de la aprobación del IBP (si ya se le envió).
+  function renderAprobEsp() {
+    const el = $("aprobEsp");
+    const g = S.esp && S.planesEsp.get(S.esp.semana);
+    if (!g || !g.aprob_token) { el.hidden = true; el.innerHTML = ""; return; }
+    const est = g.aprob_estado || "pendiente";
+    const f = (x) => (x ? new Date(x).toLocaleString(I.locale, { dateStyle: "medium", timeStyle: "short" }) : "");
+    const cambio = S.esp.sucio || (g.actualizado_en && g.aprob_enviado_en && g.actualizado_en > g.aprob_enviado_en);
+    let txt;
+    if (est === "aprobado") txt = `✅ <b>${esc(T("Aprobada por el IBP"))}</b>${g.aprob_nombre ? ` (${esc(g.aprob_nombre)})` : ""} · ${esc(f(g.aprob_respondido_en))}`;
+    else if (est === "cambios") txt = `⚠️ <b>${esc(T("El IBP pidió cambios"))}</b>${g.aprob_nombre ? ` (${esc(g.aprob_nombre)})` : ""} · ${esc(f(g.aprob_respondido_en))}`;
+    else txt = `⏳ <b>${esc(T("Enviada al IBP, esperando respuesta"))}</b> · ${esc(T("enviada {f}", { f: f(g.aprob_enviado_en) }))}`;
+    el.className = `rt-aprob ${est}`;
+    el.hidden = false;
+    el.innerHTML = `<span>${txt}</span>
+      <span style="flex:1"></span>
+      <button class="btn btn-secondary btn-small" type="button" id="btnRefrescarAprob">${esc(T("Ver respuesta"))}</button>
+      <button class="btn btn-secondary btn-small" type="button" id="btnCopiarAprob">${esc(T("Copiar link"))}</button>
+      ${g.aprob_nota ? `<span class="nota">“${esc(g.aprob_nota)}”</span>` : ""}
+      ${cambio ? `<span class="nota" style="font-style:normal; color:var(--amarillo); font-weight:600;">${esc(T("Cambiaste la semana después de enviarla: vuelve a enviarla para que el IBP vea la versión nueva."))}</span>` : ""}`;
+  }
+
+  function linkAprob(token) {
+    return new URL(`aprobar.html?t=${encodeURIComponent(token)}`, location.href).href;
+  }
+
+  async function copiarTexto(txt) {
+    try { await navigator.clipboard.writeText(txt); return true; } catch (e) { return false; }
   }
 
   // Aviso arriba de las pestañas si viene una semana con feriados (3 semanas).
@@ -1790,7 +1822,7 @@
       $("selSemanaEsp").value = S.esp.semana;
       $("selBaseEsp").value = S.esp.base;
     }
-    ["selBaseEsp", "btnGuardarEsp", "btnRearmarEsp", "btnImprimirEsp"].forEach((id) => ($(id).disabled = !S.esp));
+    ["selBaseEsp", "btnGuardarEsp", "btnRearmarEsp", "btnImprimirEsp", "btnEnviarEsp"].forEach((id) => ($(id).disabled = !S.esp));
     $("btnBorrarEsp").disabled = !(S.esp && S.esp.guardada);
     renderEstadoEsp();
     renderEspecial();
@@ -1820,6 +1852,7 @@
       cont.innerHTML = "";
       $("resumenEsp").textContent = S.feriadosError || T("Agrega los feriados en el calendario de abajo.");
       $("grupoWhEsp").hidden = true;
+      renderMapaEsp();
       return;
     }
     const trab = diasDeSemana(e.semana);
@@ -1864,7 +1897,89 @@
     if (w) {
       $("whDiasEsp").innerHTML = trab.map((d) => `<button type="button" data-whesp="${d}" aria-pressed="${e.whDias.includes(d)}" title="${esc(R.DIAS[d])}" ${S.soloLectura ? "disabled" : ""}>${CORTO[d]}</button>`).join("");
     }
+    renderMapaEsp();
   }
+
+  // Mapa de la semana especial: igual que el del Plan, pero con los días E1..E7.
+  S.mapaEsp = null;
+  S.capaEsp = null;
+  S.ocultosEsp = new Set();
+  S.ajustarMapaEsp = true;
+  function renderMapaEsp() {
+    const card = $("cardMapaEsp");
+    const e = S.esp;
+    card.hidden = !e;
+    if (!e || !window.L || $("tabFeriados").hidden) return;
+    if (!S.mapaEsp) {
+      S.mapaEsp = L.map("mapaEsp", { scrollWheelZoom: true });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap",
+      }).addTo(S.mapaEsp);
+      S.capaEsp = L.layerGroup().addTo(S.mapaEsp);
+      S.mapaEsp.setView([38.9, -77.3], 9);
+    }
+    S.mapaEsp.invalidateSize();
+    S.capaEsp.clearLayers();
+    const pos = posiciones();
+    const limites = [];
+    const trab = diasDeSemana(e.semana);
+    trab.forEach((d) => {
+      if (S.ocultosEsp.has(d)) return;
+      const k = `E${d}`;
+      const ids = (e.slots[k] || []).filter((id) => pos[id]);
+      const puntos = ids.map((id) => [pos[id].lat, pos[id].lng]);
+      const sal = salidaEsp(k);
+      if (sal && puntos.length) puntos.unshift([sal.lat, sal.lng]);
+      if (puntos.length > 1) L.polyline(puntos, { color: COLORES[d], weight: 3, opacity: 0.75 }).addTo(S.capaEsp);
+      const fecha = fechaCorta(sumarDias(e.semana, d - 1));
+      ids.forEach((id, i) => {
+        const t = S.porId.get(id);
+        if (!t) return;
+        const icono = L.divIcon({ className: "", html: `<div class="rt-num-icono" style="background:${COLORES[d]}">${i + 1}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+        L.marker([pos[id].lat, pos[id].lng], { icon: icono, title: t.nombre })
+          .bindPopup(`<b>${esc(t.nombre)}</b><br>${esc(t.direccion)}, ${esc(t.ciudad)}<br>${R.DIAS[d]} ${esc(fecha)} · ${T("Parada {n}", { n: i + 1 })}<br>${R.ETIQUETA_FREQ[t.freq]} · $${Math.round(t.ventaSem)}${T("/sem")}`)
+          .addTo(S.capaEsp);
+        limites.push([pos[id].lat, pos[id].lng]);
+      });
+    });
+    e.fuera.forEach((id) => {
+      const t = S.porId.get(id);
+      if (!t || !pos[id]) return;
+      L.circleMarker([pos[id].lat, pos[id].lng], { radius: 7, color: "#666", fillColor: "#bbb", fillOpacity: 0.9, weight: 2 })
+        .bindPopup(`<b>${esc(t.nombre)}</b><br>${esc(T("No caben esta semana"))}`)
+        .addTo(S.capaEsp);
+      limites.push([pos[id].lat, pos[id].lng]);
+    });
+    const w = S.plan.warehouse;
+    if (w && esPunto(w)) {
+      L.marker([+w.lat, +w.lng], { icon: L.divIcon({ className: "", html: '<div class="rt-inicio-icono"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), title: w.nombre })
+        .bindPopup(`<b>${esc(w.nombre)}</b><br>${T("Warehouse · carga {dias}", { dias: e.whDias.length ? esc(nombreDias(e.whDias)) : T("— sin días asignados") })}`)
+        .addTo(S.capaEsp);
+      limites.push([+w.lat, +w.lng]);
+    }
+    if (S.plan.inicio) {
+      L.marker([S.plan.inicio.lat, S.plan.inicio.lng], { icon: L.divIcon({ className: "", html: '<div class="rt-inicio-icono" style="background:var(--gray)"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), title: "Salida" })
+        .bindPopup(w ? "Salida los días sin warehouse" : "Punto de salida")
+        .addTo(S.capaEsp);
+      limites.push([S.plan.inicio.lat, S.plan.inicio.lng]);
+    }
+    if (S.ajustarMapaEsp && limites.length) {
+      S.mapaEsp.fitBounds(limites, { padding: [24, 24] });
+      S.ajustarMapaEsp = false;
+    }
+    $("leyendaEsp").innerHTML = trab
+      .map((d) => `<button data-dia="${d}" aria-pressed="${!S.ocultosEsp.has(d)}"><i style="background:${COLORES[d]}"></i>${R.DIAS[d]} ${esc(fechaCorta(sumarDias(e.semana, d - 1)))}</button>`)
+      .join("");
+  }
+
+  $("leyendaEsp").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-dia]");
+    if (!b) return;
+    const d = Number(b.dataset.dia);
+    S.ocultosEsp.has(d) ? S.ocultosEsp.delete(d) : S.ocultosEsp.add(d);
+    renderMapaEsp();
+  });
 
   // Mueve una visita de `desde` (día o null = "No caben") a `hasta` (día o null).
   function moverEsp(id, desde, hasta, antesDe) {
@@ -2005,19 +2120,26 @@
     toast(T("Semana armada desde el plan normal."));
   };
 
-  $("btnGuardarEsp").onclick = async () => {
-    if (!S.esp) return;
+  async function guardarEsp(avisar = true) {
+    if (!S.esp) return false;
     try {
       const cuando = await D.guardarPlanEspecial(S.ruta, S.esp.semana, { base: S.esp.base, slots: S.esp.slots, whDias: S.esp.whDias }, S.perfil.nombre || S.perfil.email);
-      S.planesEsp.set(S.esp.semana, { semana: S.esp.semana, base: S.esp.base, slots: JSON.parse(JSON.stringify(S.esp.slots)), wh_dias: S.esp.whDias.slice(), actualizado_en: cuando, actualizado_por: S.perfil.nombre || S.perfil.email });
+      const antes = S.planesEsp.get(S.esp.semana) || {};
+      S.planesEsp.set(S.esp.semana, { ...antes, semana: S.esp.semana, base: S.esp.base, slots: JSON.parse(JSON.stringify(S.esp.slots)), wh_dias: S.esp.whDias.slice(), actualizado_en: cuando, actualizado_por: S.perfil.nombre || S.perfil.email });
       Object.assign(S.esp, { guardada: true, sucio: false, cuando, por: S.perfil.nombre || S.perfil.email });
       renderFeriados();
       renderAvisoFeriado();
-      toast(T("Semana especial guardada. El plan A/B no cambió."));
+      if (avisar) toast(T("Semana especial guardada. El plan A/B no cambió."));
+      return true;
     } catch (e) {
       console.error(e);
       toast(errorTablasFeriados(e) ? T("Faltan las tablas de feriados: hay que correr su script en Supabase.") : T("No se guardó: {e}", { e: e.message }));
+      return false;
     }
+  }
+
+  $("btnGuardarEsp").onclick = async () => {
+    await guardarEsp();
   };
 
   $("btnBorrarEsp").onclick = async () => {
@@ -2181,6 +2303,87 @@
       window.print();
       document.title = titulo;
     }, 50);
+  };
+
+  $("aprobEsp").addEventListener("click", async (ev) => {
+    const g = S.esp && S.planesEsp.get(S.esp.semana);
+    if (!g) return;
+    if (ev.target.id === "btnCopiarAprob") {
+      toast((await copiarTexto(linkAprob(g.aprob_token))) ? T("Link copiado.") : linkAprob(g.aprob_token));
+    } else if (ev.target.id === "btnRefrescarAprob") {
+      const semana = S.esp.semana;
+      await cargarPlanesEspeciales();
+      const nueva = S.planesEsp.get(semana);
+      // No pisar lo que se está editando: solo se refresca el estado.
+      if (nueva && S.esp && S.esp.semana === semana) renderAprobEsp();
+    }
+  });
+
+  // Foto de la semana especial para la página del IBP (aprobar.html).
+  function envioEsp() {
+    const e = S.esp;
+    const pos = posiciones();
+    const trab = diasDeSemana(e.semana);
+    const r = reglasSemana(e.semana);
+    const w = S.plan.warehouse;
+    const info = S.rutas.find((x) => x.ruta === S.ruta) || {};
+    const dias = TODOS_DIAS.filter((d) => trab.includes(d) || S.dias.includes(d)).map((d) => ({
+      dia: d,
+      fecha: sumarDias(e.semana, d - 1),
+      trabaja: trab.includes(d),
+      extra: trab.includes(d) && !S.dias.includes(d),
+      feriado: (r[d] && r[d].nombre) || null,
+      warehouse: !!(w && trab.includes(d) && e.whDias.includes(d)),
+      paradas: !trab.includes(d) ? [] : (e.slots[`E${d}`] || []).map((id) => {
+        const t = S.porId.get(id);
+        if (!t) return null;
+        const p = pos[id];
+        return {
+          nombre: t.nombre,
+          direccion: [t.direccion, t.ciudad].filter(Boolean).join(", "),
+          lat: p ? +p.lat : null,
+          lng: p ? +p.lng : null,
+          cambio: e.movidas.has(`${id}@${d}`),
+        };
+      }).filter(Boolean),
+    }));
+    return {
+      ruta: S.ruta,
+      propietario: info.propietario || "",
+      semana: e.semana,
+      nombre: nombreSemana(e.semana),
+      base: e.base,
+      warehouse: w && esPunto(w) ? { nombre: w.nombre, lat: +w.lat, lng: +w.lng } : null,
+      salida: S.plan.inicio && esPunto(S.plan.inicio) ? { lat: +S.plan.inicio.lat, lng: +S.plan.inicio.lng } : null,
+      dias,
+      fuera: e.fuera.map((id) => (S.porId.get(id) || {}).nombre).filter(Boolean),
+      enviado_por: S.perfil.nombre || S.perfil.email || "",
+    };
+  }
+
+  $("btnEnviarEsp").onclick = async () => {
+    if (!S.esp || S.soloLectura) return;
+    if ((S.esp.sucio || !S.esp.guardada) && !(await guardarEsp(false))) return;
+    const g = S.planesEsp.get(S.esp.semana) || {};
+    let res;
+    try {
+      res = await D.enviarPlanEspecial(S.ruta, S.esp.semana, envioEsp(), g.aprob_token);
+    } catch (e) {
+      console.error(e);
+      toast(/aprob_/.test(e.message) ? T("Falta correr el script de aprobación en Supabase.") : T("No se envió: {e}", { e: e.message }));
+      return;
+    }
+    Object.assign(g, { aprob_token: res.token, aprob_enviado_en: res.enviado_en, aprob_estado: "pendiente", aprob_nota: null, aprob_nombre: null, aprob_respondido_en: null });
+    S.planesEsp.set(S.esp.semana, g);
+    renderAprobEsp();
+    const link = linkAprob(res.token);
+    const texto = T("Hola, esta es tu ruta para la semana de {n} ({f}). Revísala y toca Aprobar, o pide cambios: {l}", { n: nombreSemana(S.esp.semana), f: fechaCorta(S.esp.semana), l: link });
+    await copiarTexto(link);
+    if (navigator.share) {
+      try { await navigator.share({ text: texto }); return; } catch (e) { if (e.name === "AbortError") return; }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank", "noopener");
+    toast(T("Link copiado. Se abrió WhatsApp para que elijas al IBP."));
   };
 
   iniciar().catch((e) => {

@@ -28,6 +28,11 @@
     .rt-stats span { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--gray); }
     .rt-guardado { font-size:12px; color:var(--gray); }
     .rt-guardado.sucio { color:var(--amarillo); font-weight:600; }
+    .rt-aprob { margin-top:10px; padding:10px 12px; border-radius:8px; border:1px solid var(--border); font-size:13px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .rt-aprob.aprobado { background:#e8f5ec; border-color:#2e8a4e; }
+    .rt-aprob.cambios { background:#fff4e0; border-color:#c77a00; }
+    .rt-aprob.pendiente { background:#eef4fb; border-color:#1f6fb2; }
+    .rt-aprob .nota { flex-basis:100%; font-style:italic; }
     .rt-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 12px; }
     .rt-tabs button, .rt-semana button { font:600 14px inherit; font-family:inherit; padding:8px 14px; border:1px solid var(--border); background:white; color:var(--dark); border-radius:8px; cursor:pointer; }
     .rt-tabs button[aria-selected=true], .rt-semana button[aria-selected=true] { background:var(--dark); color:white; border-color:var(--dark); }
@@ -270,10 +275,16 @@
             <button class="btn btn-secondary" id="btnRearmarEsp">Volver a armar desde el plan normal</button>
             <button class="btn btn-secondary" id="btnBorrarEsp">Borrar semana especial</button>
             <span style="flex:1"></span>
-            <button class="btn btn-primary btn-small" id="btnImprimirEsp">Imprimir semana para el IBP</button>
+            <button class="btn btn-secondary btn-small" id="btnImprimirEsp">Imprimir semana para el IBP</button>
+            <button class="btn btn-primary btn-small" id="btnEnviarEsp">Enviar al IBP para aprobar</button>
           </div>
+          <div class="rt-aprob" id="aprobEsp" hidden></div>
           <p class="rt-nota" id="resumenEsp" style="margin:10px 0 0;"></p>
           <div class="rt-grupo" id="grupoWhEsp" style="margin-top:10px;"><span>Días que carga en el warehouse esta semana</span><div class="rt-diaschk" id="whDiasEsp"></div></div>
+        </div>
+        <div class="card" id="cardMapaEsp" style="margin-top:14px;" hidden>
+          <div id="mapaEsp" class="rt-mapa"></div>
+          <div class="rt-leyenda" id="leyendaEsp"></div>
         </div>
         <div class="rt-dias" id="diasEsp"></div>
 
