@@ -297,7 +297,7 @@
     }
 
     function partirTexto(g, texto, ancho) {
-      const palabras = String(texto).split(/\s+/);
+      const palabras = String(texto).split(/ +/); // solo espacios normales: el \u00A0 mantiene unido "• RTxxxx"
       const lineas = [];
       let actual = "";
       for (const p of palabras) {
@@ -331,9 +331,10 @@
 
       let titulo, direccion, extra;
       if (t) {
-        titulo = t.nombre;
+        // "Nombre • RT0150" en la línea grande; el número de ruta nunca se separa del punto.
+        titulo = t.ibp_id ? `${t.nombre}\u00A0•\u00A0RT${t.ibp_id}` : t.nombre;
         direccion = dirTienda(t);
-        extra = `#${t.id} · Ruta ${t.ibp_id}`;
+        extra = `Tienda #${t.id}`;
       } else {
         titulo = "Ubicación";
         direccion = pos ? (S.direccionGps || (await direccionAproximada(pos.lat, pos.lng)) || "") : "";
@@ -349,7 +350,7 @@
       const anchoTexto = W - xTexto - pad;
       const fT = u * 4.2, fN = u * 2.9;
       g.font = `700 ${fT}px system-ui, -apple-system, sans-serif`;
-      const lTitulo = partirTexto(g, titulo, anchoTexto).slice(0, 2);
+      const lTitulo = partirTexto(g, titulo, anchoTexto).slice(0, 3);
       g.font = `400 ${fN}px system-ui, -apple-system, sans-serif`;
       const lDir = direccion ? partirTexto(g, direccion, anchoTexto).slice(0, 2) : [];
       const otras = [coords, cuando, extra].filter(Boolean);
