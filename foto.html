@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title data-base="Foto con ubicación">Foto con ubicación</title>
+  <script src="js/config.js"></script>
+  <script src="js/marca.js"></script>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#c0392b" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/ui.js"></script>
+  <style>
+    main.ft { max-width: 560px; }
+    .ft-gps { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--gray); }
+    .ft-gps i { width:10px; height:10px; border-radius:50%; background:var(--gris); display:inline-block; }
+    .ft-gps.ok i { background:var(--verde); }
+    .ft-gps.malo i { background:var(--amarillo); }
+    .ft-tienda h2 { margin:2px 0 4px; font-size:20px; }
+    .ft-tienda p { margin:0; color:var(--gray); font-size:14px; }
+    .ft-dist { font-size:12px; font-weight:600; color:var(--verde); }
+    .ft-dist.lejos { color:var(--amarillo); }
+    .ft-camara { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:18px; font-size:18px; }
+    .ft-lista { list-style:none; margin:8px 0 0; padding:0; max-height:320px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .ft-lista li { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; }
+    .ft-lista li:last-child { border-bottom:0; }
+    .ft-lista li b { display:block; font-size:14px; }
+    .ft-lista li span { font-size:12px; color:var(--gray); }
+    .ft-lista li.sel { background:var(--gray-light); }
+    .ft-buscar { width:100%; font:inherit; font-size:15px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; box-sizing:border-box; }
+    .ft-preview { width:100%; border-radius:10px; display:block; margin-top:10px; }
+    .ft-acciones { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .ft-acciones .btn { flex:1; text-align:center; }
+    .ft-aviso { font-size:13px; color:var(--gray); margin:8px 0 0; }
+    .ft-ok { color:var(--verde); font-weight:600; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-mark"><span data-icono="pin" data-size="20"></span></span>
+      <div class="topbar-title"><h1>Foto con ubicación</h1><span class="topbar-sub" data-marca="nombre_app"></span></div>
+    </div>
+  </header>
+
+  <main class="ft">
+    <div id="pantallaLogin" class="card" hidden style="margin-top:20px;">
+      <h2 style="margin-top:0;">Inicia sesión</h2>
+      <p id="loginError" style="color:var(--rojo); font-size:13px;"></p>
+      <label class="field">Correo <input type="email" id="loginEmail" autocomplete="username" /></label>
+      <label class="field">Contraseña <input type="password" id="loginPassword" autocomplete="current-password" /></label>
+      <button class="btn btn-primary" style="margin-top:10px;" id="btnLogin">Entrar</button>
+    </div>
+
+    <p id="cargando" style="color:var(--gray); margin-top:20px;">Cargando…</p>
+
+    <div id="app" hidden>
+      <div class="card" style="margin-top:16px;">
+        <div id="gps" class="ft-gps"><i></i><span>Buscando tu ubicación…</span></div>
+        <div id="tienda" class="ft-tienda" style="margin-top:10px;"></div>
+        <div class="ft-acciones">
+          <button class="btn btn-secondary" id="btnCambiar">Cambiar tienda</button>
+          <button class="btn btn-secondary" id="btnFijar" hidden>Guardar esta ubicación</button>
+        </div>
+        <p id="avisoFijar" class="ft-aviso"></p>
+
+        <div id="selector" hidden style="margin-top:12px;">
+          <input id="buscar" class="ft-buscar" type="search" placeholder="Buscar tienda por nombre, dirección o #" autocomplete="off" />
+          <ul id="lista" class="ft-lista"></ul>
+          <button class="btn btn-secondary" id="btnSinTienda" style="margin-top:8px; width:100%;">Foto sin tienda (solo dirección GPS)</button>
+        </div>
+      </div>
+
+      <label class="btn btn-primary ft-camara" style="margin-top:14px;">
+        <span data-icono="plus" data-size="22"></span> Tomar foto
+        <input id="camara" type="file" accept="image/*" capture="environment" hidden />
+      </label>
+
+      <div id="resultado" hidden class="card" style="margin-top:14px;">
+        <img id="preview" class="ft-preview" alt="Foto con sello" />
+        <div class="ft-acciones">
+          <button class="btn btn-primary" id="btnCompartir">Guardar / compartir</button>
+          <a class="btn btn-secondary" id="btnDescargar" download="foto.jpg">Descargar</a>
+        </div>
+        <p class="ft-aviso">En iPhone: "Guardar / compartir" → "Guardar imagen" para que quede en Fotos.</p>
+      </div>
+
+      <p style="text-align:center; margin:24px 0;"><button class="btn btn-secondary btn-small" id="btnSalir">Cerrar sesión</button></p>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/depuracion.js"></script>
+  <script>
+  (() => {
+    const D = window.AppDatos;
+    const $ = (id) => document.getElementById(id);
+    const RADIO_AUTO_M = 150;    // tienda más cercana dentro de este radio = automática
+    const PRECISION_FIJAR_M = 60; // no guardar coordenadas con GPS peor que esto
+
+    const S = {
+      tiendas: [],        // [{ id, ibp_id, nombre, direccion, ciudad, estado_us, zip, lat, lng }]
+      pos: null,          // { lat, lng, acc, t }
+      elegida: null,      // tienda elegida (o null = sin tienda)
+      manual: false,      // true si el usuario la eligió a mano
+      direccionGps: null, // dirección aproximada (reverse geocode) cuando no hay tienda
+      blob: null,
+    };
+
+    // ---------- utilidades ----------
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    function distanciaM(a, b) {
+      const R = 6371000, rad = Math.PI / 180;
+      const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+    const fmtDist = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1609.34).toFixed(1)} mi`);
+    const dirTienda = (t) => [t.direccion, [t.ciudad, [t.estado_us, t.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")].filter(Boolean).join(", ");
+
+    function ordenadasPorDistancia() {
+      if (!S.pos) return S.tiendas.slice();
+      return S.tiendas
+        .map((t) => ({ t, d: t.lat != null ? distanciaM(S.pos, t) : Infinity }))
+        .sort((a, b) => a.d - b.d)
+        .map((x) => Object.assign(x.t, { _d: x.d }));
+    }
+
+    // ---------- GPS ----------
+    function iniciarGps() {
+      if (!navigator.geolocation) return pintarGps("No hay GPS en este navegador.", "malo");
+      navigator.geolocation.watchPosition(
+        (p) => {
+          S.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() };
+          pintarGps(`Ubicación lista · precisión ±${Math.round(p.coords.accuracy)} m`, p.coords.accuracy <= PRECISION_FIJAR_M ? "ok" : "malo");
+          if (!S.manual) elegirAutomatica();
+          else pintarTienda();
+        },
+        (e) => pintarGps(e.code === 1 ? "Permiso de ubicación negado. Actívalo en ajustes del navegador." : "No se pudo leer el GPS. Sal a cielo abierto o espera unos segundos.", "malo"),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
+      );
+    }
+    function pintarGps(txt, clase) {
+      $("gps").className = "ft-gps " + (clase || "");
+      $("gps").querySelector("span").textContent = txt;
+    }
+
+    function elegirAutomatica() {
+      const cerca = ordenadasPorDistancia()[0];
+      S.elegida = cerca && cerca._d <= RADIO_AUTO_M ? cerca : null;
+      pintarTienda();
+    }
+
+    function pintarTienda() {
+      const t = S.elegida;
+      const box = $("tienda");
+      $("avisoFijar").textContent = "";
+      if (!S.pos && !t) {
+        box.innerHTML = `<p>Esperando GPS para saber en qué tienda estás…</p>`;
+        $("btnFijar").hidden = true;
+        return;
+      }
+      if (!t) {
+        const cerca = ordenadasPorDistancia()[0];
+        box.innerHTML = `<span class="ft-dist lejos">Ninguna tienda tuya a menos de ${RADIO_AUTO_M} m</span>
+          <h2>Sin tienda</h2>
+          <p>${cerca && isFinite(cerca._d) ? `La más cercana con ubicación: ${esc(cerca.nombre)} (${fmtDist(cerca._d)}).` : ""}
+          Si estás en una tienda que no sale, tócala en "Cambiar tienda" y guarda la ubicación.</p>`;
+        $("btnFijar").hidden = true;
+        return;
+      }
+      const d = S.pos && t.lat != null ? distanciaM(S.pos, t) : null;
+      const etiqueta = d == null ? `<span class="ft-dist lejos">Esta tienda no tiene ubicación guardada</span>`
+        : `<span class="ft-dist ${d > RADIO_AUTO_M ? "lejos" : ""}">${S.manual ? "Elegida a mano" : "Detectada"} · a ${fmtDist(d)}</span>`;
+      box.innerHTML = `${etiqueta}<h2>${esc(t.nombre)}</h2><p>${esc(dirTienda(t))}</p><p style="font-size:12px;">#${esc(t.id)} · Ruta ${esc(t.ibp_id)}</p>`;
+      // Ofrecer guardar la ubicación cuando la tienda no tiene coordenadas o están lejos de donde está parado.
+      $("btnFijar").hidden = !(S.pos && (d == null || d > RADIO_AUTO_M));
+    }
+
+    // ---------- selector manual ----------
+    function pintarLista() {
+      const q = $("buscar").value.trim().toLowerCase();
+      let arr = ordenadasPorDistancia();
+      if (q) arr = arr.filter((t) => `${t.nombre} ${t.direccion} ${t.ciudad} ${t.id}`.toLowerCase().includes(q));
+      arr = arr.slice(0, 40);
+      $("lista").innerHTML = arr.length
+        ? arr.map((t) => `<li data-id="${esc(t.id)}" class="${S.elegida && S.elegida.id === t.id ? "sel" : ""}">
+            <b>${esc(t.nombre)}</b><span>${esc(dirTienda(t))}${isFinite(t._d) ? " · " + fmtDist(t._d) : t.lat == null ? " · sin ubicación" : ""}</span></li>`).join("")
+        : `<li style="cursor:default;"><span>No encontré tiendas con ese texto.</span></li>`;
+    }
+    $("btnCambiar").onclick = () => {
+      const sel = $("selector");
+      sel.hidden = !sel.hidden;
+      if (!sel.hidden) { $("buscar").value = ""; pintarLista(); }
+    };
+    $("buscar").addEventListener("input", pintarLista);
+    $("lista").addEventListener("click", (e) => {
+      const li = e.target.closest("li[data-id]");
+      if (!li) return;
+      S.elegida = S.tiendas.find((t) => t.id === li.dataset.id) || null;
+      S.manual = true;
+      $("selector").hidden = true;
+      pintarTienda();
+    });
+    $("btnSinTienda").onclick = () => {
+      S.elegida = null;
+      S.manual = true;
+      $("selector").hidden = true;
+      pintarTienda();
+    };
+
+    $("btnFijar").onclick = async () => {
+      const t = S.elegida;
+      if (!t || !S.pos) return;
+      if (S.pos.acc > PRECISION_FIJAR_M) {
+        $("avisoFijar").textContent = `El GPS está impreciso (±${Math.round(S.pos.acc)} m). Espera unos segundos cerca de la puerta y vuelve a intentar.`;
+        return;
+      }
+      if (t.lat != null && !confirm(`${t.nombre} ya tiene ubicación a ${fmtDist(distanciaM(S.pos, t))} de aquí. ¿Reemplazarla con donde estás parado ahora?`)) return;
+      $("btnFijar").disabled = true;
+      try {
+        await D.guardarGeo([{ tienda_id: t.id, lat: S.pos.lat, lng: S.pos.lng, fuente: "manual" }]);
+        t.lat = S.pos.lat; t.lng = S.pos.lng;
+        S.manual = false;
+        pintarTienda();
+        $("avisoFijar").innerHTML = `<span class="ft-ok">Ubicación guardada.</span> La próxima vez sale sola.`;
+      } catch (e) {
+        $("avisoFijar").textContent = "No se pudo guardar: " + e.message;
+      } finally {
+        $("btnFijar").disabled = false;
+      }
+    };
+
+    // ---------- dirección aproximada (solo si no hay tienda) ----------
+    async function direccionAproximada(lat, lng) {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&lat=${lat}&lon=${lng}`, { headers: { "Accept-Language": "es" } });
+        if (!r.ok) return null;
+        const j = await r.json();
+        const a = j.address || {};
+        const calle = [a.house_number, a.road].filter(Boolean).join(" ");
+        const ciudad = a.city || a.town || a.village || a.suburb || a.county || "";
+        return [calle, ciudad, [a.state, a.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ") || j.display_name || null;
+      } catch (e) { return null; }
+    }
+
+    // ---------- mini mapa (OpenStreetMap) ----------
+    function cargarImg(src) {
+      return new Promise((ok, mal) => {
+        const i = new Image();
+        i.crossOrigin = "anonymous";
+        i.onload = () => ok(i);
+        i.onerror = mal;
+        i.src = src;
+      });
+    }
+    async function miniMapa(lat, lng, tam) {
+      const z = 17;
+      const n = 2 ** z;
+      const x = ((lng + 180) / 360) * n;
+      const latR = (lat * Math.PI) / 180;
+      const y = ((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n;
+      const tx = Math.floor(x), ty = Math.floor(y);
+      const c = document.createElement("canvas");
+      c.width = c.height = 768;
+      const g = c.getContext("2d");
+      const tiles = [];
+      for (let dx = -1; dx <= 1; dx++)
+        for (let dy = -1; dy <= 1; dy++)
+          tiles.push(cargarImg(`https://tile.openstreetmap.org/${z}/${tx + dx}/${ty + dy}.png`).then((img) => g.drawImage(img, (dx + 1) * 256, (dy + 1) * 256)));
+      await Promise.all(tiles);
+      // punto dentro del lienzo 3x3
+      const px = (x - tx + 1) * 256, py = (y - ty + 1) * 256;
+      const out = document.createElement("canvas");
+      out.width = out.height = tam;
+      const o = out.getContext("2d");
+      const lado = 300; // área del mapa (px de tiles) que se muestra
+      o.drawImage(c, px - lado / 2, py - lado / 2, lado, lado, 0, 0, tam, tam);
+      // pin
+      const cx = tam / 2, cy = tam / 2, r = tam * 0.06;
+      o.fillStyle = "#c0392b"; o.strokeStyle = "white"; o.lineWidth = r * 0.45;
+      o.beginPath(); o.arc(cx, cy, r, 0, Math.PI * 2); o.fill(); o.stroke();
+      return out;
+    }
+
+    // ---------- sello ----------
+    function leerArchivo(file) {
+      return new Promise((ok, mal) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => ok(img); // los navegadores actuales ya respetan la orientación EXIF
+        img.onerror = mal;
+        img.src = url;
+      });
+    }
+
+    function partirTexto(g, texto, ancho) {
+      const palabras = String(texto).split(/\s+/);
+      const lineas = [];
+      let actual = "";
+      for (const p of palabras) {
+        const prueba = actual ? actual + " " + p : p;
+        if (g.measureText(prueba).width > ancho && actual) { lineas.push(actual); actual = p; }
+        else actual = prueba;
+      }
+      if (actual) lineas.push(actual);
+      return lineas;
+    }
+
+    async function sellar(file) {
+      const img = await leerArchivo(file);
+      const pos = S.pos;
+      const t = S.elegida;
+      const MAX = 2400;
+      const k = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+      const W = Math.round(img.naturalWidth * k), H = Math.round(img.naturalHeight * k);
+      const c = document.createElement("canvas");
+      c.width = W; c.height = H;
+      const g = c.getContext("2d");
+      g.drawImage(img, 0, 0, W, H);
+
+      const u = Math.min(W, H) / 100; // unidad relativa al tamaño de la foto
+      const pad = u * 2.2;
+      const mapaTam = Math.round(u * 24);
+      const ahora = new Date();
+      const fecha = ahora.toLocaleDateString("es-US", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+      const hora = ahora.toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" });
+      const zona = Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(ahora).find((p) => p.type === "timeZoneName")?.value || "";
+
+      let titulo, direccion, extra;
+      if (t) {
+        titulo = t.nombre;
+        direccion = dirTienda(t);
+        extra = `#${t.id} · Ruta ${t.ibp_id}`;
+      } else {
+        titulo = "Ubicación";
+        direccion = pos ? (S.direccionGps || (await direccionAproximada(pos.lat, pos.lng)) || "") : "";
+        extra = "";
+      }
+      const coords = pos ? `Lat ${pos.lat.toFixed(6)}  Long ${pos.lng.toFixed(6)}  ±${Math.round(pos.acc)} m` : "Sin GPS";
+      const cuando = `${fecha} · ${hora} ${zona}`;
+
+      let mapa = null;
+      if (pos) { try { mapa = await miniMapa(pos.lat, pos.lng, mapaTam); } catch (e) { mapa = null; } }
+
+      const xTexto = pad + (mapa ? mapaTam + pad : 0);
+      const anchoTexto = W - xTexto - pad;
+      const fT = u * 4.2, fN = u * 2.9;
+      g.font = `700 ${fT}px system-ui, -apple-system, sans-serif`;
+      const lTitulo = partirTexto(g, titulo, anchoTexto).slice(0, 2);
+      g.font = `400 ${fN}px system-ui, -apple-system, sans-serif`;
+      const lDir = direccion ? partirTexto(g, direccion, anchoTexto).slice(0, 2) : [];
+      const otras = [coords, cuando, extra].filter(Boolean);
+      const altoTexto = lTitulo.length * fT * 1.2 + (lDir.length + otras.length) * fN * 1.35;
+      const altoBanda = Math.max(altoTexto, mapa ? mapaTam : 0) + pad * 2;
+      const yBanda = H - altoBanda - pad;
+
+      // banda semitransparente
+      g.fillStyle = "rgba(0,0,0,0.55)";
+      const rx = u * 1.5;
+      g.beginPath();
+      g.roundRect ? g.roundRect(pad, yBanda, W - pad * 2, altoBanda, rx) : g.rect(pad, yBanda, W - pad * 2, altoBanda);
+      g.fill();
+      if (mapa) g.drawImage(mapa, pad * 2, yBanda + (altoBanda - mapaTam) / 2, mapaTam - pad, mapaTam - pad);
+
+      let y = yBanda + pad;
+      g.textBaseline = "top";
+      g.fillStyle = "white";
+      g.font = `700 ${fT}px system-ui, -apple-system, sans-serif`;
+      lTitulo.forEach((l) => { g.fillText(l, xTexto + pad * 0.5, y); y += fT * 1.2; });
+      g.font = `400 ${fN}px system-ui, -apple-system, sans-serif`;
+      [...lDir, ...otras].forEach((l) => { g.fillText(l, xTexto + pad * 0.5, y); y += fN * 1.35; });
+      // atribución del mapa (requerida por OSM)
+      if (mapa) {
+        g.font = `400 ${u * 1.4}px system-ui, sans-serif`;
+        g.fillStyle = "rgba(255,255,255,0.7)";
+        g.fillText("© OpenStreetMap", pad * 2, yBanda + altoBanda - pad * 0.9);
+      }
+
+      return new Promise((ok) => c.toBlob(ok, "image/jpeg", 0.9));
+    }
+
+    $("camara").addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      $("resultado").hidden = false;
+      $("preview").removeAttribute("src");
+      $("preview").alt = "Poniendo el sello…";
+      try {
+        S.blob = await sellar(file);
+        const url = URL.createObjectURL(S.blob);
+        $("preview").src = url;
+        const nombre = `${(S.elegida ? S.elegida.nombre : "ubicacion").replace(/[^\w\-]+/g, "_").slice(0, 40)}_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.jpg`;
+        $("btnDescargar").href = url;
+        $("btnDescargar").download = nombre;
+        S.nombreArchivo = nombre;
+        $("resultado").scrollIntoView({ behavior: "smooth" });
+      } catch (err) {
+        $("preview").alt = "No se pudo procesar la foto: " + err.message;
+      }
+    });
+
+    $("btnCompartir").onclick = async () => {
+      if (!S.blob) return;
+      const f = new File([S.blob], S.nombreArchivo || "foto.jpg", { type: "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        try { await navigator.share({ files: [f] }); } catch (e) {}
+      } else {
+        $("btnDescargar").click();
+      }
+    };
+
+    // ---------- sesión y datos ----------
+    function mostrarLogin(msg) {
+      $("cargando").hidden = true;
+      $("pantallaLogin").hidden = false;
+      $("app").hidden = true;
+      $("loginError").textContent = msg || "";
+    }
+    $("btnLogin").onclick = async () => {
+      try {
+        await D.iniciarSesion($("loginEmail").value.trim(), $("loginPassword").value);
+        await arrancar();
+      } catch (e) {
+        $("loginError").textContent = "Correo o contraseña incorrectos.";
+      }
+    };
+    $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btnLogin").click(); });
+    $("btnSalir").onclick = async () => { await D.cerrarSesion().catch(() => {}); location.reload(); };
+
+    async function arrancar() {
+      $("pantallaLogin").hidden = true;
+      $("cargando").hidden = false;
+      iniciarGps(); // arranca el GPS mientras bajan las tiendas
+      try {
+        const basicas = await D.getTiendasBasicas(); // RLS: cada quien ve solo las suyas
+        const geo = await D.getGeo(basicas.map((t) => t.id));
+        S.tiendas = basicas.map((t) => {
+          const p = geo.get(t.id);
+          return Object.assign(t, { lat: p ? p.lat : null, lng: p ? p.lng : null });
+        });
+      } catch (e) {
+        $("cargando").textContent = "No se pudieron cargar las tiendas: " + e.message;
+        return;
+      }
+      $("cargando").hidden = true;
+      $("app").hidden = false;
+      if (S.pos) elegirAutomatica(); else pintarTienda();
+    }
+
+    async function iniciar() {
+      await D.init();
+      const sesion = await D.getSesionValida();
+      if (!sesion) return mostrarLogin();
+      await arrancar();
+    }
+    iniciar();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    }
+  })();
+  </script>
+</body>
+</html>

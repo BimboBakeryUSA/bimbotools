@@ -17,6 +17,7 @@ const ARCHIVOS_SHELL = [
   "ibp.html",
   "msl.html",
   "admin.html",
+  "foto.html",
   "mi-territorio.html",
   "rutas.html",
   "css/styles.css",
