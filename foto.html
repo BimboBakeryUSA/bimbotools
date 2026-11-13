@@ -61,7 +61,10 @@
 
     <div id="app" hidden>
       <div class="card" style="margin-top:16px;">
-        <div id="gps" class="ft-gps"><i></i><span>Buscando tu ubicación…</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div id="gps" class="ft-gps"><i></i><span>Buscando tu ubicación…</span></div>
+          <button class="btn btn-secondary btn-small" id="btnRefrescar">↻ Actualizar</button>
+        </div>
         <div id="tienda" class="ft-tienda" style="margin-top:10px;"></div>
         <div class="ft-acciones">
           <button class="btn btn-secondary" id="btnCambiar">Cambiar tienda</button>
@@ -143,6 +146,29 @@
         { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
       );
     }
+    // Lectura nueva del GPS (sin usar la guardada) y vuelve a detectar la tienda,
+    // olvidando la que se eligió a mano. Se usa con el botón y al volver a la app.
+    function refrescarZona() {
+      if (!navigator.geolocation) return;
+      S.manual = false;
+      $("selector").hidden = true;
+      pintarGps("Actualizando ubicación…", "");
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          S.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() };
+          pintarGps(`Ubicación lista · precisión ±${Math.round(p.coords.accuracy)} m`, p.coords.accuracy <= PRECISION_FIJAR_M ? "ok" : "malo");
+          elegirAutomatica();
+        },
+        () => pintarGps("No se pudo leer el GPS. Intenta de nuevo.", "malo"),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+      );
+    }
+    $("btnRefrescar").onclick = refrescarZona;
+    // Al volver a la app (estaba en segundo plano) la tienda anterior ya no sirve.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && S.tiendas.length) refrescarZona();
+    });
+
     function pintarGps(txt, clase) {
       $("gps").className = "ft-gps " + (clase || "");
       $("gps").querySelector("span").textContent = txt;
