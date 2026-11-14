@@ -41,21 +41,35 @@ Luego abre `http://localhost:8080`.
 
 ## Pedido sugerido + asistente (IBP)
 
-- En `ibp.html`, cada tienda tiene **Ver pedido**: por cada producto que le toca
-  según su formato (Small/Large Format) y la clase del producto (A/B/C), muestra
-  la venta del año base en esa misma semana, el % de crecimiento y cuánto
-  **pedir para superarla**: `pedido = siguiente entero > venta × (1 + %)`
-  (100 × 9.9% → 110; 100 × 10% → 111). Por defecto muestra la semana siguiente
-  a la actual.
-- **Asistente**: avisa de productos que le tocan a la tienda y no se dejan
-  ("Colocar", con cantidad inicial = mediana de tiendas del mismo formato),
-  que llevan 4 semanas en cero ("Recuperar") o que cayeron más de 20% ("Bajando").
-- Admin → pestaña **Ventas y productos**: importar ventas
-  (`clienteId,sku,semana,unidades`), productos (`sku,nombre,clase,crecimiento`),
-  ajustar el % por producto y qué clases aplican a cada formato. El formato de
-  cada tienda se edita en la pestaña Clientes.
-- `data/seed.json` trae productos y ventas **de ejemplo**, con algunos huecos
-  a propósito para que el asistente tenga qué sugerir.
+**Datos (4 fuentes separadas, se cruzan por número de tienda y SKU)** — Admin →
+pestaña *Datos de venta*, cada una acepta Excel (.xlsx) o CSV con encabezados
+flexibles:
+
+1. Ventas: `tienda, sku, semana, unidades`
+2. Formato de tienda: `tienda, formato` (SF / LF)
+3. Tier de tienda: `tienda, tier` (1 / 2 / 3)
+4. Productos: `sku, nombre, clase, crecimiento` (A / B / C / Innovación)
+
+Cada import avisa qué tiendas no cruzan con Clientes y qué valores no reconoce.
+
+**Pedido**: por producto que le toca a la tienda según formato + clase,
+`pedido = siguiente entero > venta(año base, misma semana) × (1 + %)`
+(100 × 9.9% → 110; 100 × 10% → 111).
+
+**Asistente** (mensajes calculados, no se consumen al verlos):
+- *Meta*: cuánto pedir para superar la semana del año base.
+- *Innovación*: producto de innovación que la tienda no tiene → cantidad =
+  mediana de tiendas del mismo formato y tier que ya lo venden; si nadie lo
+  vende aún, tabla editable formato × tier.
+- *Colocar*: le toca por formato y no se deja en todo el año.
+- *Recuperar*: 4 semanas sin venta. *Bajando*: cayó más de 20%.
+
+**Vista previa del admin** (pestaña *Mensajes del IBP*): elige IBP y semana y ve
+exactamente lo mismo que el IBP, más sus notificaciones. Es solo lectura: no
+marca nada como leído.
+
+Lector de Excel: SheetJS 0.18.5 incluido en `js/vendor/` (Apache-2.0).
+`data/seed.json` trae datos de ejemplo con huecos a propósito.
 
 ## Estado actual (demo funcional)
 

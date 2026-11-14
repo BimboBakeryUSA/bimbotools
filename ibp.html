@@ -108,22 +108,7 @@
 
     const FORMATO_NOMBRE = { SF: "Small Format", LF: "Large Format" };
 
-    const TIPO_SUG = {
-      no_se_deja: { etiqueta: "Colocar", tono: "rojo" },
-      dejo_de_dejarse: { etiqueta: "Recuperar", tono: "amarillo" },
-      bajando: { etiqueta: "Bajando", tono: "gris" },
-    };
-
-    function htmlSugerencias(clienteId) {
-      const sugs = BimboData.getSugerenciasCliente(clienteId, semanaPedido);
-      if (!sugs.length) return "";
-      return `<div class="asistente">
-        <div class="asistente-titulo">${icono("spark", 14)}Asistente · ${sugs.length} sugerencia${sugs.length > 1 ? "s" : ""}</div>
-        ${sugs
-          .map((g) => `<div class="sug"><span class="chip tono-${TIPO_SUG[g.tipo].tono}">${TIPO_SUG[g.tipo].etiqueta}</span><span>${g.mensaje}</span></div>`)
-          .join("")}
-      </div>`;
-    }
+    const { htmlMensajes } = BimboUI;
 
     function htmlPedido(clienteId) {
       const pedido = BimboData.getPedidoSugerido(clienteId, semanaPedido);
@@ -134,14 +119,14 @@
         .map((l) => {
           const pct = (l.producto.crecimiento * 100).toFixed(1).replace(/\.0$/, "") + "%";
           return `<tr>
-            <td><span class="clase-tag clase-${l.producto.clase}">${l.producto.clase}</span>${l.producto.nombre}</td>
+            <td><span class="clase-tag clase-${l.producto.clase}" title="${BimboData.CLASES[l.producto.clase]}">${l.producto.clase === "I" ? "INN" : l.producto.clase}</span>${l.producto.nombre}</td>
             <td class="num">${l.ventaBase != null ? l.ventaBase : "—"}</td>
             <td class="num">${pct}</td>
             <td class="num pedir">${l.pedido != null ? l.pedido : "—"}${l.esNuevo ? '<span class="nuevo">nuevo</span>' : ""}</td>
           </tr>`;
         })
         .join("");
-      return `${htmlSugerencias(clienteId)}<div class="pedido">
+      return `${htmlMensajes(BimboData.getMensajesCliente(clienteId, semanaPedido))}<div class="pedido">
         <table class="pedido-tabla">
           <thead><tr><th>Producto</th><th class="num">${pedido.anioBase}</th><th class="num">Crec.</th><th class="num">Pedir</th></tr></thead>
           <tbody>${filas}</tbody>
@@ -229,7 +214,7 @@
                   <strong>${p.cliente.nombre}</strong>
                   <span class="dir">${p.cliente.direccion}</span>
                   <div class="chip-row">
-                    <span class="chip tono-gris">${FORMATO_NOMBRE[p.cliente.formato] || "Formato sin definir"}</span>
+                    <span class="chip tono-gris">${FORMATO_NOMBRE[p.cliente.formato] || "Formato sin definir"}${p.cliente.tier ? ` · Tier ${p.cliente.tier}` : ""}</span>
                     ${(() => { const n = BimboData.getSugerenciasCliente(p.cliente.id, semanaPedido).length; return n ? `<span class="chip tono-amarillo">${n} sugerencia${n > 1 ? "s" : ""}</span>` : ""; })()}
                     <span class="chip tono-${sem}" title="${etiquetaSemaforo(sem)}">Frescura ${frescuraPct}</span>
                     ${p.visitada ? `<span class="chip tono-verde">Visitado · ${p.metodoVisita}</span>` : ""}

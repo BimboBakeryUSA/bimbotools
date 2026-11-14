@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="back" href="index.html" aria-label="Volver"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
-    <div class="topbar-title"><h1>Administrador</h1><span class="topbar-sub">Clientes · Frescura · Ventas · Historial</span></div>
+    <div class="topbar-title"><h1>Administrador</h1><span class="topbar-sub">Clientes · Ventas · Mensajes del IBP</span></div>
     <span class="topbar-spacer"></span>
   </header>
 
@@ -23,7 +23,8 @@
       <a class="pill active" data-tab="clientes">Clientes</a>
       <a class="pill" data-tab="importar">Importar CSV</a>
       <a class="pill" data-tab="frescura">% Frescura</a>
-      <a class="pill" data-tab="pedido">Ventas y productos</a>
+      <a class="pill" data-tab="pedido">Datos de venta</a>
+      <a class="pill" data-tab="preview">Mensajes del IBP</a>
       <a class="pill" data-tab="historial">Historial de cambios</a>
     </div>
 
@@ -48,6 +49,13 @@
           <select id="fFormato">
             <option value="SF">Small Format</option>
             <option value="LF">Large Format</option>
+          </select>
+        </label>
+        <label class="field">Tier
+          <select id="fTier">
+            <option value="1">Tier 1</option>
+            <option value="2">Tier 2</option>
+            <option value="3">Tier 3</option>
           </select>
         </label>
         <label class="field">Frecuencia
@@ -83,9 +91,9 @@
         <div>
           <h2 class="card-title"><span data-icono="plus"></span>Importar clientes (CSV)</h2>
         <p class="card-desc">
-          Columnas esperadas: <code>id,nombre,direccion,rutaId,frecuencia,dias,lat,lng,formato</code>
+          Columnas esperadas: <code>id,nombre,direccion,rutaId,frecuencia,dias,lat,lng,formato,tier</code>
           (<code>id</code> es el número de tienda que usa el archivo de ventas;
-          <code>formato</code> es SF o LF).
+          <code>formato</code> es SF o LF; <code>tier</code> es 1, 2 o 3). El formato y el tier también se pueden cargar aparte en "Datos de venta".
           Para bisemanal, la columna <code>dias</code> acepta dos días separados por
           "|" (ej. <code>lunes|jueves</code>). Si faltan lat/lng, el cliente queda
           marcado como "geocodificación pendiente" (hoy no hay API key de Google
@@ -114,36 +122,53 @@
       <div class="card">
         <div class="card-head">
           <div>
-            <h2 class="card-title"><span data-icono="cart"></span>Ventas semanales del año base</h2>
+            <h2 class="card-title"><span data-icono="cart"></span>Cargar datos (4 archivos separados)</h2>
             <p class="card-desc">
-              CSV con una fila por tienda, producto y semana:
-              <code>clienteId,sku,semana,unidades</code> (semana 1–53). Reemplaza las
-              ventas cargadas antes. El IBP verá cuánto pedir para superar esa misma
-              semana el año siguiente.
+              Cada archivo llega por su lado y la app los cruza por <strong>número de tienda</strong>
+              (el mismo <code>id</code> de la pestaña Clientes) y por <strong>SKU</strong>.
+              Acepta Excel (.xlsx) o CSV, con la primera fila como encabezados.
             </p>
           </div>
         </div>
-        <label class="field">Año de las ventas
-          <input type="number" id="fAnioBase" style="width:110px;" />
-        </label>
-        <input type="file" id="fileVentas" accept=".csv" style="margin-top:10px;" />
-        <div id="resultadoVentas" style="margin-top:10px; font-size:13px;"></div>
+
+        <div class="import-bloque">
+          <strong>1. Ventas semanales</strong>
+          <p class="card-desc">Columnas: <code>tienda, sku, semana, unidades</code> (semana 1–53). Reemplaza las ventas anteriores.</p>
+          <label class="field">Año de estas ventas <input type="number" id="fAnioBase" style="width:110px;" /></label>
+          <input type="file" data-import="ventas" accept=".csv,.xlsx,.xls" />
+          <div class="resultado" id="res-ventas"></div>
+        </div>
+
+        <div class="import-bloque">
+          <strong>2. Formato de tienda (SF / LF)</strong>
+          <p class="card-desc">Columnas: <code>tienda, formato</code> — acepta SF, LF, Small Format, Large Format.</p>
+          <input type="file" data-import="formatos" accept=".csv,.xlsx,.xls" />
+          <div class="resultado" id="res-formatos"></div>
+        </div>
+
+        <div class="import-bloque">
+          <strong>3. Tier de tienda (1 / 2 / 3)</strong>
+          <p class="card-desc">Columnas: <code>tienda, tier</code> — acepta 1, 2, 3 o "Tier 1"…</p>
+          <input type="file" data-import="tiers" accept=".csv,.xlsx,.xls" />
+          <div class="resultado" id="res-tiers"></div>
+        </div>
+
+        <div class="import-bloque">
+          <strong>4. Productos activos (A / B / C / Innovación)</strong>
+          <p class="card-desc">Columnas: <code>sku, nombre, clase, crecimiento</code> — clase A, B, C o Innovación; crecimiento como 9.9 o 0.099. Reemplaza la lista actual.</p>
+          <input type="file" data-import="productos" accept=".csv,.xlsx,.xls" />
+          <div class="resultado" id="res-productos"></div>
+        </div>
       </div>
 
       <div class="card">
         <div class="card-head">
           <div>
-            <h2 class="card-title"><span data-icono="box"></span>Productos activos</h2>
-            <p class="card-desc">
-              CSV: <code>sku,nombre,clase,crecimiento</code> — clase A, B o C;
-              crecimiento como <code>9.9</code> o <code>0.099</code>. Reemplaza la
-              lista actual. El % se puede ajustar abajo producto por producto.
-            </p>
+            <h2 class="card-title"><span data-icono="box"></span>Productos y % de crecimiento</h2>
+            <p class="card-desc">Ajusta el % de cualquier producto; se guarda al salir del campo.</p>
           </div>
         </div>
-        <input type="file" id="fileProductos" accept=".csv" />
-        <div id="resultadoProductos" style="margin: 10px 0; font-size:13px;"></div>
-        <label class="field">% de crecimiento por defecto (si el producto no trae uno)
+        <label class="field">% por defecto (si el producto no trae uno)
           <span style="display:flex; gap:8px; align-items:center;">
             <input type="text" id="fCrecDefault" style="width:80px;" /> %
             <button class="btn btn-primary btn-small" id="btnCrecDefault">Guardar</button>
@@ -156,11 +181,53 @@
         <div class="card-head">
           <div>
             <h2 class="card-title"><span data-icono="store"></span>Qué clases aplican a cada formato</h2>
-            <p class="card-desc">Un producto aparece en el pedido de una tienda solo si su clase está marcada para el formato de esa tienda. El formato de cada tienda se cambia en la pestaña Clientes.</p>
+            <p class="card-desc">Un producto aparece en el pedido de una tienda solo si su clase está marcada para el formato de esa tienda.</p>
           </div>
         </div>
         <div id="reglasFormato"></div>
       </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title"><span data-icono="spark"></span>Innovación: cuánto colocar</h2>
+            <p class="card-desc">
+              Cuando una tienda no tiene un producto de innovación, se sugiere lo que venden
+              las tiendas del mismo formato y tier que ya lo tienen. Si ninguna lo vende
+              todavía (lanzamiento), se usa esta tabla.
+            </p>
+          </div>
+        </div>
+        <div class="tabla-scroll"><div id="matrizInnovacion"></div></div>
+      </div>
+    </div>
+
+    <div id="tabPreview" style="display:none;">
+      <div class="preview-banner">
+        <strong>Vista previa.</strong> Así ve cada IBP sus metas, faltantes y sugerencias.
+        Mirarlas aquí no las marca como leídas ni las quita: al IBP le siguen
+        apareciendo en su momento.
+      </div>
+      <div class="card">
+        <div class="filtros-preview">
+          <label>IBP <select id="pvIbp"></select></label>
+          <label>Semana <select id="pvSemana"></select></label>
+          <label>Mostrar <select id="pvTipo">
+            <option value="">Todo</option>
+            <option value="meta">Metas</option>
+            <option value="innovacion">Innovación</option>
+            <option value="no_se_deja">Colocar (faltantes)</option>
+            <option value="dejo_de_dejarse">Recuperar</option>
+            <option value="bajando">Bajando</option>
+          </select></label>
+        </div>
+        <div class="summary-grid" id="pvResumen" style="margin-top:12px;"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2 class="card-title"><span data-icono="bell"></span>Notificaciones del IBP</h2></div>
+        <div id="pvNotifs"></div>
+      </div>
+      <div id="pvTiendas"></div>
     </div>
 
     <div id="tabHistorial" style="display:none;">
@@ -222,6 +289,7 @@
       renderListaClientes();
       renderFrescura();
       renderPedido();
+      renderPreview();
       renderHistorial();
     }
 
@@ -239,13 +307,32 @@
       });
     }
 
-    function leerArchivo(input, cb) {
-      const file = input.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => cb(parseCsv(reader.result));
-      reader.readAsText(file);
+    // Excel se lee con SheetJS (copia local), cargado solo cuando se sube un .xlsx.
+    function cargarSheetJS() {
+      if (window.XLSX) return Promise.resolve();
+      return new Promise((ok, falla) => {
+        const sc = document.createElement("script");
+        sc.src = "js/vendor/xlsx.mini.min.js"; // SheetJS 0.18.5 (Apache-2.0), incluido en el repo
+        sc.onload = ok;
+        sc.onerror = () => falla(new Error("No se pudo cargar el lector de Excel. Guarda el archivo como CSV."));
+        document.head.appendChild(sc);
+      });
     }
+
+    async function leerArchivo(input) {
+      const file = input.files[0];
+      if (!file) return null;
+      if (/\.xlsx?$/i.test(file.name)) {
+        await cargarSheetJS();
+        const libro = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const hoja = libro.Sheets[libro.SheetNames[0]];
+        return XLSX.utils.sheet_to_json(hoja, { defval: "", raw: false });
+      }
+      return parseCsv(await file.text());
+    }
+
+    const FORMATOS = [["SF", "Small Format"], ["LF", "Large Format"]];
+    const CLASES_PRODUCTO = BimboData.CLASES;
 
     function renderPedido() {
       const cfg = BimboData.getConfigPedido();
@@ -261,7 +348,7 @@
                 (p) => `<tr>
                   <td>${p.sku}</td>
                   <td>${p.nombre}</td>
-                  <td><span class="clase-tag clase-${p.clase}">${p.clase}</span></td>
+                  <td><span class="clase-tag clase-${p.clase}">${p.clase === "I" ? "INN" : p.clase}</span></td>
                   <td class="num"><input type="text" style="width:64px; text-align:right;" value="${+(p.crecimiento * 100).toFixed(2)}"
                     onchange="guardarCrecimiento('${p.sku}', this.value)" /> %</td>
                 </tr>`
@@ -270,23 +357,29 @@
           </table>`
         : `<div class="empty-state">Sin productos cargados.</div>`;
 
-      const formatos = [["SF", "Small Format"], ["LF", "Large Format"]];
-      document.getElementById("reglasFormato").innerHTML = formatos
-        .map(
-          ([f, nombre]) => `
+      document.getElementById("reglasFormato").innerHTML = FORMATOS.map(
+        ([f, nombre]) => `
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0;">
             <strong>${nombre}</strong>
             <div class="dias-pills" style="margin:0;">
-              ${["A", "B", "C"]
+              ${Object.keys(CLASES_PRODUCTO)
                 .map((cl) => {
                   const activo = (cfg.reglasFormato[f] || []).includes(cl);
-                  return `<label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); toggleRegla('${f}','${cl}')">${cl}</label>`;
+                  return `<label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); toggleRegla('${f}','${cl}')">${cl === "I" ? "Innov." : cl}</label>`;
                 })
                 .join("")}
             </div>
           </div>`
-        )
-        .join("");
+      ).join("");
+
+      document.getElementById("matrizInnovacion").innerHTML = `<table class="matriz-innovacion">
+        <thead><tr><th>Formato</th><th>Tier 1</th><th>Tier 2</th><th>Tier 3</th></tr></thead>
+        <tbody>${FORMATOS.map(
+          ([f, nombre]) => `<tr><td>${nombre}</td>${[1, 2, 3]
+            .map((t) => `<td><input type="number" min="0" value="${(cfg.innovacion[f] || {})[t] ?? ""}" onchange="guardarInnovacion('${f}', ${t}, this.value)" /></td>`)
+            .join("")}</tr>`
+        ).join("")}</tbody>
+      </table>`;
     }
 
     function guardarCrecimiento(sku, valor) {
@@ -299,10 +392,72 @@
     function toggleRegla(formato, clase) {
       const reglas = { ...BimboData.getConfigPedido().reglasFormato };
       const actual = reglas[formato] || [];
-      reglas[formato] = actual.includes(clase) ? actual.filter((c) => c !== clase) : [...actual, clase].sort();
+      reglas[formato] = actual.includes(clase) ? actual.filter((c) => c !== clase) : [...actual, clase];
       BimboData.actualizarConfigPedido({ reglasFormato: reglas });
       renderPedido();
     }
+
+    function guardarInnovacion(formato, tier, valor) {
+      const actual = JSON.parse(JSON.stringify(BimboData.getConfigPedido().innovacion));
+      actual[formato] = actual[formato] || {};
+      actual[formato][tier] = Math.max(0, Number(valor) || 0);
+      BimboData.actualizarConfigPedido({ innovacion: actual });
+    }
+
+    // --- Vista previa de mensajes del IBP (solo lectura) ---------------------
+
+    function renderPreview() {
+      const selIbp = document.getElementById("pvIbp");
+      const selSem = document.getElementById("pvSemana");
+      const ibps = BimboData.getUsuarios().filter((u) => u.rol === "IBP");
+      if (!selIbp.options.length) {
+        selIbp.innerHTML = ibps.map((u) => `<option value="${u.id}">${u.nombre}</option>`).join("");
+        const sug = BimboData.getSemanaObjetivoSugerida();
+        selSem.innerHTML = Array.from({ length: 52 }, (_, i) => i + 1)
+          .map((w) => `<option value="${w}" ${w === sug ? "selected" : ""}>Semana ${w}${w === sug ? " (la que se pide ahora)" : ""}</option>`)
+          .join("");
+      }
+      const ibpId = selIbp.value;
+      const semana = Number(selSem.value);
+      const filtro = document.getElementById("pvTipo").value;
+      const porTienda = BimboData.getMensajesIbp(ibpId, semana);
+
+      const cuenta = {};
+      porTienda.forEach((t) => t.mensajes.forEach((m) => (cuenta[m.tipo] = (cuenta[m.tipo] || 0) + 1)));
+      const T = BimboUI.TIPO_MENSAJE;
+      document.getElementById("pvResumen").innerHTML = ["meta", "innovacion", "no_se_deja", "dejo_de_dejarse", "bajando"]
+        .map((tipo) => statCard({ titulo: T[tipo].etiqueta, icono: tipo === "meta" ? "cart" : "spark", tono: cuenta[tipo] ? T[tipo].tono : "gris", valor: cuenta[tipo] || 0, sub: tipo === "meta" ? "tiendas con meta" : "sugerencias" }))
+        .join("");
+
+      const notifs = BimboData.getNotificaciones(ibpId); // solo se leen: NO se llama a marcarNotificacionesLeidas
+      document.getElementById("pvNotifs").innerHTML = notifs.length
+        ? notifs
+            .map((n) => `<div class="timeline-item"><span class="dot">${icono("bell", 14)}</span><div>${n.mensaje}
+              <span class="chip tono-${n.leida ? "gris" : "amarillo"}">${n.leida ? "El IBP ya la vio" : "El IBP aún no la ve"}</span>
+              <span class="cuando">${new Date(n.cuando).toLocaleString()}</span></div></div>`)
+            .join("")
+        : `<p class="card-desc">Este IBP no tiene notificaciones.</p>`;
+
+      const FN = { SF: "Small Format", LF: "Large Format" };
+      const tiendas = porTienda
+        .map((t) => ({ ...t, mensajes: filtro ? t.mensajes.filter((m) => m.tipo === filtro) : t.mensajes }))
+        .filter((t) => t.mensajes.length);
+      document.getElementById("pvTiendas").innerHTML = tiendas.length
+        ? tiendas
+            .map(
+              (t) => `<div class="card preview-tienda">
+                <div class="card-head"><div>
+                  <h2 class="card-title"><span>${icono("store", 16)}</span>${t.cliente.nombre}</h2>
+                  <p class="card-desc">Tienda ${t.cliente.id} · ${FN[t.cliente.formato] || "Sin formato"} · ${t.cliente.tier ? "Tier " + t.cliente.tier : "Sin tier"}</p>
+                </div></div>
+                ${BimboUI.htmlMensajes(t.mensajes)}
+              </div>`
+            )
+            .join("")
+        : `<div class="card"><div class="empty-state">No hay mensajes de este tipo para esta semana.</div></div>`;
+    }
+
+    ["pvIbp", "pvSemana", "pvTipo"].forEach((id) => document.getElementById(id).addEventListener("change", renderPreview));
 
     function renderResumen() {
       const clientes = BimboData.getClientes();
@@ -480,6 +635,7 @@
         rutaId: document.getElementById("fRuta").value,
         frecuencia: document.getElementById("fFrecuencia").value,
         formato: document.getElementById("fFormato").value,
+        tier: document.getElementById("fTier").value,
         diasSemana: nuevoClienteDias,
         lat: document.getElementById("fLat").value,
         lng: document.getElementById("fLng").value,
@@ -515,6 +671,7 @@
           BimboData.agregarClienteAdmin({
             id: fila.id || undefined,
             formato: fila.formato,
+            tier: fila.tier,
             nombre: fila.nombre,
             direccion: fila.direccion,
             rutaId: fila.rutaId,
@@ -542,31 +699,42 @@
       renderPedido();
     });
 
-    document.getElementById("fileVentas").addEventListener("change", (e) => {
-      leerArchivo(e.target, (filas) => {
-        const r = BimboData.importarVentas(filas);
-        document.getElementById("resultadoVentas").innerHTML =
-          `${r.filas} filas de venta cargadas.` +
-          (r.clientesSinMatch.length
-            ? ` <span class="chip tono-amarillo">${r.clientesSinMatch.length} tiendas no existen en Clientes: ${r.clientesSinMatch.slice(0, 10).join(", ")}${r.clientesSinMatch.length > 10 ? "…" : ""}</span>`
-            : "");
-      });
-    });
+    const IMPORTADORES = {
+      ventas: (f) => BimboData.importarVentas(f),
+      formatos: (f) => BimboData.importarFormatos(f),
+      tiers: (f) => BimboData.importarTiers(f),
+      productos: (f) => BimboData.importarProductos(f),
+    };
 
-    document.getElementById("fileProductos").addEventListener("change", (e) => {
-      leerArchivo(e.target, (filas) => {
-        const n = BimboData.importarProductos(filas);
-        document.getElementById("resultadoProductos").textContent = `${n} productos cargados.`;
-        renderPedido();
-      });
-    });
+    function lista(arr) {
+      return arr.slice(0, 8).join(", ") + (arr.length > 8 ? ` y ${arr.length - 8} más` : "");
+    }
+
+    document.querySelectorAll("[data-import]").forEach((input) =>
+      input.addEventListener("change", async () => {
+        const tipo = input.dataset.import;
+        const out = document.getElementById("res-" + tipo);
+        try {
+          const filas = await leerArchivo(input);
+          if (!filas) return;
+          const r = IMPORTADORES[tipo](filas);
+          out.innerHTML =
+            `<span class="chip tono-verde">${r.filas} filas cargadas</span>` +
+            (r.sinMatch && r.sinMatch.length ? ` <span class="chip tono-amarillo">${r.sinMatch.length} tiendas no existen en Clientes: ${lista(r.sinMatch)}</span>` : "") +
+            (r.invalidos && r.invalidos.length ? ` <span class="chip tono-rojo">${r.invalidos.length} valores no reconocidos: ${lista(r.invalidos)}</span>` : "");
+          render();
+        } catch (e) {
+          out.innerHTML = `<span class="chip tono-rojo">${e.message}</span>`;
+        }
+      })
+    );
 
     document.getElementById("tabs").addEventListener("click", (e) => {
       const el = e.target.closest(".pill");
       if (!el) return;
       document.querySelectorAll("#tabs .pill").forEach((p) => p.classList.remove("active"));
       el.classList.add("active");
-      ["clientes", "importar", "frescura", "pedido", "historial"].forEach((t) => {
+      ["clientes", "importar", "frescura", "pedido", "preview", "historial"].forEach((t) => {
         document.getElementById("tab" + t[0].toUpperCase() + t.slice(1)).style.display =
           t === el.dataset.tab ? "block" : "none";
       });

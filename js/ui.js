@@ -60,5 +60,29 @@ const BimboUI = (() => {
     `;
   }
 
-  return { icono, tonoPct, etiquetaSemaforo, iniciales, statCard };
+  // Mensajes del asistente (meta + sugerencias). Lo usan el IBP y la vista
+  // previa del admin, así ambos ven EXACTAMENTE lo mismo.
+  const TIPO_MENSAJE = {
+    meta: { etiqueta: "Meta", tono: "verde" },
+    innovacion: { etiqueta: "Innovación", tono: "morado" },
+    no_se_deja: { etiqueta: "Colocar", tono: "rojo" },
+    dejo_de_dejarse: { etiqueta: "Recuperar", tono: "amarillo" },
+    bajando: { etiqueta: "Bajando", tono: "gris" },
+  };
+
+  function htmlMensajes(mensajes) {
+    if (!mensajes.length) return "";
+    const n = mensajes.filter((m) => m.tipo !== "meta").length;
+    return `<div class="asistente">
+      <div class="asistente-titulo">${icono("spark", 14)}Asistente${n ? ` · ${n} sugerencia${n > 1 ? "s" : ""}` : ""}</div>
+      ${mensajes
+        .map((m) => {
+          const t = TIPO_MENSAJE[m.tipo] || { etiqueta: m.tipo, tono: "gris" };
+          return `<div class="sug"><span class="chip tono-${t.tono}">${t.etiqueta}</span><span>${m.mensaje}</span></div>`;
+        })
+        .join("")}
+    </div>`;
+  }
+
+  return { icono, tonoPct, etiquetaSemaforo, iniciales, statCard, htmlMensajes, TIPO_MENSAJE };
 })();

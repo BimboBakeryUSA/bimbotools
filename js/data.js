@@ -146,7 +146,8 @@ function agregarClienteAdmin(cliente) {
     diasSemana: cliente.diasSemana || ["lunes"],
     ultimaVisita: cliente.ultimaVisita || null,
     frescura: cliente.frescura != null ? Number(cliente.frescura) : null,
-    formato: (cliente.formato || "SF").toUpperCase(), // SF = Small Format, LF = Large Format
+    formato: _normFormato(cliente.formato) || "SF", // SF = Small Format, LF = Large Format
+    tier: _normTier(cliente.tier), // 1, 2 o 3 (null = sin tier)
     geocodificacionPendiente: !cliente.lat || !cliente.lng,
   };
   _estado.clientesExtra.push(nuevo);
@@ -472,15 +473,29 @@ function getProgresoSemanalIbp(ibpId) {
 // ---------------------------------------------------------------------------
 // Pedido sugerido por tienda (meta del año siguiente, misma semana)
 // ----------------------------------------------------------------------------
-// Regla: para la semana W del año meta (anioBase + 1), el IBP debe pedir en la
-// semana W-1 lo suficiente para SUPERAR lo vendido en la semana W del año
-// base, más el % de crecimiento de cada producto.
-//   meta   = venta(anioBase, W) × (1 + crecimiento del producto)
+// La información llega en 4 fuentes SEPARADAS que aquí se cruzan por llave:
+//   1. Ventas            → tienda + sku + semana + unidades
+//   2. Formato de tienda → tienda + SF / LF
+//   3. Tier de tienda    → tienda + 1 / 2 / 3
+//   4. Productos         → sku + nombre + clase (A / B / C / I = Innovación) + % crecimiento
+//
+// Regla del pedido: para la semana W del año meta (anioBase + 1), el IBP pide
+// en la semana W-1 lo suficiente para SUPERAR lo vendido en la semana W del
+// año base, más el % de crecimiento del producto.
+//   meta   = venta(anioBase, W) × (1 + crecimiento)
 //   pedido = siguiente entero que supera la meta
 //   ej. 100 × 1.099 = 109.9 → pedir 110;  100 × 1.10 = 110 → pedir 111
-// Qué productos ve cada tienda depende de su formato (SF / LF) y de la clase
-// del producto (A / B / C), según config.reglasFormato.
+// Qué productos ve cada tienda: config.reglasFormato[formato] = clases.
 // ---------------------------------------------------------------------------
+
+const CLASES = { A: "A", B: "B", C: "C", I: "Innovación" };
+
+// Cantidad a colocar de un producto de innovación cuando nadie comparable
+// lo vende todavía. Editable en admin.
+const _INNOVACION_DEFAULT = {
+  LF: { 1: 12, 2: 8, 3: 6 },
+  SF: { 1: 6, 2: 4, 3: 2 },
+};
 
 function getConfigPedido() {
   const base = _seed.config || {};
@@ -488,7 +503,8 @@ function getConfigPedido() {
   return {
     anioBase: o.anioBase || base.anioBase || 2026,
     crecimientoDefault: o.crecimientoDefault != null ? o.crecimientoDefault : base.crecimientoDefault != null ? base.crecimientoDefault : 0.1,
-    reglasFormato: o.reglasFormato || base.reglasFormato || { SF: ["A", "B"], LF: ["A", "B", "C"] },
+    reglasFormato: o.reglasFormato || base.reglasFormato || { SF: ["A", "B", "I"], LF: ["A", "B", "C", "I"] },
+    innovacion: o.innovacion || base.innovacion || _INNOVACION_DEFAULT,
   };
 }
 
@@ -496,6 +512,50 @@ function actualizarConfigPedido(cambios) {
   _estado.configOverrides = { ..._estado.configOverrides, ...cambios };
   _guardar();
 }
+
+// --- Normalización de archivos (CSV o Excel, encabezados como vengan) ------
+
+function _norm(txt) {
+  return String(txt == null ? "" : txt)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+// Busca el valor de una columna aceptando varios nombres posibles.
+function _col(fila, nombres) {
+  const claves = Object.keys(fila);
+  for (const n of nombres) {
+    const k = claves.find((c) => _norm(c) === _norm(n));
+    if (k !== undefined && fila[k] !== "" && fila[k] != null) return String(fila[k]).trim();
+  }
+  return "";
+}
+
+const _COL_TIENDA = ["clienteId", "cliente", "tienda", "store", "storeid", "storenumber", "notienda", "numerotienda", "id"];
+const _COL_SKU = ["sku", "producto", "product", "item", "codigo", "upc"];
+
+function _normClase(valor) {
+  const v = _norm(valor);
+  if (v.startsWith("inn") || v === "i" || v === "new" || v === "nuevo") return "I";
+  const letra = v.toUpperCase();
+  return ["A", "B", "C"].includes(letra) ? letra : null;
+}
+
+function _normFormato(valor) {
+  const v = _norm(valor);
+  if (v === "lf" || v.startsWith("large") || v.startsWith("grande")) return "LF";
+  if (v === "sf" || v.startsWith("small") || v.startsWith("chic") || v.startsWith("peque")) return "SF";
+  return null;
+}
+
+function _normTier(valor) {
+  const n = parseInt(String(valor).replace(/\D/g, ""), 10);
+  return n >= 1 && n <= 3 ? n : null;
+}
+
+// --- Productos ---------------------------------------------------------------
 
 function getProductos() {
   const lista = _estado.productosImportados || _seed.productos || [];
@@ -517,6 +577,8 @@ function getProductosParaCliente(clienteId) {
   const clases = getConfigPedido().reglasFormato[cliente.formato] || [];
   return getProductos().filter((p) => clases.includes(p.clase));
 }
+
+// --- Ventas ----------------------------------------------------------------
 
 function _ventas() {
   return _estado.ventasImportadas || _seed.ventas || {};
@@ -550,68 +612,89 @@ function getSemanaObjetivoSugerida() {
   return s > 52 ? 1 : s;
 }
 
+// --- Cantidad a colocar cuando la tienda NO tiene historial del producto ----
+// 1) mediana de tiendas del mismo formato Y tier que sí lo venden esa semana
+// 2) si no hay, mediana de tiendas del mismo formato
+// 3) si es innovación y nadie lo vende aún: tabla config.innovacion[formato][tier]
+function _mediana(valores) {
+  if (!valores.length) return null;
+  const v = [...valores].sort((a, b) => a - b);
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+
+function _ventasPares(cliente, sku, semana, mismoTier) {
+  const ventas = _ventas();
+  return _todosClientes()
+    .filter((c) => c.id !== cliente.id && c.formato === cliente.formato && (!mismoTier || c.tier === cliente.tier))
+    .map((c) => ((ventas[c.id] || {})[sku] || [])[semana - 1] || 0)
+    .filter((v) => v > 0);
+}
+
+function getCantidadAColocar(clienteId, sku, semana) {
+  const cliente = getCliente(clienteId);
+  const producto = getProductos().find((p) => p.sku === sku);
+  if (!cliente || !producto) return null;
+  let med = cliente.tier ? _mediana(_ventasPares(cliente, sku, semana, true)) : null;
+  let fuente = med != null ? "tiendas iguales" : null;
+  if (med == null) {
+    med = _mediana(_ventasPares(cliente, sku, semana, false));
+    if (med != null) fuente = "mismo formato";
+  }
+  if (med == null && producto.clase === "I") {
+    const tabla = getConfigPedido().innovacion[cliente.formato] || {};
+    med = tabla[cliente.tier || 3];
+    if (med != null) fuente = "tabla de innovación";
+  }
+  return med == null ? null : { cantidad: Math.ceil(med), fuente };
+}
+
 function getPedidoSugerido(clienteId, semana) {
   const { anioBase } = getConfigPedido();
   const lineas = getProductosParaCliente(clienteId).map((p) => {
     const venta = getVentaSemana(clienteId, p.sku, semana);
     const meta = venta != null && venta > 0 ? venta * (1 + p.crecimiento) : null;
-    // Si la tienda no tiene venta de ese producto, se sugiere una cantidad
-    // inicial para empezar a dejarlo (ver asistente más abajo).
-    const inicial = meta == null ? _cantidadInicial(clienteId, p.sku, semana) : null;
+    const colocar = meta == null ? getCantidadAColocar(clienteId, p.sku, semana) : null;
     return {
       producto: p,
       ventaBase: venta,
       meta,
-      pedido: meta != null ? _pedidoParaSuperar(meta) : inicial,
-      esNuevo: meta == null && inicial != null,
+      pedido: meta != null ? _pedidoParaSuperar(meta) : colocar ? colocar.cantidad : null,
+      esNuevo: meta == null && !!colocar,
     };
   });
   const totalBase = lineas.reduce((a, l) => a + (l.ventaBase || 0), 0);
   const totalPedido = lineas.reduce((a, l) => a + (l.pedido || 0), 0);
-  return { semana, anioBase, anioMeta: anioBase + 1, lineas, totalBase, totalPedido };
+  // La meta solo cuenta productos con historial; lo nuevo a colocar va aparte.
+  const totalMeta = lineas.reduce((a, l) => a + (l.esNuevo ? 0 : l.pedido || 0), 0);
+  const totalNuevos = totalPedido - totalMeta;
+  return { semana, anioBase, anioMeta: anioBase + 1, lineas, totalBase, totalPedido, totalMeta, totalNuevos };
 }
 
 // ---------------------------------------------------------------------------
-// Asistente de sugerencias por tienda
+// Asistente: mensajes por tienda
 // ----------------------------------------------------------------------------
-// Analiza la venta semana a semana y compara con lo que la tienda DEBERÍA
-// tener según su formato (SF/LF) y la clase del producto (A/B/C):
-//   - "no_se_deja":  le toca por formato y no tiene venta en todo el año.
-//   - "dejo_de_dejarse": se vendía, pero las últimas 4 semanas van en cero.
-//   - "bajando": las últimas 4 semanas venden < 80% de las 4 anteriores.
-// Las semanas "recientes" son las 4 previas a la semana que se está pidiendo.
-// Cantidad inicial sugerida = mediana de lo que venden de ese producto, esa
-// semana, las tiendas del mismo formato que sí lo dejan.
+// Tipos (en orden de prioridad):
+//   meta            → cuánto vender esa semana para superar el año base.
+//   innovacion      → producto de innovación que la tienda aún no tiene.
+//   no_se_deja      → le toca por formato y no tiene venta en todo el año.
+//   dejo_de_dejarse → se vendía pero lleva 4 semanas en cero.
+//   bajando         → las últimas 4 semanas venden < 80% de las 4 anteriores.
+// Son CALCULADOS a partir de los datos: verlos (IBP o vista previa admin) no
+// los consume ni los marca como leídos.
 // ---------------------------------------------------------------------------
 
 const _VENTANA = 4;
 const _UMBRAL_BAJA = 0.8;
 
-function _sumaSemanas(serie, desde, n) {
-  // suma n semanas terminando en `desde` (inclusive), hacia atrás, con wrap 1..52
+function _sumaSemanas(serie, hasta, n) {
+  // suma n semanas terminando en `hasta` (inclusive), hacia atrás, con wrap 1..52
   let total = 0;
   for (let i = 0; i < n; i++) {
-    const w = ((desde - 1 - i + 52 * 2) % 52) + 1;
+    const w = ((hasta - 1 - i + 52 * 2) % 52) + 1;
     total += (serie && serie[w - 1]) || 0;
   }
   return total;
-}
-
-function _cantidadInicial(clienteId, sku, semana) {
-  const cliente = getCliente(clienteId);
-  if (!cliente) return null;
-  const ventas = _ventas();
-  const valores = _todosClientes()
-    .filter((c) => c.id !== clienteId && c.formato === cliente.formato)
-    .map((c) => (ventas[c.id] || {})[sku])
-    .filter(Boolean)
-    .map((serie) => serie[semana - 1] || 0)
-    .filter((v) => v > 0)
-    .sort((a, b) => a - b);
-  if (!valores.length) return null;
-  const m = Math.floor(valores.length / 2);
-  const mediana = valores.length % 2 ? valores[m] : (valores[m - 1] + valores[m]) / 2;
-  return Math.ceil(mediana);
 }
 
 function getSugerenciasCliente(clienteId, semana) {
@@ -621,78 +704,132 @@ function getSugerenciasCliente(clienteId, semana) {
   getProductosParaCliente(clienteId).forEach((p) => {
     const serie = ventasCliente[p.sku];
     const totalAnio = serie ? serie.reduce((a, v) => a + (v || 0), 0) : 0;
-    const inicial = _cantidadInicial(clienteId, p.sku, semana);
+    const col = getCantidadAColocar(clienteId, p.sku, semana);
+    const cant = col ? ` (~${col.cantidad} unidades)` : "";
     if (!totalAnio) {
-      sugerencias.push({
-        tipo: "no_se_deja",
-        producto: p,
-        cantidad: inicial,
-        mensaje: `No se está dejando ${p.nombre} y es producto ${p.clase} para este formato. Sugerencia: colocarlo${inicial ? ` (empezar con ~${inicial} unidades)` : ""}.`,
-      });
+      sugerencias.push(
+        p.clase === "I"
+          ? { tipo: "innovacion", producto: p, cantidad: col && col.cantidad, mensaje: `Innovación: ${p.nombre} todavía no está en esta tienda. Sugerencia: colocarlo${cant}.` }
+          : { tipo: "no_se_deja", producto: p, cantidad: col && col.cantidad, mensaje: `No se está dejando ${p.nombre} y es producto ${p.clase} para este formato. Sugerencia: colocarlo${cant}.` }
+      );
       return;
     }
     const reciente = _sumaSemanas(serie, ultima, _VENTANA);
     const previo = _sumaSemanas(serie, ultima - _VENTANA, _VENTANA);
     if (reciente === 0) {
-      sugerencias.push({
-        tipo: "dejo_de_dejarse",
-        producto: p,
-        cantidad: inicial,
-        mensaje: `${p.nombre} (${p.clase}) lleva ${_VENTANA} semanas sin venta. Sugerencia: volver a colocarlo${inicial ? ` (~${inicial} unidades)` : ""}.`,
-      });
+      sugerencias.push({ tipo: "dejo_de_dejarse", producto: p, cantidad: col && col.cantidad, mensaje: `${p.nombre} (${CLASES[p.clase]}) lleva ${_VENTANA} semanas sin venta. Sugerencia: volver a colocarlo${cant}.` });
     } else if (previo > 0 && reciente < previo * _UMBRAL_BAJA) {
       const caida = Math.round((1 - reciente / previo) * 100);
-      sugerencias.push({
-        tipo: "bajando",
-        producto: p,
-        cantidad: null,
-        mensaje: `${p.nombre} (${p.clase}) bajó ${caida}% en las últimas ${_VENTANA} semanas. Revisar exhibición, frescura o espacio en anaquel.`,
-      });
+      sugerencias.push({ tipo: "bajando", producto: p, cantidad: null, mensaje: `${p.nombre} (${CLASES[p.clase]}) bajó ${caida}% en las últimas ${_VENTANA} semanas. Revisar exhibición, frescura o espacio en anaquel.` });
     }
   });
-  const prioridadTipo = { no_se_deja: 0, dejo_de_dejarse: 1, bajando: 2 };
-  return sugerencias.sort(
-    (a, b) => a.producto.clase.localeCompare(b.producto.clase) || prioridadTipo[a.tipo] - prioridadTipo[b.tipo]
-  );
+  const prioridad = { innovacion: 0, no_se_deja: 1, dejo_de_dejarse: 2, bajando: 3 };
+  const ordenClase = { A: 0, I: 1, B: 2, C: 3 };
+  return sugerencias.sort((a, b) => prioridad[a.tipo] - prioridad[b.tipo] || ordenClase[a.producto.clase] - ordenClase[b.producto.clase]);
 }
 
-// Importación de ventas desde CSV (formato largo, una fila por tienda +
-// producto + semana): clienteId,sku,semana,unidades. Reemplaza las ventas
-// que hubiera. Devuelve { filas, clientesSinMatch: [...] }.
+// Todo lo que el IBP ve de una tienda: su meta + las sugerencias.
+function getMensajesCliente(clienteId, semana) {
+  const pedido = getPedidoSugerido(clienteId, semana);
+  const mensajes = [];
+  if (pedido.totalBase > 0) {
+    const crec = ((pedido.totalMeta / pedido.totalBase - 1) * 100).toFixed(1);
+    const extra = pedido.totalNuevos ? ` Más ${pedido.totalNuevos} de productos nuevos a colocar (total ${pedido.totalPedido}).` : "";
+    mensajes.push({
+      tipo: "meta",
+      mensaje: `Meta semana ${semana}: superar ${pedido.totalBase} unidades de ${pedido.anioBase}. Pedir ${pedido.totalMeta} unidades (+${crec}%).${extra}`,
+    });
+  }
+  return [...mensajes, ...getSugerenciasCliente(clienteId, semana)];
+}
+
+// Para la vista previa del admin: mensajes de TODAS las tiendas de un IBP.
+function getMensajesIbp(ibpId, semana) {
+  const ruta = getRutaDeIbp(ibpId);
+  if (!ruta) return [];
+  return getClientesDeRuta(ruta.id).map((c) => ({ cliente: c, mensajes: getMensajesCliente(c.id, semana) }));
+}
+
+// ---------------------------------------------------------------------------
+// Importaciones (filas = objetos {encabezado: valor}, de CSV o Excel)
+// Cada una reporta las tiendas/skus que no cruzan con lo ya cargado.
+// ---------------------------------------------------------------------------
+
+function _idsClientes() {
+  return new Set(_todosClientes().map((c) => c.id));
+}
+
+// Ventas: una fila por tienda + producto + semana.
 function importarVentas(filas) {
   const ventas = {};
-  const idsClientes = new Set(_todosClientes().map((c) => c.id));
+  const ids = _idsClientes();
   const sinMatch = new Set();
   let ok = 0;
   filas.forEach((f) => {
-    const semana = parseInt(f.semana, 10);
-    const unidades = Number(f.unidades);
-    if (!f.clienteId || !f.sku || !(semana >= 1 && semana <= 53) || isNaN(unidades)) return;
-    if (!idsClientes.has(f.clienteId)) sinMatch.add(f.clienteId);
-    ventas[f.clienteId] = ventas[f.clienteId] || {};
-    ventas[f.clienteId][f.sku] = ventas[f.clienteId][f.sku] || [];
-    ventas[f.clienteId][f.sku][semana - 1] = unidades;
+    const tienda = _col(f, _COL_TIENDA);
+    const sku = _col(f, _COL_SKU);
+    const semana = parseInt(_col(f, ["semana", "week", "wk", "sem"]), 10);
+    const unidades = Number(_col(f, ["unidades", "units", "venta", "ventas", "qty", "cantidad"]));
+    if (!tienda || !sku || !(semana >= 1 && semana <= 53) || isNaN(unidades)) return;
+    if (!ids.has(tienda)) sinMatch.add(tienda);
+    ventas[tienda] = ventas[tienda] || {};
+    ventas[tienda][sku] = ventas[tienda][sku] || [];
+    ventas[tienda][sku][semana - 1] = unidades;
     ok++;
   });
   _estado.ventasImportadas = ventas;
   _guardar();
-  return { filas: ok, clientesSinMatch: [...sinMatch] };
+  return { filas: ok, sinMatch: [...sinMatch] };
 }
 
-// Importación de productos activos: sku,nombre,clase,crecimiento.
-// crecimiento acepta "9.9" o "0.099" (si es > 1 se toma como porcentaje).
+// Formato (SF/LF) o Tier (1/2/3) por tienda: tienda + valor.
+function _importarAtributoTienda(filas, campo, columnas, normalizar) {
+  const ids = _idsClientes();
+  const sinMatch = [];
+  const invalidos = [];
+  let ok = 0;
+  filas.forEach((f) => {
+    const tienda = _col(f, _COL_TIENDA);
+    const crudo = _col(f, columnas);
+    if (!tienda) return;
+    const valor = normalizar(crudo);
+    if (valor == null) return invalidos.push(`${tienda}: "${crudo}"`);
+    if (!ids.has(tienda)) return sinMatch.push(tienda);
+    _estado.clienteOverrides[tienda] = { ..._estado.clienteOverrides[tienda], [campo]: valor };
+    ok++;
+  });
+  _guardar();
+  return { filas: ok, sinMatch, invalidos };
+}
+
+function importarFormatos(filas) {
+  return _importarAtributoTienda(filas, "formato", ["formato", "format", "tipo", "tipotienda", "storeformat"], _normFormato);
+}
+
+function importarTiers(filas) {
+  return _importarAtributoTienda(filas, "tier", ["tier", "nivel", "categoria"], _normTier);
+}
+
+// Productos activos: sku, nombre, clase (A/B/C/Innovación), crecimiento.
+// crecimiento acepta "9.9", "9.9%" o "0.099" (si es > 1 se toma como %).
 function importarProductos(filas) {
-  const productos = filas
-    .filter((f) => f.sku && f.clase)
-    .map((f) => {
-      let g = f.crecimiento !== undefined && f.crecimiento !== "" ? Number(String(f.crecimiento).replace("%", "")) : null;
-      if (g != null && g > 1) g = g / 100;
-      return { sku: f.sku, nombre: f.nombre || f.sku, clase: f.clase.toUpperCase(), crecimiento: isNaN(g) ? null : g };
-    });
+  const invalidos = [];
+  const productos = [];
+  filas.forEach((f) => {
+    const sku = _col(f, _COL_SKU);
+    if (!sku) return;
+    const claseCruda = _col(f, ["clase", "tipo", "class", "division", "categoria"]);
+    const clase = _normClase(claseCruda);
+    if (!clase) return invalidos.push(`${sku}: "${claseCruda}"`);
+    const gCrudo = _col(f, ["crecimiento", "growth", "porcentaje", "crec"]);
+    let g = gCrudo !== "" ? Number(gCrudo.replace("%", "").replace(",", ".")) : null;
+    if (g != null && g > 1) g = g / 100;
+    productos.push({ sku, nombre: _col(f, ["nombre", "descripcion", "description", "name"]) || sku, clase, crecimiento: g == null || isNaN(g) ? null : g });
+  });
   _estado.productosImportados = productos;
   _estado.crecimientoOverrides = {};
   _guardar();
-  return productos.length;
+  return { filas: productos.length, invalidos };
 }
 
 // ---------------------------------------------------------------------------
@@ -741,6 +878,12 @@ window.BimboData = {
   getSemanaObjetivoSugerida,
   getPedidoSugerido,
   getSugerenciasCliente,
+  getMensajesCliente,
+  getMensajesIbp,
+  getCantidadAColocar,
+  importarFormatos,
+  importarTiers,
+  CLASES,
   importarVentas,
   importarProductos,
 };

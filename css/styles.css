@@ -1091,3 +1091,27 @@ label.field {
   text-transform: uppercase;
   color: var(--verde);
 }
+.clase-tag.clase-I { background: var(--accent); }
+.matriz-innovacion { border-collapse: collapse; font-size: 13px; }
+.matriz-innovacion th, .matriz-innovacion td { padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border); }
+.matriz-innovacion th:first-child, .matriz-innovacion td:first-child { text-align: left; }
+.matriz-innovacion input { width: 56px; text-align: right; }
+.preview-banner {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: #eef4ff;
+  border: 1px solid #c9dafc;
+  color: #24406e;
+  font-size: 13px;
+}
+.preview-tienda { margin-bottom: 12px; }
+.preview-tienda .asistente { margin-top: 8px; }
+.filtros-preview { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filtros-preview select { padding: 6px 8px; }
+.tono-morado { --tono: #7b3fbf; }
+.clase-tag.clase-I { background: #7b3fbf; }
+.import-bloque { padding: 12px 0; border-top: 1px solid var(--border); }
+.import-bloque:first-of-type { border-top: none; }
+.import-bloque .card-desc { margin: 4px 0 8px; }
+.import-bloque .resultado { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
