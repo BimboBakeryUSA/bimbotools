@@ -39,6 +39,24 @@ Luego abre `http://localhost:8080`.
 - `manifest.json` + `sw.js` + `icons/` — lo que hace la app instalable como
   PWA.
 
+## Pedido sugerido + asistente (IBP)
+
+- En `ibp.html`, cada tienda tiene **Ver pedido**: por cada producto que le toca
+  según su formato (Small/Large Format) y la clase del producto (A/B/C), muestra
+  la venta del año base en esa misma semana, el % de crecimiento y cuánto
+  **pedir para superarla**: `pedido = siguiente entero > venta × (1 + %)`
+  (100 × 9.9% → 110; 100 × 10% → 111). Por defecto muestra la semana siguiente
+  a la actual.
+- **Asistente**: avisa de productos que le tocan a la tienda y no se dejan
+  ("Colocar", con cantidad inicial = mediana de tiendas del mismo formato),
+  que llevan 4 semanas en cero ("Recuperar") o que cayeron más de 20% ("Bajando").
+- Admin → pestaña **Ventas y productos**: importar ventas
+  (`clienteId,sku,semana,unidades`), productos (`sku,nombre,clase,crecimiento`),
+  ajustar el % por producto y qué clases aplican a cada formato. El formato de
+  cada tienda se edita en la pestaña Clientes.
+- `data/seed.json` trae productos y ventas **de ejemplo**, con algunos huecos
+  a propósito para que el asistente tenga qué sugerir.
+
 ## Estado actual (demo funcional)
 
 Todo corre en el navegador con datos de ejemplo + `localStorage` (para que

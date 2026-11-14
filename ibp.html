@@ -43,6 +43,20 @@
     <div class="card">
       <div class="card-head">
         <div>
+          <h2 class="card-title"><span id="pedidoIcono"></span>Pedido sugerido</h2>
+          <p class="card-desc" id="pedidoDesc"></p>
+        </div>
+      </div>
+      <div class="semana-picker">
+        <button class="btn btn-secondary btn-small" id="semanaPrev" aria-label="Semana anterior">‹</button>
+        <strong id="semanaLabel"></strong>
+        <button class="btn btn-secondary btn-small" id="semanaNext" aria-label="Semana siguiente">›</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
           <h2 class="card-title" id="paradasTitulo">Paradas de hoy</h2>
           <p class="card-desc">Ordenadas por cercanía. Se marcan solas al llegar.</p>
         </div>
@@ -86,7 +100,62 @@
     document.getElementById("geoIcono").innerHTML = icono("pin", 14);
     document.getElementById("btnAgregar").innerHTML = icono("plus", 14) + "Agregar cliente";
 
+    document.getElementById("pedidoIcono").innerHTML = icono("cart", 16);
+
     let diaSeleccionado = null; // se fija a "hoy" real en el primer render
+    let semanaPedido = null; // semana del año meta que se está pidiendo (default: la siguiente)
+    const pedidosAbiertos = new Set(); // clienteIds con el pedido desplegado
+
+    const FORMATO_NOMBRE = { SF: "Small Format", LF: "Large Format" };
+
+    const TIPO_SUG = {
+      no_se_deja: { etiqueta: "Colocar", tono: "rojo" },
+      dejo_de_dejarse: { etiqueta: "Recuperar", tono: "amarillo" },
+      bajando: { etiqueta: "Bajando", tono: "gris" },
+    };
+
+    function htmlSugerencias(clienteId) {
+      const sugs = BimboData.getSugerenciasCliente(clienteId, semanaPedido);
+      if (!sugs.length) return "";
+      return `<div class="asistente">
+        <div class="asistente-titulo">${icono("spark", 14)}Asistente · ${sugs.length} sugerencia${sugs.length > 1 ? "s" : ""}</div>
+        ${sugs
+          .map((g) => `<div class="sug"><span class="chip tono-${TIPO_SUG[g.tipo].tono}">${TIPO_SUG[g.tipo].etiqueta}</span><span>${g.mensaje}</span></div>`)
+          .join("")}
+      </div>`;
+    }
+
+    function htmlPedido(clienteId) {
+      const pedido = BimboData.getPedidoSugerido(clienteId, semanaPedido);
+      if (!pedido.lineas.length) {
+        return `<div class="pedido"><div class="empty-state">No hay productos activos para este formato de tienda.</div></div>`;
+      }
+      const filas = pedido.lineas
+        .map((l) => {
+          const pct = (l.producto.crecimiento * 100).toFixed(1).replace(/\.0$/, "") + "%";
+          return `<tr>
+            <td><span class="clase-tag clase-${l.producto.clase}">${l.producto.clase}</span>${l.producto.nombre}</td>
+            <td class="num">${l.ventaBase != null ? l.ventaBase : "—"}</td>
+            <td class="num">${pct}</td>
+            <td class="num pedir">${l.pedido != null ? l.pedido : "—"}${l.esNuevo ? '<span class="nuevo">nuevo</span>' : ""}</td>
+          </tr>`;
+        })
+        .join("");
+      return `${htmlSugerencias(clienteId)}<div class="pedido">
+        <table class="pedido-tabla">
+          <thead><tr><th>Producto</th><th class="num">${pedido.anioBase}</th><th class="num">Crec.</th><th class="num">Pedir</th></tr></thead>
+          <tbody>${filas}</tbody>
+          <tfoot><tr><td>Total</td><td class="num">${pedido.totalBase}</td><td></td><td class="num pedir">${pedido.totalPedido}</td></tr></tfoot>
+        </table>
+      </div>`;
+    }
+
+    function renderSemanaPedido() {
+      const { anioBase } = BimboData.getConfigPedido();
+      document.getElementById("semanaLabel").textContent = `Semana ${semanaPedido} · ${anioBase + 1}`;
+      document.getElementById("pedidoDesc").textContent =
+        `Cuánto pedir para superar la venta de la semana ${semanaPedido} de ${anioBase} más el % de crecimiento de cada producto. Toca "Ver pedido" en una tienda para ver su pedido y las sugerencias del asistente.`;
+    }
 
     function renderDiasTabs(diaDeHoy) {
       const dias = BimboData.getDiasSemana();
@@ -105,6 +174,8 @@
       await BimboData.init();
       const diaDeHoy = BimboData.getDiaDeHoy();
       if (!diaSeleccionado) diaSeleccionado = diaDeHoy;
+      if (!semanaPedido) semanaPedido = BimboData.getSemanaObjetivoSugerida();
+      renderSemanaPedido();
 
       const usuario = BimboData.getUsuario(ibpId);
       document.getElementById("titulo").textContent = usuario ? usuario.nombre : "Mi Ruta";
@@ -158,10 +229,16 @@
                   <strong>${p.cliente.nombre}</strong>
                   <span class="dir">${p.cliente.direccion}</span>
                   <div class="chip-row">
+                    <span class="chip tono-gris">${FORMATO_NOMBRE[p.cliente.formato] || "Formato sin definir"}</span>
+                    ${(() => { const n = BimboData.getSugerenciasCliente(p.cliente.id, semanaPedido).length; return n ? `<span class="chip tono-amarillo">${n} sugerencia${n > 1 ? "s" : ""}</span>` : ""; })()}
                     <span class="chip tono-${sem}" title="${etiquetaSemaforo(sem)}">Frescura ${frescuraPct}</span>
                     ${p.visitada ? `<span class="chip tono-verde">Visitado · ${p.metodoVisita}</span>` : ""}
                   </div>
-                  <div class="stop-actions">${acciones}</div>
+                  <div class="stop-actions">
+                    <button class="btn btn-secondary btn-small" onclick="togglePedido('${p.cliente.id}')">${icono("cart", 14)}${pedidosAbiertos.has(p.cliente.id) ? "Ocultar pedido" : "Ver pedido"}</button>
+                    ${acciones}
+                  </div>
+                  ${pedidosAbiertos.has(p.cliente.id) ? htmlPedido(p.cliente.id) : ""}
                 </div>
               </div>
             `;
@@ -215,6 +292,18 @@
             .join("")
         : `<div class="empty-state">Todos los clientes de tu ruta ya están en la lista de hoy.</div>`;
     }
+
+    function togglePedido(id) {
+      pedidosAbiertos.has(id) ? pedidosAbiertos.delete(id) : pedidosAbiertos.add(id);
+      render();
+    }
+
+    function moverSemana(delta) {
+      semanaPedido = ((semanaPedido - 1 + delta + 52) % 52) + 1;
+      render();
+    }
+    document.getElementById("semanaPrev").addEventListener("click", () => moverSemana(-1));
+    document.getElementById("semanaNext").addEventListener("click", () => moverSemana(1));
 
     function marcar(id) {
       BimboData.marcarVisitado(id, "manual");

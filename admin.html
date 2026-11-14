@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="back" href="index.html" aria-label="Volver"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
-    <div class="topbar-title"><h1>Administrador</h1><span class="topbar-sub">Clientes · Frescura · Historial</span></div>
+    <div class="topbar-title"><h1>Administrador</h1><span class="topbar-sub">Clientes · Frescura · Ventas · Historial</span></div>
     <span class="topbar-spacer"></span>
   </header>
 
@@ -23,6 +23,7 @@
       <a class="pill active" data-tab="clientes">Clientes</a>
       <a class="pill" data-tab="importar">Importar CSV</a>
       <a class="pill" data-tab="frescura">% Frescura</a>
+      <a class="pill" data-tab="pedido">Ventas y productos</a>
       <a class="pill" data-tab="historial">Historial de cambios</a>
     </div>
 
@@ -42,6 +43,12 @@
         </label>
         <label class="field">Ruta
           <select id="fRuta"></select>
+        </label>
+        <label class="field">Formato de tienda
+          <select id="fFormato">
+            <option value="SF">Small Format</option>
+            <option value="LF">Large Format</option>
+          </select>
         </label>
         <label class="field">Frecuencia
           <select id="fFrecuencia">
@@ -76,7 +83,9 @@
         <div>
           <h2 class="card-title"><span data-icono="plus"></span>Importar clientes (CSV)</h2>
         <p class="card-desc">
-          Columnas esperadas: <code>nombre,direccion,rutaId,frecuencia,dias,lat,lng</code>.
+          Columnas esperadas: <code>id,nombre,direccion,rutaId,frecuencia,dias,lat,lng,formato</code>
+          (<code>id</code> es el número de tienda que usa el archivo de ventas;
+          <code>formato</code> es SF o LF).
           Para bisemanal, la columna <code>dias</code> acepta dos días separados por
           "|" (ej. <code>lunes|jueves</code>). Si faltan lat/lng, el cliente queda
           marcado como "geocodificación pendiente" (hoy no hay API key de Google
@@ -98,6 +107,59 @@
         </div>
       </div>
         <div id="listaFrescura"></div>
+      </div>
+    </div>
+
+    <div id="tabPedido" style="display:none;">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title"><span data-icono="cart"></span>Ventas semanales del año base</h2>
+            <p class="card-desc">
+              CSV con una fila por tienda, producto y semana:
+              <code>clienteId,sku,semana,unidades</code> (semana 1–53). Reemplaza las
+              ventas cargadas antes. El IBP verá cuánto pedir para superar esa misma
+              semana el año siguiente.
+            </p>
+          </div>
+        </div>
+        <label class="field">Año de las ventas
+          <input type="number" id="fAnioBase" style="width:110px;" />
+        </label>
+        <input type="file" id="fileVentas" accept=".csv" style="margin-top:10px;" />
+        <div id="resultadoVentas" style="margin-top:10px; font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title"><span data-icono="box"></span>Productos activos</h2>
+            <p class="card-desc">
+              CSV: <code>sku,nombre,clase,crecimiento</code> — clase A, B o C;
+              crecimiento como <code>9.9</code> o <code>0.099</code>. Reemplaza la
+              lista actual. El % se puede ajustar abajo producto por producto.
+            </p>
+          </div>
+        </div>
+        <input type="file" id="fileProductos" accept=".csv" />
+        <div id="resultadoProductos" style="margin: 10px 0; font-size:13px;"></div>
+        <label class="field">% de crecimiento por defecto (si el producto no trae uno)
+          <span style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="fCrecDefault" style="width:80px;" /> %
+            <button class="btn btn-primary btn-small" id="btnCrecDefault">Guardar</button>
+          </span>
+        </label>
+        <div class="tabla-scroll" style="margin-top:12px;"><div id="listaProductos"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title"><span data-icono="store"></span>Qué clases aplican a cada formato</h2>
+            <p class="card-desc">Un producto aparece en el pedido de una tienda solo si su clase está marcada para el formato de esa tienda. El formato de cada tienda se cambia en la pestaña Clientes.</p>
+          </div>
+        </div>
+        <div id="reglasFormato"></div>
       </div>
     </div>
 
@@ -159,7 +221,87 @@
       renderResumen();
       renderListaClientes();
       renderFrescura();
+      renderPedido();
       renderHistorial();
+    }
+
+    // CSV simple: primera fila = encabezados. Acepta coma o punto y coma.
+    function parseCsv(texto) {
+      const lineas = texto.replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim());
+      if (!lineas.length) return [];
+      const sep = lineas[0].includes(";") && !lineas[0].includes(",") ? ";" : ",";
+      const header = lineas[0].split(sep).map((h) => h.trim());
+      return lineas.slice(1).map((l) => {
+        const valores = l.split(sep);
+        const fila = {};
+        header.forEach((h, i) => (fila[h] = (valores[i] || "").trim()));
+        return fila;
+      });
+    }
+
+    function leerArchivo(input, cb) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => cb(parseCsv(reader.result));
+      reader.readAsText(file);
+    }
+
+    function renderPedido() {
+      const cfg = BimboData.getConfigPedido();
+      document.getElementById("fAnioBase").value = cfg.anioBase;
+      document.getElementById("fCrecDefault").value = +(cfg.crecimientoDefault * 100).toFixed(2);
+
+      const productos = BimboData.getProductos();
+      document.getElementById("listaProductos").innerHTML = productos.length
+        ? `<table class="pedido-tabla">
+            <thead><tr><th>SKU</th><th>Producto</th><th>Clase</th><th class="num">Crecimiento</th></tr></thead>
+            <tbody>${productos
+              .map(
+                (p) => `<tr>
+                  <td>${p.sku}</td>
+                  <td>${p.nombre}</td>
+                  <td><span class="clase-tag clase-${p.clase}">${p.clase}</span></td>
+                  <td class="num"><input type="text" style="width:64px; text-align:right;" value="${+(p.crecimiento * 100).toFixed(2)}"
+                    onchange="guardarCrecimiento('${p.sku}', this.value)" /> %</td>
+                </tr>`
+              )
+              .join("")}</tbody>
+          </table>`
+        : `<div class="empty-state">Sin productos cargados.</div>`;
+
+      const formatos = [["SF", "Small Format"], ["LF", "Large Format"]];
+      document.getElementById("reglasFormato").innerHTML = formatos
+        .map(
+          ([f, nombre]) => `
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0;">
+            <strong>${nombre}</strong>
+            <div class="dias-pills" style="margin:0;">
+              ${["A", "B", "C"]
+                .map((cl) => {
+                  const activo = (cfg.reglasFormato[f] || []).includes(cl);
+                  return `<label class="dia-pill ${activo ? "activo" : ""}" onclick="event.preventDefault(); toggleRegla('${f}','${cl}')">${cl}</label>`;
+                })
+                .join("")}
+            </div>
+          </div>`
+        )
+        .join("");
+    }
+
+    function guardarCrecimiento(sku, valor) {
+      const n = Number(String(valor).replace("%", ""));
+      if (isNaN(n)) return;
+      BimboData.setCrecimientoProducto(sku, n / 100);
+      renderPedido();
+    }
+
+    function toggleRegla(formato, clase) {
+      const reglas = { ...BimboData.getConfigPedido().reglasFormato };
+      const actual = reglas[formato] || [];
+      reglas[formato] = actual.includes(clase) ? actual.filter((c) => c !== clase) : [...actual, clase].sort();
+      BimboData.actualizarConfigPedido({ reglasFormato: reglas });
+      renderPedido();
     }
 
     function renderResumen() {
@@ -223,6 +365,10 @@
                   <div class="fila-selects">
                     <select onchange="guardarCampo('${c.id}','rutaId',this.value)">
                       ${rutas.map((r) => `<option value="${r.id}" ${r.id === c.rutaId ? "selected" : ""}>${r.nombre}</option>`).join("")}
+                    </select>
+                    <select onchange="guardarCampo('${c.id}','formato',this.value)">
+                      <option value="SF" ${c.formato !== "LF" ? "selected" : ""}>Small Format</option>
+                      <option value="LF" ${c.formato === "LF" ? "selected" : ""}>Large Format</option>
                     </select>
                     <select onchange="guardarCampo('${c.id}','frecuencia',this.value)">
                       <option value="semanal" ${c.frecuencia === "semanal" ? "selected" : ""}>Semanal</option>
@@ -333,6 +479,7 @@
         direccion: document.getElementById("fDireccion").value.trim(),
         rutaId: document.getElementById("fRuta").value,
         frecuencia: document.getElementById("fFrecuencia").value,
+        formato: document.getElementById("fFormato").value,
         diasSemana: nuevoClienteDias,
         lat: document.getElementById("fLat").value,
         lng: document.getElementById("fLng").value,
@@ -366,6 +513,8 @@
             .map((d) => d.trim())
             .filter(Boolean);
           BimboData.agregarClienteAdmin({
+            id: fila.id || undefined,
+            formato: fila.formato,
             nombre: fila.nombre,
             direccion: fila.direccion,
             rutaId: fila.rutaId,
@@ -382,12 +531,42 @@
       reader.readAsText(file);
     });
 
+    document.getElementById("fAnioBase").addEventListener("change", (e) => {
+      const n = parseInt(e.target.value, 10);
+      if (n > 2000) BimboData.actualizarConfigPedido({ anioBase: n });
+    });
+
+    document.getElementById("btnCrecDefault").addEventListener("click", () => {
+      const n = Number(document.getElementById("fCrecDefault").value);
+      if (!isNaN(n)) BimboData.actualizarConfigPedido({ crecimientoDefault: n / 100 });
+      renderPedido();
+    });
+
+    document.getElementById("fileVentas").addEventListener("change", (e) => {
+      leerArchivo(e.target, (filas) => {
+        const r = BimboData.importarVentas(filas);
+        document.getElementById("resultadoVentas").innerHTML =
+          `${r.filas} filas de venta cargadas.` +
+          (r.clientesSinMatch.length
+            ? ` <span class="chip tono-amarillo">${r.clientesSinMatch.length} tiendas no existen en Clientes: ${r.clientesSinMatch.slice(0, 10).join(", ")}${r.clientesSinMatch.length > 10 ? "…" : ""}</span>`
+            : "");
+      });
+    });
+
+    document.getElementById("fileProductos").addEventListener("change", (e) => {
+      leerArchivo(e.target, (filas) => {
+        const n = BimboData.importarProductos(filas);
+        document.getElementById("resultadoProductos").textContent = `${n} productos cargados.`;
+        renderPedido();
+      });
+    });
+
     document.getElementById("tabs").addEventListener("click", (e) => {
       const el = e.target.closest(".pill");
       if (!el) return;
       document.querySelectorAll("#tabs .pill").forEach((p) => p.classList.remove("active"));
       el.classList.add("active");
-      ["clientes", "importar", "frescura", "historial"].forEach((t) => {
+      ["clientes", "importar", "frescura", "pedido", "historial"].forEach((t) => {
         document.getElementById("tab" + t[0].toUpperCase() + t.slice(1)).style.display =
           t === el.dataset.tab ? "block" : "none";
       });
