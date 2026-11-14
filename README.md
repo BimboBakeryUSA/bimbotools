@@ -64,6 +64,12 @@ Cada import avisa qué tiendas no cruzan con Clientes y qué valores no reconoce
 - *Colocar*: le toca por formato y no se deja en todo el año.
 - *Recuperar*: 4 semanas sin venta. *Bajando*: cayó más de 20%.
 
+**Tiendas sin visita**: al abrir la app, el IBP ve las tiendas de su ruta con
+más de 14 días sin visita (configurable en admin), de la más atrasada a la
+menos, con botón "Agregar a hoy". Última visita = la más reciente entre la
+fecha importada (Admin → Datos de venta → *Última visita*, opcional) y las
+visitas marcadas en la app. "Ocultar por hoy" solo aplica a ese teléfono.
+
 **Vista previa del admin** (pestaña *Mensajes del IBP*): elige IBP y semana y ve
 exactamente lo mismo que el IBP, más sus notificaciones. Es solo lectura: no
 marca nada como leído.

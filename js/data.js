@@ -505,6 +505,7 @@ function getConfigPedido() {
     crecimientoDefault: o.crecimientoDefault != null ? o.crecimientoDefault : base.crecimientoDefault != null ? base.crecimientoDefault : 0.1,
     reglasFormato: o.reglasFormato || base.reglasFormato || { SF: ["A", "B", "I"], LF: ["A", "B", "C", "I"] },
     innovacion: o.innovacion || base.innovacion || _INNOVACION_DEFAULT,
+    diasSinVisita: o.diasSinVisita || base.diasSinVisita || 14,
   };
 }
 
@@ -751,6 +752,77 @@ function getMensajesIbp(ibpId, semana) {
 }
 
 // ---------------------------------------------------------------------------
+// Tiendas sin visita
+// ----------------------------------------------------------------------------
+// Última visita = la más reciente entre (a) la fecha cargada por admin /
+// seed (`ultimaVisita`, sirve para arrancar con el historial real) y (b) las
+// visitas marcadas en la app (geofence o botón). Al marcar una visita hoy, la
+// tienda sale sola de la lista.
+// ---------------------------------------------------------------------------
+
+function getUltimaVisita(clienteId) {
+  const cliente = getCliente(clienteId);
+  let ultima = cliente && cliente.ultimaVisita ? cliente.ultimaVisita : null;
+  const prefijo = clienteId + "__";
+  Object.keys(_estado.visitas).forEach((k) => {
+    if (!k.startsWith(prefijo) || !_estado.visitas[k].visitada) return;
+    const fecha = k.slice(prefijo.length);
+    if (!ultima || fecha > ultima) ultima = fecha;
+  });
+  return ultima;
+}
+
+function _diasEntre(desdeISO, hasta) {
+  const [y, m, d] = desdeISO.split("-").map(Number);
+  const desde = new Date(y, m - 1, d);
+  const h = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+  return Math.round((h - desde) / 86400000);
+}
+
+// Tiendas de la ruta del IBP que llevan MÁS de `dias` días sin visita
+// (default config.diasSinVisita = 14). Las que nunca se han visitado van
+// primero; luego de la más atrasada a la menos.
+function getClientesSinVisita(ibpId, dias) {
+  const umbral = dias || getConfigPedido().diasSinVisita;
+  const ruta = getRutaDeIbp(ibpId);
+  if (!ruta) return [];
+  const hoy = new Date();
+  const diaHoy = _diaDeHoy();
+  return getClientesDeRuta(ruta.id)
+    .map((c) => {
+      const ultima = getUltimaVisita(c.id);
+      const diasSin = ultima ? _diasEntre(ultima, hoy) : null;
+      return {
+        cliente: c,
+        ultimaVisita: ultima,
+        diasSinVisita: diasSin,
+        semanasSinVisita: diasSin != null ? Math.floor(diasSin / 7) : null,
+        tocaHoy: _tocaEnDia(c, diaHoy),
+      };
+    })
+    .filter((x) => x.diasSinVisita == null || x.diasSinVisita > umbral)
+    .sort((a, b) => (b.diasSinVisita == null ? Infinity : b.diasSinVisita) - (a.diasSinVisita == null ? Infinity : a.diasSinVisita));
+}
+
+// Fecha de "última visita" desde Excel/CSV: acepta 2026-10-24, 10/24/2026,
+// 10/24/26 (formato EE.UU., mes primero).
+function _normFecha(valor) {
+  const v = String(valor || "").trim();
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    const anio = m[3].length === 2 ? "20" + m[3] : m[3];
+    return `${anio}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function importarUltimasVisitas(filas) {
+  return _importarAtributoTienda(filas, "ultimaVisita", ["ultimaVisita", "ultima visita", "fecha", "lastvisit", "last visit", "fechavisita"], _normFecha);
+}
+
+// ---------------------------------------------------------------------------
 // Importaciones (filas = objetos {encabezado: valor}, de CSV o Excel)
 // Cada una reporta las tiendas/skus que no cruzan con lo ya cargado.
 // ---------------------------------------------------------------------------
@@ -883,6 +955,9 @@ window.BimboData = {
   getCantidadAColocar,
   importarFormatos,
   importarTiers,
+  importarUltimasVisitas,
+  getUltimaVisita,
+  getClientesSinVisita,
   CLASES,
   importarVentas,
   importarProductos,

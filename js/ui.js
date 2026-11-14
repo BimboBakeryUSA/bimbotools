@@ -84,5 +84,46 @@ const BimboUI = (() => {
     </div>`;
   }
 
-  return { icono, tonoPct, etiquetaSemaforo, iniciales, statCard, htmlMensajes, TIPO_MENSAJE };
+  // Lista de tiendas sin visita. `accion(item)` devuelve el HTML del botón de
+  // cada fila (el IBP tiene "Agregar a hoy"; la vista previa del admin, nada).
+  const DIA_CORTO = { lunes: "Lun", martes: "Mar", miercoles: "Mié", jueves: "Jue", viernes: "Vie", sabado: "Sáb" };
+
+  function textoSinVisita(x) {
+    if (x.diasSinVisita == null) return "Sin visita registrada";
+    return x.semanasSinVisita >= 2 ? `${x.semanasSinVisita} semanas sin visita` : `${x.diasSinVisita} días sin visita`;
+  }
+
+  function tonoSinVisita(x) {
+    if (x.diasSinVisita == null || x.semanasSinVisita >= 4) return "rojo";
+    if (x.semanasSinVisita >= 3) return "amarillo";
+    return "gris";
+  }
+
+  function fechaCorta(iso) {
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("es", { day: "numeric", month: "short" });
+  }
+
+  function htmlSinVisita(lista, accion) {
+    return lista
+      .map(
+        (x) => `<div class="sin-visita-item">
+          <div class="sin-visita-info">
+            <strong>${x.cliente.nombre}</strong>
+            <span class="dir">${x.cliente.direccion || ""}</span>
+            <div class="chip-row">
+              <span class="chip tono-${tonoSinVisita(x)}">${textoSinVisita(x)}</span>
+              ${x.ultimaVisita ? `<span class="chip tono-gris">Última: ${fechaCorta(x.ultimaVisita)}</span>` : ""}
+              <span class="chip tono-gris">Pauta: ${(x.cliente.diasSemana || []).map((d) => DIA_CORTO[d] || d).join(", ") || "—"}</span>
+              ${x.tocaHoy ? `<span class="chip tono-verde">Ya está en la ruta de hoy</span>` : ""}
+            </div>
+          </div>
+          ${accion ? accion(x) : ""}
+        </div>`
+      )
+      .join("");
+  }
+
+  return { icono, tonoPct, etiquetaSemaforo, iniciales, statCard, htmlMensajes, TIPO_MENSAJE, htmlSinVisita };
 })();

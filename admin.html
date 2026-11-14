@@ -154,6 +154,13 @@
         </div>
 
         <div class="import-bloque">
+          <strong>Última visita por tienda (opcional)</strong>
+          <p class="card-desc">Columnas: <code>tienda, ultimaVisita</code> — fecha como 2026-10-24 o 10/24/2026. Sirve para arrancar con el historial real; después la app usa las visitas que marca el IBP.</p>
+          <input type="file" data-import="visitas" accept=".csv,.xlsx,.xls" />
+          <div class="resultado" id="res-visitas"></div>
+        </div>
+
+        <div class="import-bloque">
           <strong>4. Productos activos (A / B / C / Innovación)</strong>
           <p class="card-desc">Columnas: <code>sku, nombre, clase, crecimiento</code> — clase A, B, C o Innovación; crecimiento como 9.9 o 0.099. Reemplaza la lista actual.</p>
           <input type="file" data-import="productos" accept=".csv,.xlsx,.xls" />
@@ -222,6 +229,16 @@
           </select></label>
         </div>
         <div class="summary-grid" id="pvResumen" style="margin-top:12px;"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title"><span data-icono="alert"></span>Tiendas sin visita</h2>
+            <p class="card-desc">Le aparece al IBP al abrir la app. Avisar cuando una tienda lleve más de
+              <input type="number" id="fDiasSinVisita" min="1" style="width:60px;" /> días sin visita.</p>
+          </div>
+        </div>
+        <div id="pvSinVisita"></div>
       </div>
       <div class="card">
         <div class="card-head"><h2 class="card-title"><span data-icono="bell"></span>Notificaciones del IBP</h2></div>
@@ -429,6 +446,12 @@
         .map((tipo) => statCard({ titulo: T[tipo].etiqueta, icono: tipo === "meta" ? "cart" : "spark", tono: cuenta[tipo] ? T[tipo].tono : "gris", valor: cuenta[tipo] || 0, sub: tipo === "meta" ? "tiendas con meta" : "sugerencias" }))
         .join("");
 
+      document.getElementById("fDiasSinVisita").value = BimboData.getConfigPedido().diasSinVisita;
+      const sinVisita = BimboData.getClientesSinVisita(ibpId);
+      document.getElementById("pvSinVisita").innerHTML = sinVisita.length
+        ? BimboUI.htmlSinVisita(sinVisita)
+        : `<p class="card-desc">Todas las tiendas de este IBP tienen visita reciente.</p>`;
+
       const notifs = BimboData.getNotificaciones(ibpId); // solo se leen: NO se llama a marcarNotificacionesLeidas
       document.getElementById("pvNotifs").innerHTML = notifs.length
         ? notifs
@@ -456,6 +479,12 @@
             .join("")
         : `<div class="card"><div class="empty-state">No hay mensajes de este tipo para esta semana.</div></div>`;
     }
+
+    document.getElementById("fDiasSinVisita").addEventListener("change", (e) => {
+      const n = parseInt(e.target.value, 10);
+      if (n > 0) BimboData.actualizarConfigPedido({ diasSinVisita: n });
+      renderPreview();
+    });
 
     ["pvIbp", "pvSemana", "pvTipo"].forEach((id) => document.getElementById(id).addEventListener("change", renderPreview));
 
@@ -704,6 +733,7 @@
       formatos: (f) => BimboData.importarFormatos(f),
       tiers: (f) => BimboData.importarTiers(f),
       productos: (f) => BimboData.importarProductos(f),
+      visitas: (f) => BimboData.importarUltimasVisitas(f),
     };
 
     function lista(arr) {

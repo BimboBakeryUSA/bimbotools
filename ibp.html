@@ -19,6 +19,17 @@
   <main>
     <div class="card" id="notifPanel" style="display:none;"></div>
 
+    <div class="card card-alerta" id="sinVisitaCard" style="display:none;">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title"><span id="sinVisitaIcono"></span><span id="sinVisitaTitulo"></span></h2>
+          <p class="card-desc" id="sinVisitaDesc"></p>
+        </div>
+      </div>
+      <div id="sinVisitaLista"></div>
+      <button class="btn btn-secondary btn-small" id="btnOcultarSinVisita" style="margin-top:10px;">Ocultar por hoy</button>
+    </div>
+
     <div class="pill-select" id="diasTabs"></div>
 
     <div class="card">
@@ -101,6 +112,38 @@
     document.getElementById("btnAgregar").innerHTML = icono("plus", 14) + "Agregar cliente";
 
     document.getElementById("pedidoIcono").innerHTML = icono("cart", 16);
+
+    document.getElementById("sinVisitaIcono").innerHTML = icono("alert", 16);
+
+    // "Ocultar por hoy" es solo una comodidad de este teléfono: mañana vuelve
+    // a salir si la tienda sigue sin visita.
+    const CLAVE_OCULTAR = `bimbo_sinvisita_oculto_${ibpId}`;
+    function ocultoHoy() {
+      try { return localStorage.getItem(CLAVE_OCULTAR) === new Date().toDateString(); } catch (e) { return false; }
+    }
+
+    function renderSinVisita() {
+      const lista = BimboData.getClientesSinVisita(ibpId);
+      const card = document.getElementById("sinVisitaCard");
+      if (!lista.length || ocultoHoy()) {
+        card.style.display = "none";
+        return;
+      }
+      const dias = BimboData.getConfigPedido().diasSinVisita;
+      card.style.display = "";
+      document.getElementById("sinVisitaTitulo").textContent =
+        `${lista.length} tienda${lista.length > 1 ? "s" : ""} sin visita hace más de ${Math.round(dias / 7)} semanas`;
+      document.getElementById("sinVisitaDesc").textContent =
+        "Se sugiere visitarlas. Agrégalas a la ruta de hoy; salen de esta lista en cuanto se marca la visita.";
+      document.getElementById("sinVisitaLista").innerHTML = BimboUI.htmlSinVisita(lista, (x) =>
+        x.tocaHoy ? "" : `<button class="btn btn-primary btn-small" onclick="agregar('${x.cliente.id}')">${icono("plus", 14)}Agregar a hoy</button>`
+      );
+    }
+
+    document.getElementById("btnOcultarSinVisita").addEventListener("click", () => {
+      try { localStorage.setItem(CLAVE_OCULTAR, new Date().toDateString()); } catch (e) {}
+      renderSinVisita();
+    });
 
     let diaSeleccionado = null; // se fija a "hoy" real en el primer render
     let semanaPedido = null; // semana del año meta que se está pidiendo (default: la siguiente)
@@ -235,6 +278,7 @@
       if (!esHoyReal) document.getElementById("panelAgregar").style.display = "none";
 
       renderNotificaciones();
+      renderSinVisita();
       renderPanelAgregar(ruta);
     }
 
