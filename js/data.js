@@ -49,6 +49,10 @@ async function init() {
   if (!_estado.clientesExtra) _estado.clientesExtra = [];
   if (!_estado.frescuraExtra) _estado.frescuraExtra = {};
   if (!_estado.clienteOverrides) _estado.clienteOverrides = {};
+  // Rutas e IBPs dados de alta desde admin (por número de ruta, ej. 5532).
+  if (!_estado.rutasExtra) _estado.rutasExtra = [];
+  if (!_estado.usuariosExtra) _estado.usuariosExtra = [];
+  if (!_estado.ibpsExtraDeMSL) _estado.ibpsExtraDeMSL = {}; // mslId -> [ibpId]
   // Pedido sugerido (ver sección más abajo). Todo lo importado desde admin
   // reemplaza al seed de ejemplo.
   if (_estado.ventasImportadas === undefined) _estado.ventasImportadas = null; // { clienteId: { sku: [s1..s53] } }
@@ -74,17 +78,18 @@ function _diaDeHoy() {
 // ---------------------------------------------------------------------------
 
 function getUsuarios() {
-  return _seed.usuarios;
+  return [..._seed.usuarios, ..._estado.usuariosExtra];
 }
 
 function getUsuario(id) {
-  return _seed.usuarios.find((u) => u.id === id) || null;
+  return getUsuarios().find((u) => u.id === id) || null;
 }
 
 function getIbpsDeMSL(mslId) {
   const msl = getUsuario(mslId);
   if (!msl) return [];
-  return msl.ibpsACargo.map((id) => getUsuario(id)).filter(Boolean);
+  const ids = [...(msl.ibpsACargo || []), ...(_estado.ibpsExtraDeMSL[mslId] || [])];
+  return ids.map((id) => getUsuario(id)).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------
@@ -111,16 +116,31 @@ function getCliente(id) {
   return _todosClientes().find((c) => c.id === id) || null;
 }
 
-function getRuta(rutaId) {
-  return _seed.rutas.find((r) => r.id === rutaId) || null;
+function getRutas() {
+  return [..._seed.rutas, ..._estado.rutasExtra];
 }
 
-function getRutas() {
-  return _seed.rutas;
+function getRuta(rutaId) {
+  return getRutas().find((r) => r.id === rutaId) || null;
 }
 
 function getRutaDeIbp(ibpId) {
-  return _seed.rutas.find((r) => r.ibpId === ibpId) || null;
+  return getRutas().find((r) => r.ibpId === ibpId) || null;
+}
+
+// Alta de ruta por su número (el mismo del sistema de Bimbo, ej. "5532") con
+// su IBP. El id de la ruta ES el número, así los clientes importados con
+// rutaId = 5532 quedan asignados solos.
+function agregarRuta({ numero, ibpNombre, mslId }) {
+  const num = String(numero || "").trim();
+  if (!num) throw new Error("Falta el número de ruta.");
+  if (getRuta(num)) throw new Error(`La ruta ${num} ya existe.`);
+  const ibpId = "ibp-" + num;
+  _estado.usuariosExtra.push({ id: ibpId, nombre: (ibpNombre || "").trim() || `IBP ${num}`, rol: "IBP", rutaId: num });
+  _estado.rutasExtra.push({ id: num, numero: num, nombre: `Ruta ${num}`, ibpId, puntoPartida: null });
+  if (mslId) _estado.ibpsExtraDeMSL[mslId] = [...(_estado.ibpsExtraDeMSL[mslId] || []), ibpId];
+  _guardar();
+  return getRuta(num);
 }
 
 function getClientesDeRuta(rutaId) {
@@ -269,7 +289,10 @@ function getRutaDelDia(ibpId, dia) {
   const esHoyReal = diaConsultado === _diaDeHoy();
   const fechaDelDia = _fechaDeDiaEstaSemana(diaConsultado);
   const clientesDelDia = getClientesDeRuta(ruta.id).filter((c) => _tocaEnDia(c, diaConsultado));
-  const ordenados = ordenarPorVecinoMasCercano(ruta.puntoPartida, clientesDelDia);
+  // Sin punto de partida cargado, arranca desde la primera tienda del día.
+  const ordenados = clientesDelDia.length
+    ? ordenarPorVecinoMasCercano(ruta.puntoPartida || clientesDelDia[0], clientesDelDia)
+    : [];
 
   const paradas = ordenados.map((c, i) => {
     const visita = fechaDelDia ? _estado.visitas[_visitaKey(c.id, fechaDelDia)] : null;
@@ -919,6 +942,7 @@ window.BimboData = {
   getRuta,
   getRutas,
   getRutaDeIbp,
+  agregarRuta,
   getClientesDeRuta,
   agregarClienteAdmin,
   actualizarCliente,

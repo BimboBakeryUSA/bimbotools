@@ -31,6 +31,24 @@
     <div id="tabClientes">
       <div class="card">
         <div class="card-head">
+          <div>
+            <h2 class="card-title"><span data-icono="route"></span>Rutas</h2>
+            <p class="card-desc">Da de alta cada ruta con su número (el mismo de tu sistema) y su IBP.
+              Al importar clientes, la columna <code>rutaId</code> lleva ese número.</p>
+          </div>
+        </div>
+        <div id="listaRutas"></div>
+        <div class="fila-selects" style="margin-top:12px;">
+          <input type="text" id="fRutaNumero" placeholder="Número de ruta (ej. 5532)" />
+          <input type="text" id="fRutaIbp" placeholder="Nombre del IBP" />
+        </div>
+        <label class="field">MSL a cargo <select id="fRutaMsl"></select></label>
+        <button class="btn btn-primary" style="margin-top:10px;" id="btnRuta">Agregar ruta</button>
+        <div id="resRuta" style="margin-top:8px; font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
         <div>
           <h2 class="card-title"><span data-icono="plus"></span>Alta manual de cliente</h2>
           <p class="card-desc">Agrega un cliente a una ruta y define sus días de visita.</p>
@@ -298,10 +316,11 @@
       await BimboData.init();
 
       const selectRuta = document.getElementById("fRuta");
-      selectRuta.innerHTML = BimboData.getRutas().map((r) => `<option value="${r.id}">${r.nombre}</option>`).join("");
+      selectRuta.innerHTML = BimboData.getRutas().map((r) => `<option value="${r.id}">${nombreRuta(r)}</option>`).join("");
       if (!nuevoClienteDias.length) nuevoClienteDias = ["lunes"];
       renderDiasPillsFormulario();
 
+      renderRutas();
       renderResumen();
       renderListaClientes();
       renderFrescura();
@@ -488,6 +507,46 @@
 
     ["pvIbp", "pvSemana", "pvTipo"].forEach((id) => document.getElementById(id).addEventListener("change", renderPreview));
 
+    function nombreRuta(r) {
+      const ibp = BimboData.getUsuario(r.ibpId);
+      return ibp ? `${r.nombre} · ${ibp.nombre}` : r.nombre;
+    }
+
+    function renderRutas() {
+      const rutas = BimboData.getRutas();
+      document.getElementById("listaRutas").innerHTML = rutas
+        .map((r) => {
+          const ibp = BimboData.getUsuario(r.ibpId);
+          const n = BimboData.getClientesDeRuta(r.id).length;
+          return `<div class="sin-visita-item">
+            <div class="sin-visita-info"><strong>${r.nombre}</strong><span class="dir">IBP: ${ibp ? ibp.nombre : "sin asignar"}</span></div>
+            <span class="chip tono-${n ? "gris" : "amarillo"}">${n ? n + (n === 1 ? " tienda" : " tiendas") : "Sin tiendas cargadas"}</span>
+          </div>`;
+        })
+        .join("");
+      const sel = document.getElementById("fRutaMsl");
+      if (!sel.options.length) {
+        sel.innerHTML = `<option value="">Ninguno</option>` + BimboData.getUsuarios().filter((u) => u.rol === "MSL").map((u) => `<option value="${u.id}">${u.nombre}</option>`).join("");
+      }
+    }
+
+    document.getElementById("btnRuta").addEventListener("click", () => {
+      const out = document.getElementById("resRuta");
+      try {
+        const r = BimboData.agregarRuta({
+          numero: document.getElementById("fRutaNumero").value,
+          ibpNombre: document.getElementById("fRutaIbp").value,
+          mslId: document.getElementById("fRutaMsl").value,
+        });
+        out.innerHTML = `<span class="chip tono-verde">${r.nombre} creada</span>`;
+        document.getElementById("fRutaNumero").value = "";
+        document.getElementById("fRutaIbp").value = "";
+        render();
+      } catch (e) {
+        out.innerHTML = `<span class="chip tono-rojo">${e.message}</span>`;
+      }
+    });
+
     function renderResumen() {
       const clientes = BimboData.getClientes();
       const rutas = BimboData.getRutas();
@@ -548,7 +607,7 @@
 
                   <div class="fila-selects">
                     <select onchange="guardarCampo('${c.id}','rutaId',this.value)">
-                      ${rutas.map((r) => `<option value="${r.id}" ${r.id === c.rutaId ? "selected" : ""}>${r.nombre}</option>`).join("")}
+                      ${rutas.map((r) => `<option value="${r.id}" ${r.id === c.rutaId ? "selected" : ""}>${nombreRuta(r)}</option>`).join("")}
                     </select>
                     <select onchange="guardarCampo('${c.id}','formato',this.value)">
                       <option value="SF" ${c.formato !== "LF" ? "selected" : ""}>Small Format</option>

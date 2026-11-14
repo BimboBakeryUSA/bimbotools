@@ -13,12 +13,19 @@
       "rutaId": "ruta-sur"
     },
     {
+      "id": "ibp-5532",
+      "nombre": "Riveras",
+      "rol": "IBP",
+      "rutaId": "5532"
+    },
+    {
       "id": "msl-1",
       "nombre": "Alex Reyes",
       "rol": "MSL",
       "ibpsACargo": [
         "ibp-1",
-        "ibp-2"
+        "ibp-2",
+        "ibp-5532"
       ]
     }
   ],
@@ -40,6 +47,13 @@
         "lat": 32.7157,
         "lng": -96.849
       }
+    },
+    {
+      "id": "5532",
+      "numero": "5532",
+      "nombre": "Ruta 5532",
+      "ibpId": "ibp-5532",
+      "puntoPartida": null
     }
   ],
   "clientes": [
